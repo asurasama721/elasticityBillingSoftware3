@@ -1,3576 +1,1960 @@
-:root {
-    --primary-color: #3498db;
-    --secondary-color: #2980b9;
-    --text-color: #333;
-    --bg-color: #f9f9f9;
-    --border-color: #ddd;
-    --highlight-color: #f1c40f;
-    --total-bg: #ecf0f1;
-    --gst-tint: rgba(255, 255, 255, 0.1);
-}
-
-/* Ensure consistent box model */
-*,
-*::before,
-*::after {
-    box-sizing: border-box;
-}
-
-body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-    margin: 0;
-    padding: 20px;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    transition: all 0.3s ease;
-    overflow-x: hidden;
-}
-
-/* 
-body.gst-mode {
-  --primary-color: #27ae60;
-  --secondary-color: #219a52;
-  --gst-tint: rgba(39, 174, 96, 0.1);
-} */
-
-#tools {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
-}
-
-#tools button {
-    padding: 10px 15px;
-    border: none;
-    border-radius: 4px;
-    background-color: var(--primary-color);
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-body.gst-mode #tools button {
-    background-color: transparent;
-    color: var(--primary-color);
-    border: 2px solid var(--primary-color);
-    background-color: var(--gst-tint);
-}
-
-#tools button:hover {
-    background-color: var(--secondary-color);
-}
-
-body.gst-mode #tools button:hover {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-#tools button .material-icons {
-    font-size: 20px;
-    margin-right: 5px;
-}
-
-body.gst-mode #tools button .material-icons {
-    color: var(--primary-color);
-}
-
-body.gst-mode #tools button:hover .material-icons {
-    color: white;
-}
-
-#main-container {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-}
-
-#bill-container {
-    width: 100%;
-    max-width: 794px;
-    /* A4 width in pixels for screen display */
-    margin: 0 auto;
-    overflow: hidden;
-}
-
-#bill-container,
-#gst-bill-container,
-#manual-item-container {
-    background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-    flex: 1;
-    min-width: 300px;
-}
-
-/* GST Bill Specific Styles */
-
-#gst-bill-container {
-    width: 100%;
-    max-width: 794px;
-    /* A4 width in pixels for screen display */
-    margin: 0 auto;
-    background-color: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-}
-
-#gst-bill-container .company-details {
-    text-align: center;
-    margin-bottom: 15px;
-    border-bottom: 2px solid var(--border-color);
-}
-
-#gst-bill-container .customer-details {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 5px;
-    margin-bottom: 15px;
-    padding: 0px;
-    /* border: 1px solid var(--border-color); */
-    border-radius: 8px;
-    /* background-color: #f8f9fa; */
-    width: 100%;
-}
-
-#gst-bill-container .invoice-number-date {
-    grid-column: 1 / -1;
-    display: flex;
-    justify-content: space-between;
-    padding: 5px 10px;
-}
-
-#gst-bill-container #billTo,
-#gst-bill-container #shipTo {
-    padding: 0 10px;
-    /* border: 1px solid var(--border-color); */
-    border-radius: 6px;
-    background-color: white;
-    width: 100%;
-}
-
-#gst-bill-container #billTo h4,
-#gst-bill-container #shipTo h4 {
-    margin-top: 0;
-    color: var(--primary-color);
-    /* border-bottom: 1px solid var(--border-color); */
-    /* padding-bottom: 8px; */
-    margin-bottom: 5px;
-}
-
-/* Content inside Bill To and Ship To */
-#gst-bill-container #billToContent,
-#gst-bill-container #shipToContent {
-    font-size: 0.9em;
-    line-height: 1.4;
-}
-
-#gst-bill-container #billToContent p,
-#gst-bill-container #shipToContent p {
-    margin: 0px 0;
-    word-wrap: break-word;
-}
-
-#billToName,
-#shipToName {
-    font-size: 1em !important;
-    font-weight: bold !important;
-    margin-bottom: 8px;
-    color: var(--text-color);
-}
-
-@media (max-width: 768px) {
-    #gst-bill-container .customer-details {
-        /* grid-template-columns: 1fr; */
-        gap: 15px;
-    }
-
-    #gst-bill-container .invoice-number-date {
-        flex-direction: row;
-        gap: 10px;
-        text-align: center;
-    }
-
-    #gst-bill-container #billTo,
-    #gst-bill-container #shipTo {
-        min-height: auto;
-    }
-}
-
-
-#gst-bill-totals-table {
-    width: 100% !important;
-    max-width: 300px;
-    margin-left: auto;
-    margin-right: 0;
-    border-collapse: collapse;
-    background-color: var(--total-bg);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-#gst-bill-totals-table td {
-    padding: 5px 18px;
-    border-bottom: 1px solid var(--border-color);
-    text-align: left;
-}
-
-#gst-bill-totals-table td:last-child {
-    text-align: right;
-    font-weight: bold;
-}
-
-#gst-bill-totals-table tr:last-child td {
-    border-bottom: none;
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.tax-section {
-    margin: 20px 0;
-    /* border: 1px solid var(--border-color); */
-    border-radius: 6px;
-    overflow: hidden;
-
-}
-
-.tax-section table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.tax-section th,
-.tax-section td {
-    font-size: 0.85em;
-    padding: 0px;
-    border: 1px solid var(--border-color);
-    text-align: center;
-}
-
-.tax-section th {
-    background-color: var(--primary-color);
-    color: white;
-    font-weight: bold;
-}
-
-.tax-section th.align-center {
-    text-align: center;
-}
-
-.tax-section td.align-center {
-    text-align: center;
-}
-
-/* Bill Footer Styles */
-.bill-footer {
-    width: 100%;
-    margin-top: 10px;
-    border: 1px solid var(--border-color);
-    padding: 8px;
-}
-
-.bill-footer table {
-    width: 100%;
-    border-collapse: collapse;
-    margin: 0;
-    padding: 0;
-}
-
-.bill-footer td {
-    padding: 4px 6px;
-    vertical-align: top;
-    border: none;
-}
-
-/* Left column - align left */
-.bill-footer td:first-child {
-    text-align: left;
-    width: 55%;
-    border: 1px solid var(--border-color);
-}
-
-/* Right column - align center */
-.bill-footer td:last-child {
-    text-align: center;
-    width: 30%;
-}
-
-.bill-footer .bank-info {
-    font-size: 0.8em;
-    line-height: 1.2;
-    margin: 0;
-    padding: 0;
-    text-align: left;
-}
-
-.bill-footer .bank-info p {
-    margin: 2px 0;
-    padding: 0;
-    text-align: left;
-}
-
-.bill-footer .bank-info span {
-    margin-right: 10px;
-    display: inline-block;
-    text-align: left;
-}
-
-/* Bank info specific alignment */
-.bank-info,
-.bank-info p,
-.bank-info span,
-.bank-info strong {
-    text-align: left !important;
-}
-
-.bill-footer .align-center {
-    text-align: center;
-    padding-top: 8px;
-}
-
-/* Reduce spacing in declaration section */
-.bill-footer b {
-    margin: 0;
-    padding: 0;
-    text-align: left;
-    display: block;
-}
-
-.bill-footer small {
-    font-size: 0.75em;
-    line-height: 1.1;
-    display: block;
-    margin: 1px 0;
-    text-align: left;
-}
-
-/* Specific adjustments for GST bill footer */
-#gst-bill-container .bill-footer {
-    margin-top: 8px;
-    padding: 6px;
-    border: 1px solid var(--border-color);
-}
-
-#gst-bill-container .list-of-items {
-    width: 100%;
-}
-
-#gst-bill-container .bill-footer td,
-#regular-bill-footer td {
-    padding: 3px 5px;
-}
-
-#gstCopyListManual {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 20px;
-}
-
-
-/* Amount in words section */
-#bill-amount-words {
-    font-size: 0.85em;
-    line-height: 1.2;
-    margin: 2px 0;
-    padding: 0;
-    font-weight: 500;
-    text-align: left;
-}
-
-/* Company signatory */
-#bill-company-signatory,
-#reg-bill-company-signatory {
-    font-size: 0.85em;
-    margin: 0;
-    padding: 0;
-    text-align: center;
-}
-
-/* Remove extra spacing from paragraphs */
-.bill-footer p {
-    margin: 0;
-    padding: 0;
-    text-align: left;
-}
-
-/* Ensure all left column content is left-aligned */
-.bill-footer td:first-child p,
-.bill-footer td:first-child div,
-.bill-footer td:first-child span,
-.bill-footer td:first-child .bank-info {
-    text-align: left;
-}
-
-/* Ensure all right column content is center-aligned */
-.bill-footer td:last-child p,
-.bill-footer td:last-child div,
-.bill-footer td:last-child span {
-    text-align: center;
-}
-
-/* Force bank info alignment */
-#bill-account-holder,
-#bill-account-number,
-#bill-ifsc-code,
-#bill-branch,
-#bill-bank-name {
-    text-align: left;
-    display: inline;
-}
-
-.bank-info {
-    font-size: 0.9em;
-}
-
-.bank-info p {
-    margin: 5px 0;
-}
-
-.bank-info span {
-    margin-right: 15px;
-}
-
-.align-center {
-    text-align: center;
-}
-
-/* Regular Bill Styles */
-.company-details {
-    text-align: center;
-    margin-bottom: 40px;
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 10px;
-}
-
-.top-name {
-    font-size: 24px;
-    font-weight: bold;
-    margin-bottom: 5px;
-    color: var(--primary-color);
-}
-
-.contact {
-    margin: 5px 0;
-    color: var(--text-color);
-}
-
-.contact p {
-    font-size: 0.90em;
-    margin: 0;
-}
-
-.customer-details {
-    margin-bottom: 20px;
-}
-
-.customer-details table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.customer-details .label {
-    padding: 5px 0;
-    white-space: nowrap;
-}
-
-.customer-details input {
-    border: none;
-    border-bottom: 1px solid var(--border-color);
-    padding: 2px;
-    margin-left: 5px;
-    width: calc(100% - 70px);
-    max-width: 100%;
-    outline: none;
-    background: transparent;
-}
-
-.customer-details input:focus {
-    border-bottom-color: var(--primary-color);
-}
-
-.list-of-items table,
-#addedItemsManual table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 12px;
-}
-
-.list-of-items th,
-#addedItemsManual th {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 4px;
-    text-align: center;
-}
-
-.list-of-items td,
-#addedItemsManual td {
-    padding: 5px 0 5px 0;
-    border-bottom: 1px solid var(--border-color);
-    text-align: center;
-}
-
-.list-of-items thead th:nth-child(2),
-#addedItemsManual thead th:nth-child(2),
-.list-of-items tbody td:nth-child(2),
-#addedItemsManual tbody td:nth-child(2) {
-    text-align: left;
-}
-
-.list-of-items thead th:nth-child(3),
-#addedItemsManual thead th:nth-child(3),
-.list-of-items tbody td:nth-child(3),
-#addedItemsManual tbody td:nth-child(3) {
-    text-align: left;
-}
-
-.sizes {
-    color: gray;
-    margin: 0;
-    margin-bottom: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 1px;
-}
-
-.notes {
-    color: #666;
-    font-size: 0.8rem;
-    margin-top: 5px;
-    white-space: pre-wrap;
-}
-
-.itemNameClass {
-    font-weight: 600;
-    text-transform: capitalize;
-}
-
-.list-of-items tr:hover,
-#addedItemsManual tr:hover {
-    background-color: rgba(0, 0, 0, 0.02);
-    cursor: pointer;
-}
-
-.total-cell {
-    font-weight: bold;
-    background-color: var(--total-bg);
-    text-align: center;
-}
-
-.size-input {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-    align-items: center;
-}
-
-.size-input input,
-.size-input select {
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    flex: 1;
-    max-width: 100%;
-}
-
-#itemNotesManual {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    resize: vertical;
-    margin-bottom: 15px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-}
-
-.size-input button {
-    padding: 8px 15px;
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-}
-
-.size-input button:hover {
-    background-color: var(--secondary-color);
-}
-
-.remove-btn {
-    color: rgb(236, 73, 73);
-    border: none;
-    background-color: transparent;
-    padding: 5px 7px 2px 7px;
-    border-radius: 7px;
-    font-weight: 900;
-    vertical-align: middle;
-}
-
-.remove-btn:hover {
-    background-color: #cfcfcf50;
-}
-
-/* SIMPLE DRAG & DROP STYLES */
-.dragging {
-    opacity: 0.6;
-    background: rgba(52, 152, 219, 0.1) !important;
-}
-
-.drag-over {
-    border-top: 2px solid gray !important;
-    /* border-bottom: 2px solid var(--primary-color) !important; */
-}
-
-
-/* Modal Styles */
-.modal {
-    display: none;
-    position: fixed;
-    z-index: 1000;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-}
-
-.modal-content {
-    background-color: #fefefe;
-    margin: 5% auto;
-    padding: 0;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 500px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    border-bottom: 1px solid var(--border-color);
-    background-color: var(--primary-color);
-    color: white;
-    border-radius: 8px 8px 0 0;
-}
-
-.modal-header h3 {
-    margin: 0;
-    font-size: 1.3em;
-}
-
-.close {
-    color: white;
-    float: right;
-    font-size: 28px;
-    font-weight: bold;
-    cursor: pointer;
-    line-height: 1;
-}
-
-.close:hover {
-    opacity: 0.8;
-}
-
-.modal-body {
-    padding: 20px;
-}
-
-.tax-input-group {
-    display: flex;
-    align-items: center;
-    margin-bottom: 15px;
-    gap: 10px;
-}
-
-.tax-input-group label {
-    min-width: 150px;
-    font-weight: 500;
-}
-
-.tax-input-group input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.tax-input-group span {
-    min-width: 30px;
-    font-weight: 500;
-}
-
-.modal-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid var(--border-color);
-    background-color: #f9f9f9;
-    border-radius: 0 0 8px 8px;
-}
-
-.btn-cancel,
-.btn-apply {
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-}
-
-.btn-cancel {
-    background-color: #95a5a6;
-    color: white;
-}
-
-.btn-cancel:hover {
-    background-color: #7f8c8d;
-}
-
-.btn-apply {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.btn-apply:hover {
-    background-color: var(--secondary-color);
-}
-
-/* Styles for tax rows */
-#discount-row td,
-#gst-row td {
-    padding: 8px 0;
-    border-bottom: 1px solid var(--border-color);
-    font-weight: 600;
-}
-
-#discount-row {
-    color: #e74c3c;
-}
-
-#gst-row {
-    color: #27ae60;
-}
-
-#grand-total-row td {
-    font-weight: bold;
-    background-color: var(--total-bg);
-    border-top: 2px solid var(--border-color);
-    font-size: 1.1em;
-}
-
-/* Customer Details Modal Styles */
-.section-divider {
-    height: 1px;
-    background-color: var(--border-color);
-    margin: 20px 0;
-}
-
-.customer-type-selector {
-    margin-bottom: 20px;
-}
-
-.bill-to-section,
-.ship-to-section {
-    margin-bottom: 20px;
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    background-color: #f8f9fa;
-}
-
-.bill-to-section h4,
-.ship-to-section h4 {
-    margin-top: 0;
-    color: var(--primary-color);
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 8px;
-}
-
-.gst-input-group {
-    display: flex;
-    gap: 10px;
-}
-
-.gst-input-group select,
-.gst-input-group input {
-    flex: 1;
-}
-
-.customer-suggestions {
-    position: absolute;
-    /* <--- Changed from sticky */
-    top: 100%;
-    /* <--- Added: Puts it directly below input */
-    left: 0;
-    /* <--- Added: Aligns left */
-    background: white;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    max-height: 150px;
-    overflow-y: auto;
-    z-index: 1000;
-    width: 100%;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-top: 2px;
-    /* <--- Added: Tiny gap for visuals */
-}
-
-.customer-suggestion-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.customer-suggestion-item:hover {
-    background-color: var(--gst-tint);
-}
-
-.customer-suggestion-item:last-child {
-    border-bottom: none;
-}
-
-/* item suggestioon */
-.size-input {
-    position: relative;
-}
-
-.item-suggestions {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: white;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    max-height: 150px;
-    overflow-y: auto;
-    z-index: 1000;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    margin-top: 2px;
-}
-
-.item-suggestion-item {
-    padding: 8px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.item-suggestion-item:hover {
-    background-color: var(--gst-tint);
-}
-
-.item-suggestion-item:last-child {
-    border-bottom: none;
-}
-
-/* Settings Sidebar Styles */
-#settings-sidebar {
-    position: fixed;
-    top: 0;
-    right: -350px;
-    width: 300px;
-    height: 100%;
-    background-color: white;
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
-    transition: right 0.3s ease;
-    z-index: 1001;
-    padding: 20px;
-    overflow-y: auto;
-    display: block;
-}
-
-#settings-sidebar.open {
-    right: 0;
-}
-
-#settings-sidebar h2 {
-    margin-top: 0;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.settings-content {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin-top: 20px;
-}
-
-.settings-btn {
-    padding: 12px 15px;
-    border: none;
-    border-radius: 4px;
-    background-color: var(--primary-color);
-    color: white;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    width: 100%;
-    text-align: left;
-}
-
-body.gst-mode .settings-btn {
-    background-color: transparent;
-    color: var(--primary-color);
-    border: 2px solid var(--primary-color);
-    background-color: var(--gst-tint);
-}
-
-body.gst-mode .settings-btn:hover {
-    background-color: var(--primary-color);
-    color: white;
-}
-
-.settings-btn:hover {
-    background-color: var(--secondary-color);
-}
-
-.settings-btn .material-icons {
-    font-size: 20px;
-    margin-right: 10px;
-}
-
-body.gst-mode .settings-btn .material-icons {
-    color: var(--primary-color);
-}
-
-body.gst-mode .settings-btn:hover .material-icons {
-    color: white;
-}
-
-.settings-close-btn {
-    background: none;
-    border: none;
-    font-size: 24px;
-    font-weight: bold;
-    cursor: pointer;
-    color: var(--text-color);
-}
-
-#settings-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    display: none;
-}
-
-#settings-overlay.open {
-    display: block;
-}
-
-/* New Styles for Enhanced Features */
-.search-add-bar {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.search-add-bar input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.items-list {
-    height: 60vh;
-    max-height: 75vh;
-    overflow-y: auto;
-}
-
-.item-card,
-.customer-card {
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    background-color: white;
-}
-
-.item-header,
-.customer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.item-name,
-.customer-name {
-    font-weight: bold;
-    font-size: 1.1em;
-}
-
-.item-details,
-.customer-details-text {
-    color: #666;
-    font-size: 0.9em;
-    margin-bottom: 10px;
-}
-
-.item-actions,
-.customer-actions {
-    display: flex;
-    gap: 10px;
-}
-
-.btn-edit {
-    background-color: #f39c12;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.btn-delete {
-    background-color: #e74c3c;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.btn-edit:hover {
-    background-color: #e67e22;
-}
-
-.btn-delete:hover {
-    background-color: #c0392b;
-}
-
-.form-group {
-    margin-bottom: 15px;
-    position: relative;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-}
-
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid var(--border-color);
-}
-
-.form-group input[type="checkbox"] {
-    width: auto;
-    margin-right: 8px;
-}
-
-/* Saved Bills Styles */
-.saved-bill-card {
-    padding: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    background-color: white;
-    cursor: pointer;
-}
-
-.saved-bill-card:hover {
-    background-color: var(--bg-color);
-}
-
-.saved-bill-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-}
-
-.saved-bill-title {
-    font-weight: bold;
-    font-size: 1.1em;
-}
-
-.saved-bill-details {
-    color: #666;
-    font-size: 0.9em;
-    margin-bottom: 5px;
-}
-
-.saved-bill-total {
-    color: var(--primary-color);
-    font-weight: bold;
-}
-
-/* Dimensions Styles */
-.dimensions {
-    font-size: 0.8em;
-    color: #666;
-    margin: 5px 0;
-    font-weight: 500;
-}
-
-/* Updated Add Item Modal Styles */
-#add-item-modal .modal-content {
-    width: 95%;
-    height: 80vh;
-    max-height: 80vh;
-    /* max-width: 600px;
-    max-height: 500px; */
-    display: flex;
-    flex-direction: column;
-}
-
-#add-item-modal .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-    /* max-height: calc(500px - 120px); */
-}
-
-#add-item-modal .form-group {
-    margin-bottom: 15px;
-}
-
-#add-item-modal .form-group label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: var(--text-color);
-}
-
-#add-item-modal .form-group input,
-#add-item-modal .form-group select,
-#add-item-modal .form-group textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 14px;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: white;
-    transition: border-color 0.2s;
-}
-
-#add-item-modal .form-group input:focus,
-#add-item-modal .form-group select:focus,
-#add-item-modal .form-group textarea:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
-}
-
-#add-item-modal .form-group textarea {
-    resize: vertical;
-    min-height: 60px;
-}
-
-#add-item-modal .form-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    margin-top: 20px;
-    padding: 15px 20px;
-    border-top: 1px solid var(--border-color);
-    background-color: #f9f9f9;
-    position: sticky;
-    bottom: 0;
-}
-
-/* Scrollbar styling for the modal body */
-#add-item-modal .modal-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-#add-item-modal .modal-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-}
-
-#add-item-modal .modal-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
-}
-
-#add-item-modal .modal-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-
-/* Ensure the modal header stays fixed */
-#add-item-modal .modal-header {
-    position: sticky;
-    top: 0;
-    background-color: var(--primary-color);
-    z-index: 10;
-    border-radius: 8px 8px 0 0;
-}
-
-/* Responsive design for mobile */
-@media (max-width: 768px) {
-    #main-container {
-        flex-direction: column;
-    }
-
-    .customer-details input {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    #manual-item-container .size-input {
-        align-items: stretch;
-    }
-
-    #addItemScan {
-        width: 30px;
-    }
-
-    #manual-item-container .size-input input,
-    #manual-item-container .size-input select,
-    #manual-item-container .size-input button {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    #manual-item-container .size-input #addItemScan {
-        width: 45px;
-        margin-left: 0;
-    }
-
-    .customer-details input {
-        width: 100%;
-        margin-left: 0;
-    }
-
-    .modal-content {
-        width: 95%;
-        margin: 10% auto;
-    }
-
-    .tax-input-group {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .tax-input-group label {
-        min-width: auto;
-        margin-bottom: 5px;
-    }
-
-    #gst-bill-container .customer-details {
-        /* grid-template-columns: 1fr; */
-        gap: 5px;
-    }
-
-    #gst-bill-container .invoice-number-date {
-        flex-direction: row;
-        gap: 10px;
-    }
-
-    .tax-section {
-        width: 100%;
-        margin: 20px 0;
-        overflow-x: auto;
-    }
-
-    .tax-section table {
-        min-width: 600px;
-    }
-
-    @media (max-width: 820px) {
-        #gst-bill-container {
-            max-width: 100%;
-            padding: 15px;
-            margin: 0 10px;
-        }
-
-        /* #gst-bill-totals-table {
-            max-width: 100%;
-            margin: 20px auto;
-        } */
-    }
-
-    @media (max-width: 768px) {
-
-        /* html {
-            zoom: 0.76;
-        } */
-        #gst-bill-container {
-            padding: 10px;
-            margin: 0 5px;
-        }
-
-        /* #gst-bill-totals-table {
-            max-width: 100%;
-        } */
-
-        /* #gst-bill-totals-table td {
-            padding: 8px 12px;
-        } */
-    }
-
-    #tools button {
-        padding: 10px;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-    }
-
-    #tools button .material-icons {
-        margin-right: 0;
-        font-size: 20px;
-        line-height: 1;
-    }
-
-    #tools button:not(.material-icons) {
-        font-size: 0;
-        line-height: 0;
-    }
-
-    #history-sidebar {
-        width: 80%;
-        right: -90%;
-    }
-
-    /* #settings-sidebar {
-      width: 80%;
-      right: -90%;
-  } */
-
-    .search-add-bar {
-        flex-direction: column;
-    }
-
-    .item-actions,
-    .customer-actions {
-        flex-direction: column;
-    }
-
-    #add-item-modal .modal-content {
-        width: 95%;
-        max-height: 80vh;
-    }
-
-    #add-item-modal .modal-body {
-        max-height: calc(80vh - 120px);
-    }
-
-    #add-item-modal .form-actions {
-        flex-direction: row;
-    }
-
-    /* #add-item-modal .form-actions button {
-        width: 100%;
-    } */
-}
-
-.history-item-total {
-    font-size: 0.8em;
-    color: #27ae60;
-    font-weight: bold;
-    margin-top: 5px;
-}
-
-/* Add this to ensure GSTIN is visible in GST mode */
-/* body.gst-mode #companyGstin {
-    display: block ;
-} */
-
-/* body:not(.gst-mode) #companyGstin {
-    display: none !important;
-} */
-
-/* Center align tax section */
-.tax-section th.align-center,
-.tax-section td.align-center {
-    text-align: center !important;
-}
-
-.tax-section th,
-.tax-section td {
-    text-align: center;
-}
-
-/* Larger modal with scrolling */
-#customer-details-modal .modal-content {
-    max-height: 80vh;
-    max-width: 700px;
-    display: flex;
-    flex-direction: column;
-}
-
-#customer-details-modal .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    max-height: calc(80vh - 120px);
-    padding: 20px;
-}
-
-@media (max-width: 768px) {
-    #customer-details-modal .modal-content {
-        width: 95%;
-        max-height: 90vh;
-    }
-
-    #customer-details-modal .modal-body {
-        max-height: calc(90vh - 120px);
-    }
-
-    #customer-details-modal .gst-input-group {
-        flex-direction: column;
-    }
-
-    #customer-details-modal .gst-input-group select,
-    #customer-details-modal .gst-input-group input {
-        width: 100%;
-    }
-}
-
-/* Fix Company Details Modal Height and Scrolling */
-#company-info-modal .modal-content {
-    max-height: 500px;
-    display: flex;
-    flex-direction: column;
-}
-
-#company-info-modal .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    max-height: calc(500px - 120px);
-    /* Subtract header and footer height */
-    padding: 20px;
-}
-
-/* Scrollbar styling for company details modal */
-#company-info-modal .modal-body::-webkit-scrollbar {
-    width: 6px;
-}
-
-#company-info-modal .modal-body::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 3px;
-}
-
-#company-info-modal .modal-body::-webkit-scrollbar-thumb {
-    background: #c1c1c1;
-    border-radius: 3px;
-}
-
-#company-info-modal .modal-body::-webkit-scrollbar-thumb:hover {
-    background: #a8a8a8;
-}
-
-/* Ensure the modal header stays fixed */
-#company-info-modal .modal-header {
-    position: sticky;
-    top: 0;
-    background-color: var(--primary-color);
-    z-index: 10;
-    border-radius: 8px 8px 0 0;
-}
-
-/* Ensure the modal footer stays fixed */
-#company-info-modal .modal-footer {
-    position: sticky;
-    bottom: 0;
-    background-color: #f9f9f9;
-    z-index: 10;
-    border-radius: 0 0 8px 8px;
-}
-
-/* Adjust section spacing for better scrolling */
-#company-info-modal .section-divider {
-    margin: 15px 0;
-}
-
-#company-info-modal .form-group {
-    margin-bottom: 12px;
-}
-
-/* Larger modal with scrolling alternative */
-#company-info-modal .modal-content {
-    max-height: 80vh;
-    max-width: 600px;
-    display: flex;
-    flex-direction: column;
-}
-
-#company-info-modal .modal-body {
-    flex: 1;
-    overflow-y: auto;
-    max-height: calc(80vh - 120px);
-    padding: 20px;
-}
-
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-    #company-info-modal .modal-content {
-        width: 95%;
-        max-height: 90vh;
-    }
-
-    #company-info-modal .modal-body {
-        max-height: calc(90vh - 120px);
-    }
-}
-
-/* Toggle Switch Styles */
-.toggle-switch {
-    position: relative;
-    display: inline-block;
-    width: 50px;
-    height: 24px;
-}
-
-.toggle-switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.toggle-slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background-color: #ccc;
-    transition: .4s;
-    border-radius: 24px;
-}
-
-.toggle-slider:before {
-    position: absolute;
-    content: "";
-    height: 16px;
-    width: 16px;
-    left: 4px;
-    bottom: 4px;
-    background-color: white;
-    transition: .4s;
-    border-radius: 50%;
-}
-
-input:checked+.toggle-slider {
-    background-color: var(--primary-color);
-}
-
-input:checked+.toggle-slider:before {
-    transform: translateX(26px);
-}
-
-.mode-toggle {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    margin: 15px 0;
-    font-weight: 500;
-}
-
-.section-row {
-    background-color: #ffe8b5 !important;
-    font-weight: bold;
-    font-size: 14px;
-    cursor: pointer;
-}
-
-.section-row td {
-    text-align: left;
-}
-
-/* In style.css, add these styles */
-.section-total-row td {
-    background-color: #f8f8f8;
-    /* Very light variant of the section color */
-    /* border-top: 1px dashed #aaa !important;
-    border-bottom: 2px solid #ddd !important; */
-    color: #333;
-}
-
-.collapse-btn {
-    color: #000;
-    background: inherit;
-    border: none;
-    padding: 3px 8px;
-    cursor: pointer;
-    font-size: 1em;
-    margin-left: 10px;
-    border-radius: 3px;
-
-}
-
-.hidden-row {
-    display: none;
-}
-
-/* Toggle button styles */
-#toggleDiscountBtn,
-#toggleDimensionBtn {
-    background-color: #95a5a6;
-    color: white;
-    border: none;
-    padding: 8px 15px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: background-color 0.2s;
-}
-
-#toggleDiscountBtn:hover,
-#toggleDimensionBtn:hover {
-    background-color: #7f8c8d;
-}
-
-#toggleDiscountBtn.active,
-#toggleDimensionBtn.active {
-    background-color: var(--primary-color);
-}
-
-/* Actions Column Styles */
-.actions-cell {
-    text-align: center;
-    padding: 5px !important;
-}
-
-.action-buttons {
-    display: flex;
-    gap: 5px;
-    justify-content: center;
-    align-items: center;
-}
-
-.action-btn {
-    background: none;
-    border: none;
-    padding: 4px;
-    border-radius: 3px;
-    cursor: pointer;
-    color: #666;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.action-btn:hover {
-    background-color: #f0f0f0;
-    color: #333;
-}
-
-.copy-btn:hover {
-    color: #27ae60;
-}
-
-.dimensions-btn:hover {
-    color: #3498db;
-}
-
-.remove-btn:hover {
-    color: #e74c3c;
-}
-
-.action-btn .material-icons {
-    font-size: 16px;
-}
-
-.discount-info {
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 10px;
-    padding: 8px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    border-left: 3px solid var(--primary-color);
-}
-
-.tax-info {
-    font-size: 0.9em;
-    color: #666;
-    margin-top: 10px;
-    padding: 8px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    border-left: 3px solid #27ae60;
-}
-
-.tax-info p {
-    margin: 5px 0;
-}
-
-/* Column Dialog Styles */
-.dialog-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-}
-
-.dialog-content {
-    background: white;
-    padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    min-width: 300px;
-}
-
-.checkbox-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 15px 0;
-}
-
-.checkbox-group label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-}
-
-.dialog-buttons {
-    display: flex;
-    gap: 10px;
-    justify-content: flex-end;
-}
-
-.dialog-buttons button {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.dialog-buttons button:first-child {
-    background: #007bff;
-    color: white;
-}
-
-/* PDF Page Break Improvements */
-/* Enhanced PDF Page Break Improvements */
-@media print {
-
-    /* Allow natural flow of content */
-    body {
-        page-break-inside: auto;
-    }
-
-    /* Allow tables to break naturally across pages */
-    table {
-        page-break-inside: auto;
-    }
-
-    /* Keep table rows together (don't split a row between pages) */
-    tr {
-        page-break-inside: avoid;
-        page-break-after: auto;
-    }
-
-    /* Keep table cells together */
-    td,
-    th {
-        page-break-inside: avoid;
-    }
-
-    /* Ensure table headers repeat on each page */
-    /* thead {
-        display: table-header-group;
-    } */
-
-    /* Keep these critical sections together if possible */
-    .avoid-break {
-        page-break-inside: avoid;
-    }
-
-    /* Allow list of items to break naturally */
-    .list-of-items {
-        page-break-inside: auto;
-    }
-}
-
-/* PDF-specific styles for html2pdf */
-.pdf-container {
-    page-break-inside: auto;
-}
-
-/* Ensure no forced breaks in main containers */
-#bill-container,
-#gst-bill-container {
-    page-break-before: auto;
-    page-break-after: auto;
-    page-break-inside: auto;
-}
-
-/* Additional print-specific styles */
-@media print {
-    body {
-        margin: 0;
-        padding: 0;
-        background: white !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-
-    #bill-container,
-    #gst-bill-container {
-        box-shadow: none;
-        margin: 0;
-        padding: 0;
-        width: 100%;
-    }
-
-    /* Hide unnecessary elements in print */
-    #tools,
-    #settings-sidebar,
-    #settings-overlay,
-    #manual-item-container,
-    .modal {
-        display: none !important;
-    }
-
-    /* Ensure proper scaling */
-    html,
-    body {
-        width: 210mm;
-        height: 297mm;
-    }
-}
-
-/* Payment & Credit Note Dialog Styles */
-.payment-dialog,
-.ledger-dialog {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-}
-
-.payment-dialog.active,
-.ledger-dialog.active {
-    display: flex;
-}
-
-.payment-dialog-content,
-.ledger-dialog-content {
-    background: white;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 800px;
-    max-height: 90vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.payment-dialog-header,
-.ledger-dialog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background: var(--primary-color);
-    color: white;
-}
-
-.payment-dialog-body,
-.ledger-dialog-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-/* Payment Type Toggle */
-.payment-type-toggle {
-    display: flex;
-    margin-bottom: 20px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.toggle-btn {
-    flex: 1;
-    padding: 10px;
-    border: none;
-    background: #f8f9fa;
-    cursor: pointer;
-    transition: background-color 0.2s;
-}
-
-.toggle-btn.active {
-    background: var(--primary-color);
-    color: white;
-}
-
-/* Payment Controls */
-.payment-controls {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 20px;
-    align-items: center;
-}
-
-.payment-search {
-    flex: 1;
-}
-
-.payment-search input {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.payment-filters {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.filter-btn {
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    background: white;
-    border-radius: 4px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-
-.filter-select {
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: white;
-}
-
-/* Add Payment Form */
-.add-payment-form {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-}
-
-.add-payment-form h4 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: var(--primary-color);
-}
-
-.add-payment-form .form-group {
-    margin-bottom: 15px;
-}
-
-.add-payment-form label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-}
-
-.add-payment-form input,
-.add-payment-form select,
-.add-payment-form textarea {
-    width: 100%;
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.add-payment-form textarea {
-    resize: vertical;
-    min-height: 60px;
-}
-
-/* Payments Table */
-.payments-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-.payments-table th,
-.payments-table td {
-    padding: 10px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.payments-table th {
-    background: var(--primary-color);
-    color: white;
-    font-weight: 600;
-}
-
-.payment-actions {
-    display: flex;
-    gap: 5px;
-}
-
-.edit-payment-btn,
-.delete-payment-btn {
-    padding: 5px 10px;
-    border: none;
-    border-radius: 3px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    font-size: 0.8em;
-}
-
-.edit-payment-btn {
-    background: #f39c12;
-    color: white;
-}
-
-.delete-payment-btn {
-    background: #e74c3c;
-    color: white;
-}
-
-/* Ledger Styles */
-.ledger-controls {
-    margin-bottom: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-}
-
-.date-range {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-}
-
-.date-inputs {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.date-inputs input {
-    padding: 8px 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-}
-
-.customer-summary {
-    background: #e8f4fd;
-    padding: 20px;
-    border-radius: 6px;
-    margin-bottom: 20px;
-    border-left: 4px solid var(--primary-color);
-}
-
-.customer-summary h4 {
-    margin-top: 0;
-    color: var(--primary-color);
-}
-
-.summary-content {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 10px;
-}
-
-.summary-item {
-    font-size: 0.9em;
-}
-
-.summary-item strong {
-    color: #2c3e50;
-}
-
-.ledger-section {
-    margin-bottom: 30px;
-}
-
-.ledger-section h4 {
-    margin-bottom: 10px;
-    color: var(--primary-color);
-    border-bottom: 2px solid var(--border-color);
-    padding-bottom: 5px;
-}
-
-.ledger-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.ledger-table th,
-.ledger-table td {
-    padding: 10px;
-    text-align: left;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.ledger-table th {
-    background: var(--primary-color);
-    color: white;
-    font-weight: 600;
-}
-
-.total-row {
-    background: var(--total-bg);
-    font-weight: bold;
-}
-
-.total-row td {
-    border-top: 2px solid var(--border-color);
-}
-
-/* Action buttons in customer cards */
-.btn-payment,
-.btn-ledger {
-    background: #27ae60;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8em;
-}
-
-.btn-ledger {
-    background: #3498db;
-}
-
-.btn-payment:hover {
-    background: #219a52;
-}
-
-.btn-ledger:hover {
-    background: #2980b9;
-}
-
-.somespace {
-    margin: 20px 0 10px 0;
-}
-
-/* Close buttons */
-.close-payment-dialog,
-.close-ledger-dialog {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 0;
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-/* Purchase Price Dialog Styles */
-.purchase-price-dialog {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-}
-
-.purchase-price-dialog.active {
-    display: flex;
-}
-
-.purchase-price-dialog-content {
-    background: white;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 600px;
-    max-height: 80vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-}
-
-.purchase-price-dialog-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px;
-    background: var(--primary-color);
-    color: white;
-}
-
-.purchase-price-dialog-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-.purchase-price-dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid var(--border-color);
-    background: #f9f9f9;
-}
-
-.purchase-price-items-list {
-    margin-top: 15px;
-}
-
-.purchase-price-item {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 12px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    margin-bottom: 10px;
-    background: #f8f9fa;
-}
-
-.purchase-price-item-name {
-    flex: 1;
-    font-weight: 500;
-}
-
-.purchase-price-input-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.purchase-price-input-group label {
-    font-size: 0.9em;
-    color: #666;
-}
-
-.purchase-price-input {
-    width: 120px;
-    padding: 6px 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    text-align: right;
-}
-
-.current-rate {
-    font-size: 0.8em;
-    color: #666;
-    background: #e9ecef;
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-/* Profit Calculation Styles */
-.profit-rate-display {
-    text-align: center;
-    line-height: 1.2;
-}
-
-.original-rate {
-    font-size: 0.9em;
-    color: #666;
-    text-decoration: line-through;
-}
-
-.profit-rate {
-    font-size: 1em;
-    font-weight: bold;
-    color: #27ae60;
-}
-
-.purchase-rate {
-    font-size: 0.8em;
-    color: #e74c3c;
-}
-
-.profit-amount-display {
-    text-align: center;
-    line-height: 1.2;
-}
-
-.profit-amount {
-    font-size: 1em;
-    font-weight: bold;
-    color: #27ae60;
-}
-
-.profit-label {
-    font-size: 0.8em;
-    color: #666;
-}
-
-.profit-total-display {
-    text-align: center;
-    line-height: 1.3;
-}
-
-.total-profit {
-    font-size: 1.2em;
-    font-weight: bold;
-    color: #27ae60;
-}
-
-.profit-total-label {
-    font-size: 0.9em;
-    color: #666;
-}
-
-.profit-discount {
-    font-size: 0.8em;
-    color: #e67e22;
-    font-style: italic;
-}
-
-/* Profit button active state */
-.settings-btn[style*="background-color: #27ae60"] {
-    color: white;
-}
-
-.settings-btn[style*="background-color: #27ae60"] .material-icons {
-    color: white;
-}
-
-.btn-clear {
-    background-color: #e67e22;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    margin-right: auto;
-}
-
-.btn-clear:hover {
-    background-color: #d35400;
-}
-
-/* Notification System */
-.notification-container {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 10000;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.notification {
-    padding: 12px 20px;
-    border-radius: 4px;
-    color: white;
-    font-weight: 500;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    animation: slideIn 0.3s ease;
-    max-width: 300px;
-}
-
-.notification.success {
-    background-color: #27ae60;
-    border-left: 4px solid #219a52;
-}
-
-.notification.error {
-    background-color: #e74c3c;
-    border-left: 4px solid #c0392b;
-}
-
-.notification.warning {
-    background-color: #f39c12;
-    border-left: 4px solid #e67e22;
-}
-
-.notification.info {
-    background-color: #3498db;
-    border-left: 4px solid #2980b9;
-}
-
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-.notification.fade-out {
-    animation: slideOut 0.3s ease forwards;
-}
-
-@keyframes slideOut {
-    from {
-        transform: translateX(0);
-        opacity: 1;
-    }
-
-    to {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-}
-
-/* Custom Confirm Dialog */
-.confirm-dialog {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 2000;
-    align-items: center;
-    justify-content: center;
-}
-
-.confirm-dialog.active {
-    display: flex;
-}
-
-.confirm-dialog-content {
-    background: white;
-    border-radius: 8px;
-    width: 90%;
-    max-width: 400px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-}
-
-.confirm-dialog-header {
-    padding: 20px;
-    background: var(--primary-color);
-    color: white;
-    border-radius: 8px 8px 0 0;
-}
-
-.confirm-dialog-header h3 {
-    margin: 0;
-    font-size: 1.3em;
-}
-
-.confirm-dialog-body {
-    padding: 20px;
-}
-
-.confirm-dialog-footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 15px 20px;
-    border-top: 1px solid var(--border-color);
-    background: #f9f9f9;
-    border-radius: 0 0 8px 8px;
-}
-
-/* Terms List Styles */
-.terms-controls {
-    display: flex;
-    gap: 10px;
-}
-
-.terms-controls select {
-    flex: 1;
-}
-
-.terms-item {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 8px;
-    align-items: center;
-}
-
-.terms-item input {
-    flex: 1;
-}
-
-.remove-terms-item {
-    background: #e74c3c;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 6px 10px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-}
-
-.remove-terms-item:hover {
-    background: #c0392b;
-}
-
-.btn-add-item {
-    background: #27ae60;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 8px 15px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    margin-top: 10px;
-}
-
-.btn-add-item:hover {
-    background: #219a52;
-}
-
-.terms-preview-section {
-    margin-top: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-}
-
-.terms-preview {
-    min-height: 100px;
-    padding: 10px;
-    background: white;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-}
-
-.bill-footer-list {
-    margin-top: 20px;
-    padding: 15px;
-    background: #f8f9fa;
-    border-radius: 6px;
-    border: 1px solid var(--border-color);
-}
-
-.bill-footer-list h4 {
-    margin-top: 0;
-    color: var(--primary-color);
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 8px;
-}
-
-.bill-footer-list ul,
-.bill-footer-list ol {
-    margin: 10px 0;
-    padding-left: 20px;
-}
-
-.bill-footer-list li {
-    margin-bottom: 5px;
-    line-height: 1.4;
-}
-
-/* Hide button in GST mode */
-body.gst-mode #addTermsListSectionBtn {
-    display: none !important;
-}
-
-/* Add to CSS */
-.form-row {
-    display: flex;
-    gap: 15px;
-    align-items: flex-end;
-}
-
-.form-row .form-group {
-    flex: 1;
-    margin-bottom: 15px;
-}
-
-.form-row input {
-    width: 100%;
-}
-
-/* Custom padding inputs styling */
-#custom-padding-group .form-row {
-    gap: 8px;
-}
-
-#custom-padding-group input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-/* Dimension Toggle System */
-.dimension-input-with-toggle {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.dimension-toggle {
-    width: 16px;
-    height: 16px;
-    cursor: pointer;
-}
-
-.dimension-inputs-group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-/* Update existing dimension inputs to work with toggle system */
-#dimensionInputs {
-    flex-direction: row;
-    align-items: stretch;
-}
-
-#dimensionInputs .dimension-input-with-toggle {
-    flex: 1;
-}
-
-#dimensionInputs input[type="number"] {
-    flex: 1;
-}
-
-/* Red dimension labels for unchecked dimensions */
-/* Red dimension labels for unchecked dimensions - More specific selectors */
-.dimensions span[style*="color: red"],
-.dimensions span[style*="red"],
-.dimensions [style*="color: red"],
-.itemNameClass+.dimensions [style*="color: red"] {
-    color: #e74c3c !important;
-    font-weight: bold;
-    opacity: 0.8;
-}
-
-/* Ensure red color overrides any other styles */
-tr[data-id] .dimensions span[style*="color: red"] {
-    color: #e74c3c !important;
-}
-
-/* 
- */
-
-.saved-bill-actions {
-    display: flex;
-    gap: 8px;
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #eee;
-}
-
-.btn-edit,
-.btn-delete {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.btn-edit {
-    background: #3498db;
-    color: white;
-}
-
-.btn-delete {
-    background: #e74c3c;
-    color: white;
-}
-
-.btn-edit:hover {
-    background: #2980b9;
-}
-
-.btn-delete:hover {
-    background: #c0392b;
-}
-
-.period-selector {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 20px;
-}
-
-.period-inputs {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-#period-select {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    background: white;
-}
-
-#from-date-input {
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-}
-
-#batch-invoice-input {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-family: monospace;
-    resize: vertical;
-}
-
-/* new ledger styles */
-.unified-ledger-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 14px;
-}
-
-.unified-ledger-table th,
-.unified-ledger-table td {
-    border: 1px solid #999;
-    padding: 8px;
-    vertical-align: top;
-    text-align: center;
-}
-
-.unified-ledger-table th {
-    background: var(--primary-color);
-    text-align: center;
-    color: white;
-}
-
-.unified-ledger-table .bold {
-    font-weight: bold;
-}
-
-.unified-ledger-table .right {
-    text-align: right;
-}
-
-.unified-ledger-table .highlight {
-    background: #e8ffd8;
-    font-weight: bold;
-}
-
-#custom-method-container {
-    margin-top: 5px;
-}
-
-#custom-payment-method {
-    width: 100%;
-    padding: 5px;
-    border: 1px solid #ddd;
-    border-radius: 3px;
-}
-
-/* Restored Bills specific styles */
-.btn-download,
-.btn-load,
-.btn-save {
-    background: #3498db;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.btn-download:hover {
-    background: #2980b9;
-}
-
-.btn-load {
-    background: #27ae60;
-}
-
-.btn-load:hover {
-    background: #219a52;
-}
-
-.btn-save {
-    background: #f39c12;
-}
-
-.btn-save:hover {
-    background: #e67e22;
-}
-
-/* Restored bill card specific */
-.saved-bill-card .saved-bill-details div:last-child {
-    color: #e74c3c;
-    font-weight: bold;
-}
-
-/* Primary Button Styles */
-.btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border: none;
-    padding: 10px 16px;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 14px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-    text-decoration: none;
-}
-
-.btn-primary:hover {
-    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-}
-
-.btn-primary:active {
-    transform: translateY(0);
-    box-shadow: 0 2px 4px rgba(102, 126, 234, 0.3);
-}
-
-.btn-primary .material-icons {
-    font-size: 18px;
-}
-
-/* Alternative simpler primary button */
-.btn-primary.simple {
-    background: #3498db;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: background 0.3s ease;
-}
-
-.btn-primary.simple:hover {
-    background: #2980b9;
-}
-
-/* For the search-add-bar specifically */
-.search-add-bar .btn-primary {
-    margin-left: auto;
-    white-space: nowrap;
-}
-
-/* If you want it to match your existing button styles */
-.search-add-bar .btn-primary {
-    background: #27ae60;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: background 0.3s ease;
-}
-
-.search-add-bar .btn-primary:hover {
-    background: #219a52;
-}
-
-/*
-terms modal 
- */
-.terms-list-modal .modal-body {
-    max-height: 70vh !important;
-    overflow-y: auto !important;
-}
-
-/* Add Stock Button Style */
-.btn-add-stock {
-    background-color: #2ecc71;
-    color: white;
-    border: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-.btn-add-stock:hover {
-    background-color: #27ae60;
-}
-
-/* Stock Modal Input Layout */
-.stock-input-group {
-    display: flex;
-    gap: 10px;
-}
-
-.stock-input-group input {
-    flex: 1;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 16px;
-}
-
-.stock-input-group button {
-    padding: 0 20px;
-    white-space: nowrap;
-}
-
-#regular-bill-heading,
-#gst-bill-heading {
-    font-size: 1.3em;
-    font-weight: 600;
-    letter-spacing: 1px;
-    color: var(--text-color);
-    margin: 0 0 10px 0;
-    text-align: center;
-    text-transform: uppercase;
-}
-
-/* Branding Styles */
-.company-details {
-    margin-top: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 20px;
-    width: 100%;
-}
-
-/* Container for the text part of header so it stays grouped */
-.company-text {
-    flex: 1;
-    text-align: center;
-}
-
-.bill-logo {
-    max-height: 100px;
-    max-width: 150px;
-    object-fit: contain;
-}
-
-/* Footer Sign/Stamp Container */
-/* Stamp Cell Styling */
-#stamp-cell {
-    text-align: center;
-    vertical-align: middle !important;
-    /* Center stamp vertically */
-}
-
-.bill-stamp {
-    max-height: 80px;
-    max-width: 100%;
-    opacity: 0.8;
-    display: block;
-    margin: 0 auto;
-}
-
-/* Signature Cell Styling */
-/* Footer Image Styles */
-.bill-stamp {
-    max-height: 80px;
-    max-width: 100%;
-    opacity: 0.8;
-    display: inline-block;
-    /* Ensures center alignment works */
-}
-
-.bill-signature {
-    max-height: 60px;
-    max-width: 100%;
-    object-fit: contain;
-    display: inline-block;
-    /* Ensures center alignment works */
-    margin-bottom: 5px;
-}
-
-/* Ensure cells vertically align bottom as requested */
-#stamp-cell,
-#signature-cell {
-    vertical-align: bottom !important;
-}
-
-/* Modal Image Previews */
-.img-preview-box {
-    margin-bottom: 10px;
-    padding: 5px;
-    border: 1px dashed var(--border-color);
-    background: #f8f9fa;
-    border-radius: 4px;
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.img-preview-box img {
-    max-height: 60px;
-    max-width: 100%;
-    object-fit: contain;
-}
-
-.img-preview-box span {
-    font-size: 0.8em;
-    color: #999;
-    font-style: italic;
-}
-
-/* Convert Button Styles */
-#toggleConvertBtn {
-    transition: all 0.3s ease;
-}
-
-#toggleConvertBtn.active {
-    background-color: #8e44ad !important;
-    /* Purple to distinguish it */
-    color: white;
-}
-
-#convertUnit {
-    border: 1px solid var(--secondary-color);
-    background-color: #f0f0f0;
-}
-
-/* [ADD TO END OF FILE] */
-
-/* Adjustment Drag & Drop Styles */
-.adj-row {
-    cursor: grab;
-    transition: background-color 0.2s;
-}
-
-.adj-row:active {
-    cursor: grabbing;
-}
-
-.adj-dragging {
-    opacity: 0.5;
-    background-color: #e3f2fd;
-    border: 2px dashed #3498db;
-}
-
-.adj-drag-over {
-    border-top: 2px solid #3498db !important;
-}
-
-/* Visual Taxable Row Style */
-.taxable-row td {
-    background-color: #fcf8e3;
-    /* Light yellow */
-    color: #8a6d3b;
-    font-size: 0.9em;
-    font-style: italic;
-    border-top: 1px dashed #faebcc;
-    border-bottom: 1px dashed #faebcc;
-}
-
-/* Modal Table Actions */
-.adj-action-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 2px 5px;
-    color: #666;
-}
-
-.adj-action-btn:hover {
-    color: #333;
-}
-
-.adj-action-btn.edit {
-    color: #f39c12;
-}
-
-.adj-action-btn.remove {
-    color: #e74c3c;
-}
-
-
-/* [ADD TO END OF style.css] */
-
-/* [ADD TO END OF style.css] */
-
-/* Fix Regular Bill Total Table Alignment */
-#bill-total-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
-}
-
-#bill-total-table td {
-    padding: 5px 10px !important;
-    /* Overrides the 15px global padding */
-    border: none !important;
-    /* specific clean look for totals */
-}
-
-/* Force Right Alignment for the Label Column (Sub Total, Discount, etc.) */
-#bill-total-table td[colspan="5"] {
-    text-align: right !important;
-    padding-right: 20px !important;
-    /* Add spacing between label and amount */
-}
-
-/* Force Alignment for the Amount Column */
-#bill-total-table td:last-child {
-    text-align: center !important;
-    /* Enforce center as per your HTML structure */
-    width: 20% !important;
-    white-space: nowrap;
-}
-
-/* Ensure Total Cells (Subtotal/Grand Total) stay bold */
-#bill-total-table .total-cell {
-    font-weight: bold;
-    background-color: var(--total-bg);
-}
-
-
-/* [ADD TO END OF style.css] */
-
-/* Fix width for Adjustment Modal Inputs */
-#adjustment-modal .form-row .form-group {
-    margin-bottom: 0;
-    /* Let the row gap handle spacing */
-}
-
-#adjustment-modal select,
-#adjustment-modal input[type="number"],
-#adjustment-modal input[type="text"] {
-    height: 38px;
-    /* Consistent height for alignment */
-}
-
-/* [ADD TO END OF style.css] */
-
-/* Force hide Actions column in Regular Bill View Table */
-#copyListManual .actions-cell {
-    display: none !important;
-}
-
-
-
-/* [ADD TO END OF style.css] */
-
-/* Responsive Zoom Levels */
-
-/* Tablet / Small Laptop */
-@media (max-width: 1024px) {
-    #main-container {
-        zoom: 0.9;
-        /* 90% scale */
-    }
-}
-
-/* Large Mobile / Small Tablet */
-@media (max-width: 768px) {
-    #main-container {
-        zoom: 0.75;
-        /* 75% scale */
-        flex-direction: column;
-        /* Ensure items stack vertically */
-    }
-
-    /* Ensure full width when stacked */
-    #bill-container,
-    #gst-bill-container,
-    #manual-item-container {
-        max-width: 100% !important;
-        min-width: 100% !important;
-    }
-}
-
-/* Small Mobile */
-@media (max-width: 350px) {
-    #main-container {
-        zoom: 0.6;
-        /* 60% scale */
-    }
-}
-
-
-/* ============================================================
-   FINAL ROBUST PRINT STYLES (Fixes Row Splitting)
-   ============================================================ */
-@media print {
-
-    /* 1. Page Setup */
-    @page {
-        margin: 10mm;
-        size: A4 portrait;
-    }
-
-    body {
-        margin: 0;
-        padding: 0;
-        background: white !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-
-    /* 2. Container Handling */
-    #main-container,
-    #bill-container,
-    #gst-bill-container,
-    .list-of-items {
-        display: block !important;
-        width: 100% !important;
-        height: auto !important;
-        overflow: visible !important;
-        /* Allow container to break */
-        page-break-inside: auto !important;
-        break-inside: auto !important;
-    }
-
-    /* 3. Table Handling */
-    table {
-        width: 100% !important;
-        border-collapse: collapse;
-        page-break-inside: auto !important;
-        break-inside: auto !important;
-    }
-
-    tbody {
-        page-break-inside: auto !important;
-    }
-
-    /* 4. Row Handling - THE CRITICAL FIX */
-    tr {
-        /* Force row to stay together */
-        page-break-inside: avoid !important;
-        break-inside: avoid !important;
-
-        /* Ensure browser treats it as an atomic block */
-        display: table-row !important;
-    }
-
-    /* Add buffer to cells to prevent tight cuts */
-    td,
-    th {
-        padding-top: 4px !important;
-        padding-bottom: 4px !important;
-        page-break-inside: avoid !important;
-    }
-
-    /* 5. Header & Footer Repeating */
-    thead {
-        display: table-header-group !important;
-    }
-
-    tfoot {
-        display: table-footer-group !important;
-    }
-
-    /* 6. Bill Footer Section (Bank details etc) */
-    .bill-footer {
-        page-break-inside: avoid !important;
-        /* Try to keep footer together */
-        break-inside: avoid !important;
-        width: 100% !important;
-        margin-top: 20px !important;
-        display: table !important;
-        /* Ensure it behaves like a table for breaking */
-    }
-
-    /* 7. Hide UI Elements */
-    #tools,
-    #settings-sidebar,
-    #settings-overlay,
-    #manual-item-container,
-    .modal,
-    .notification-container,
-    #reg-footer-btn,
-    .add-payment-form,
-    .payment-dialog,
-    .ledger-dialog {
-        display: none !important;
-    }
-
-    /* 8. Visibility Logic */
-    #gst-bill-container {
-        display: none !important;
-    }
-
-    #bill-container {
-        display: block !important;
-    }
-
-    body.gst-mode #bill-container {
-        display: none !important;
-    }
-
-    body.gst-mode #gst-bill-container {
-        display: block !important;
-    }
-
-
-
-    /* 9. Input Styling */
-    input {
-        border: none !important;
-        background: transparent !important;
-        padding: 0 !important;
-        margin: 0 !important;
-    }
-}
-
-/* --- Card UI Overhaul --- */
-.card-header-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    /* Aligns top for multi-line text */
-    width: 100%;
-    position: relative;
-    /* Context for dropdown */
-}
-
-.card-info {
-    flex: 1;
-    font-weight: bold;
-    font-size: 1.1em;
-    padding-right: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.card-sub-info {
-    font-size: 0.85em;
-    color: #666;
-    font-weight: normal;
-}
-
-.card-controls {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    flex-shrink: 0;
-}
-
-/* Icon Buttons */
-.icon-btn {
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #555;
-    transition: background 0.2s;
-}
-
-.icon-btn:hover {
-    background-color: rgba(0, 0, 0, 0.05);
-    color: var(--primary-color);
-}
-
-.icon-btn .material-icons {
-    font-size: 24px;
-}
-
-/* Action Dropdown Menu */
-.action-menu-container {
-    position: relative;
-}
-
-.action-dropdown {
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: white;
-    border-radius: 4px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-    border: 1px solid #eee;
-    z-index: 100;
-    min-width: 160px;
-    display: none;
-    /* Hidden by default */
-    flex-direction: column;
-    padding: 5px 0;
-}
-
-.action-dropdown.show {
-    display: flex;
-}
-
-.dropdown-item {
-    background: none;
-    border: none;
-    text-align: left;
-    padding: 10px 15px;
-    width: 100%;
-    cursor: pointer;
-    font-size: 14px;
-    color: #333;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.dropdown-item:hover {
-    background-color: #f5f5f5;
-}
-
-.dropdown-item .material-icons {
-    font-size: 18px;
-    color: #666;
-}
-
-.dropdown-item.delete-item {
-    color: #e74c3c;
-}
-
-.dropdown-item.delete-item .material-icons {
-    color: #e74c3c;
-}
-
-/* Details Section visibility */
-.details-section {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid #eee;
-}
-
-.details-section.hidden {
-    display: none;
-}
-
-/* Scan Button Style */
-.icon-btn-square {
-    background-color: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    padding: 0 10px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.icon-btn-square:hover {
-    background-color: #2980b9;
-}
-
-/* Scanner Overlay Line */
-/* .scan-overlay {
-    position: absolute;
-    top: 50%;
-    left: 10%;
-    width: 80%;
-    height: 2px;
-    background-color: red;
-    box-shadow: 0 0 4px red;
-    z-index: 10;
-} */
-
-/* Ensure video fits */
-#scanner-video {
-    transform: scaleX(-1);
-    /* Mirror effect for better UX */
-}
-
-/* Styling for the More Options Button */
-#toggle-more-options-btn {
-    transition: background-color 0.2s;
-    font-weight: 500;
-    padding: 8px;
-    border-radius: 4px;
-    cursor: pointer;
-}
-
-#toggle-more-options-btn:hover {
-    background-color: #e0e0e0 !important;
-}
-
-#toggle-more-options-btn .material-icons {
-    margin-left: 5px;
-    font-size:20px;
-}
-
-/* Scanner Mode Toggle Buttons */
-.scan-mode-toggle {
-    margin-bottom: 15px;
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-}
-
-.btn-mode {
-    padding: 8px 20px;
-    border: 1px solid var(--border-color);
-    background: #f8f9fa;
-    color: #666;
-    cursor: pointer;
-    border-radius: 20px;
-    font-weight: 500;
-    transition: all 0.2s;
-}
-
-.btn-mode.active {
-    background-color: var(--primary-color);
-    color: white;
-    border-color: var(--primary-color);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="./asuralogo2.png">
+    <title>Billig App</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body data-mode="manual">
+    <!-- Purchase Price Dialog -->
+    <div class="purchase-price-dialog" id="purchase-price-dialog">
+        <div class="purchase-price-dialog-content">
+            <div class="purchase-price-dialog-header">
+                <h3>Enter Purchase Prices</h3>
+                <span class="close-purchase-dialog" id="close-purchase-dialog">×</span>
+            </div>
+            <div class="purchase-price-dialog-body">
+                <p>Some items are missing purchase prices. Please enter them to calculate profit:</p>
+                <div id="purchase-price-items-list" class="purchase-price-items-list">
+                    <!-- Dynamic content will be loaded here -->
+                </div>
+            </div>
+            <div class="purchase-price-dialog-footer">
+                <button onclick="closePurchasePriceDialog()" class="btn-cancel">Cancel</button>
+                <button onclick="applyProfitCalculation()" class="btn-apply">Calculate Profit</button>
+            </div>
+        </div>
+    </div>
+    <!-- Payment & Credit Note Dialog -->
+    <div class="payment-dialog" id="payment-dialog">
+        <div class="payment-dialog-content">
+            <div class="payment-dialog-header">
+                <h3 id="payment-dialog-title">Payments - Customer Name</h3>
+                <button class="close-payment-dialog" id="close-payment-dialog">×</button>
+            </div>
+            <div class="payment-dialog-body">
+                <!-- Toggle between Payments and Credit Notes -->
+                <div class="payment-type-toggle">
+                    <button class="toggle-btn active" data-type="payment">Payments</button>
+                    <button class="toggle-btn" data-type="credit-note">Credit Notes</button>
+                </div>
+
+                <!-- Search and Filters -->
+                <div class="payment-controls">
+                    <div class="payment-search">
+                        <input type="text" id="payment-search"
+                            placeholder="Search payments by method, amount, date, or notes...">
+                    </div>
+                    <div class="payment-filters">
+                        <button class="filter-btn" id="sort-order-btn" data-order="desc">
+                            <i class="material-icons">arrow_downward</i>
+                        </button>
+                        <select class="filter-select" id="sort-by-select">
+                            <option value="date">Date</option>
+                            <option value="amount">Amount</option>
+                        </select>
+                        <select class="filter-select" id="statement-period">
+                            <option value="all">All</option>
+                            <option value="1month">1 Month</option>
+                            <option value="3months">3 Months</option>
+                            <option value="6months">6 Months</option>
+                        </select>
+                    </div>
+                </div>
+
+
+                <!-- Add New Payment/Credit Note Form -->
+                <div class="add-payment-form">
+                    <h4>Add New <span id="form-type-label">Payment</span></h4>
+                    <div class="form-group">
+                        <label for="payment-date">Date:</label>
+                        <input type="text" id="payment-date" oninput="saveToLocalStorage()" />
+                        <!-- <input type="date" id="payment-date" value=""> -->
+                    </div>
+                    <div class="form-group">
+                        <label for="payment-method">Payment Method:</label>
+                        <select id="payment-method" onchange="handlePaymentMethodChange()">
+                            <option value="Cash">Cash</option>
+                            <option value="UPI">UPI</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Cheque">Cheque</option>
+                            <option value="Card">Card</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <div id="custom-method-container" style="display: none; margin-top: 5px;">
+                            <input type="text" id="custom-payment-method" placeholder="Enter custom payment method">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="payment-amount">Amount (₹):</label>
+                        <input type="number" id="payment-amount" placeholder="Enter amount" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="payment-notes">Notes (Optional):</label>
+                        <textarea id="payment-notes" placeholder="Additional notes"></textarea>
+                    </div>
+                    <button class="action-btn" id="add-payment-btn">
+                        <i class="material-icons">add</i> Add <span id="add-btn-label">Payment</span>
+                    </button>
+                </div>
+
+                <!-- Payments/Credit Notes List -->
+                <div class="payments-list">
+                    <h4 class="somespace"><span id="list-type-label">Payment</span> History</h4>
+                    <table class="payments-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Method</th>
+                                <th>Amount (₹)</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="payments-tbody">
+                            <!-- Dynamic content will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ledger Dialog -->
+    <div class="ledger-dialog" id="ledger-dialog">
+        <div class="ledger-dialog-content">
+            <div class="ledger-dialog-header">
+                <h3 id="ledger-dialog-title">Ledger - Customer Name</h3>
+                <button class="close-ledger-dialog" id="close-ledger-dialog">×</button>
+            </div>
+            <div class="ledger-dialog-body">
+                <!-- Date Range Selector -->
+                <div class="ledger-controls">
+                    <div class="period-selector">
+                        <label>
+                            <input type="checkbox" id="select-all-dates" checked> Select All
+                        </label>
+                        <div class="period-inputs" id="period-inputs" style="display: none;">
+                            <select id="period-select" onchange="handlePeriodChange()">
+                                <option value="1month">Last 1 Month</option>
+                                <option value="3months">Last 3 Months</option>
+                                <option value="6months">Last 6 Months</option>
+                                <option value="fromdate">From Date</option>
+                            </select>
+                            <input type="date" id="from-date-input" style="display: none;" onchange="loadLedgerData()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Single Ledger Table -->
+                <div class="ledger-table-container">
+                    <table class="ledger-table unified-ledger-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Particulars</th>
+                                <th>Debit Amount (INR)</th>
+                                <th>Credit Amount (INR)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ledger-tbody">
+                            <!-- Data will be populated here -->
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row highlight">
+                                <td colspan="2" class="right bold">Debit total</td>
+                                <td class="right bold" id="debit-total">₹0.00</td>
+                                <td class="right bold"></td>
+                            </tr>
+                            <tr class="total-row highlight">
+                                <td colspan="2" class="right bold">Credit total</td>
+                                <td class="right bold"></td>
+                                <td class="right bold" id="credit-total">₹0.00</td>
+                            </tr>
+                            <tr class="total-row highlight">
+                                <td colspan="2" class="right bold">Difference</td>
+                                <td class="right bold" id="difference-amount">₹0.00</td>
+                                <td class="right bold"></td>
+                            </tr>
+                            <tr class="closing-balance-row">
+                                <td id="closing-balance-date"></td>
+                                <td class="bold">Closing Balance</td>
+                                <td class="right bold" id="closing-balance-debit">₹0.00</td>
+                                <td class="right bold" id="closing-balance-credit">₹0.00</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Tax Adjustment Modal -->
+    <div id="tax-adjustment-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Adjust Tax Rates</h3>
+                <span class="close" onclick="closeTaxAdjustmentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="adjust-tax-percent">Adjust Tax % (Effective Tax to Apply):</label>
+                    <input type="number" id="adjust-tax-percent" min="0" max="100" step="0.01"
+                        placeholder="Enter effective tax %">
+                </div>
+                <div class="tax-info"
+                    style="font-size: 0.9em; color: #666; margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                    <p><strong>Customer GST:</strong> <span id="current-customer-gst">18</span>% (shown on bill)</p>
+                    <p><strong>Current Items:</strong> <span id="current-item-count">0</span> items will be adjusted</p>
+                    <p><strong>Note:</strong> This will update all item rates to achieve the effective tax rate while
+                        showing customer GST on bill.</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeTaxAdjustmentModal()" class="btn-cancel">Cancel</button>
+                <button onclick="applyTaxAdjustment()" class="btn-apply">Apply Tax Adjustment</button>
+            </div>
+        </div>
+    </div>
+    <!-- Section Modal -->
+    <div id="section-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="section-modal-title">Create Section</h3>
+                <span class="close" onclick="closeSectionModal()">&times;</span>
+            </div>
+            <!-- Find the section-modal and replace the modal-body section with this: -->
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Section Name:</label>
+                    <input type="text" id="section-name" placeholder="Section Name">
+                </div>
+
+                <!-- Alignment and Font Weight in one row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Alignment:</label>
+                        <select id="section-align">
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Font Weight:</label>
+                        <input type="number" id="section-font-weight" min="100" max="900" step="100" value="600">
+                    </div>
+                </div>
+
+                <!-- Background and Font Color in one row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Background Color:</label>
+                        <input style="padding: 0;width: 60px;" type="color" id="section-bg-color" value="#ffe8b5">
+                    </div>
+                    <div class="form-group">
+                        <label>Font Color:</label>
+                        <input style="padding: 0;width: 60px;" type="color" id="section-font-color" value="#000000">
+                    </div>
+                </div>
+
+                <!-- Font Size and Text Transform in one row -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Font Size (px):</label>
+                        <input type="number" id="section-font-size" min="5" value="16">
+                    </div>
+                    <div class="form-group">
+                        <label>Text Transform:</label>
+                        <select id="section-text-transform">
+                            <option value="none">Normal</option>
+                            <option value="uppercase">Uppercase</option>
+                            <option value="capitalize">Capitalize</option>
+                            <option value="lowercase">Lowercase</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Padding Type:</label>
+                    <select id="section-padding-type" onchange="handlePaddingTypeChange()">
+                        <option value="">None</option>
+                        <option value="padding-left" selected>Left</option>
+                        <option value="padding-right">Right</option>
+                        <option value="padding-top">Top</option>
+                        <option value="padding-bottom">Bottom</option>
+                        <option value="padding-block">Top-Bottom</option>
+                        <option value="padding-inline">Left-Right</option>
+                        <option value="top-left-bottom">Top-Left-Bottom</option>
+                        <option value="top-right-bottom">Top-Right-Bottom</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </div>
+
+                <!-- Single Padding Value (default) -->
+                <div class="form-group" id="single-padding-group">
+                    <label>Padding Value (px):</label>
+                    <input type="number" id="section-padding-value" min="0" value="75">
+                </div>
+
+                <!-- Custom Padding Inputs (hidden by default) -->
+                <div class="form-group" id="custom-padding-group" style="display: none;">
+                    <label>Custom Padding (px):</label>
+                    <div class="form-row">
+                        <input type="number" id="section-padding-left" placeholder="Left" min="0">
+                        <input type="number" id="section-padding-right" placeholder="Right" min="0">
+                        <input type="number" id="section-padding-top" placeholder="Top" min="0">
+                        <input type="number" id="section-padding-bottom" placeholder="Bottom" min="0">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600;">
+                        <input type="checkbox" id="section-show-total" style="width: auto;">
+                        Show Section Total
+                    </label>
+                </div>
+            </div>
+
+            <!-- Update modal-footer to include reset button: -->
+            <div class="modal-footer">
+                <button onclick="resetSectionModal()" class="btn-clear">Reset to Default</button>
+                <button onclick="closeSectionModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveSection()" class="btn-apply" id="save-section-btn">Add Section</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Mode Modal -->
+    <div id="gst-mode-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>GST Mode Settings</h3>
+                <span class="close" onclick="closeGSTModeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Switch to GST mode for GST-compliant invoicing with tax calculations?</p>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="enable-gst-mode">
+                        Enable GST Mode
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeGSTModeModal()" class="btn-cancel">Cancel</button>
+                <button onclick="toggleGSTMode()" class="btn-apply">Switch Mode</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Company Info Modal -->
+    <div id="company-info-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Company Information</h3>
+                <span class="close" onclick="closeCompanyInfoModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="company-name">Company Name:</label>
+                    <input type="text" id="company-name" placeholder="Your Company Name">
+                </div>
+
+                <div class="form-group">
+                    <label for="company-address">Address:</label>
+                    <textarea id="company-address" placeholder="Your Address"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="company-gst">GSTIN/UIN:</label>
+                    <input type="text" id="company-gst" placeholder="Your 15-digit GSTIN">
+                </div>
+
+                <div class="form-group">
+                    <label for="company-mobile">Mobile No:</label>
+                    <input type="text" id="company-mobile" placeholder="+91 9876543210">
+                </div>
+
+                <div class="form-group">
+                    <label for="company-email">Email:</label>
+                    <input type="email" id="company-email" placeholder="abcd@gmail.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="company-state">State Name:</label>
+                    <input type="text" id="company-state" value="Maharashtra">
+                </div>
+
+                <div class="form-group">
+                    <label for="company-code">State Code:</label>
+                    <input type="text" id="company-code" value="27">
+                </div>
+
+                <div class="section-divider"></div>
+
+                <h3>Banking Details</h3>
+                <div class="form-group">
+                    <label for="account-number">A/C No:</label>
+                    <input type="text" id="account-number" placeholder="Account Number">
+                </div>
+                <div class="form-group">
+                    <label for="ifsc-code">IFSC Code:</label>
+                    <input type="text" id="ifsc-code" placeholder="IFSC Code">
+                </div>
+                <div class="form-group">
+                    <label for="branch">Branch:</label>
+                    <input type="text" id="branch" placeholder="Branch Name">
+                </div>
+                <div class="form-group">
+                    <label for="bank-name">Bank Name:</label>
+                    <input type="text" id="bank-name" placeholder="Bank Name">
+                </div>
+                <div class="form-group">
+                    <label for="account-holder">Account Holder Name:</label>
+                    <input type="text" id="account-holder" placeholder="Account Holder Name">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeCompanyInfoModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveCompanyInfo()" class="btn-apply">Save Company Info</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Customer Details Modal -->
+    <div id="customer-details-modal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Enter Bill Details</h3>
+                <span class="close" onclick="closeCustomerDetailsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="invoice-no">Invoice No:</label>
+                    <input type="text" id="invoice-no" placeholder="001">
+                </div>
+
+                <div class="form-group">
+                    <label for="invoice-date">Date:</label>
+                    <input type="text" id="invoice-date" placeholder="DD-MM-YYYY">
+
+                </div>
+
+                <div class="section-divider"></div>
+
+                <h3>Customer Details</h3>
+                <div class="customer-type-selector">
+                    <label for="customer-type">Select Customer Type:</label>
+                    <select id="customer-type" name="customer-type" onchange="handleCustomerTypeChange()">
+                        <option value="bill-to" selected>Bill To</option>
+                        <option value="both">Bill To & Ship To</option>
+                    </select>
+                </div>
+
+                <div class="bill-to-section">
+                    <h4>Bill To</h4>
+                    <div class="form-group">
+                        <label for="consignee-name">Name:</label>
+                        <input type="text" id="consignee-name" placeholder="Start typing customer name or GSTIN..."
+                            oninput="handleCustomerSearch('consignee')">
+                        <div class="customer-suggestions" id="consignee-suggestions" style="display: none;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="consignee-address">Address:</label>
+                        <textarea id="consignee-address" placeholder="Customer Address"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="consignee-gst">GSTIN/UIN:</label>
+                        <input type="text" id="consignee-gst" placeholder="Customer 15-digit GSTIN">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="consignee-state">State Name:</label>
+                        <input type="text" id="consignee-state" value="Maharashtra">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="consignee-code">State Code:</label>
+                        <input type="text" id="consignee-code" value="27">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="consignee-contact">Contact No:</label>
+                        <input type="text" id="consignee-contact" placeholder="Contact Number">
+                    </div>
+                </div>
+
+                <div class="ship-to-section" id="ship-to-section" style="display: none;">
+                    <h4>Ship To</h4>
+                    <div class="form-group">
+                        <label for="buyer-name">Name:</label>
+                        <input type="text" id="buyer-name" placeholder="Customer Name"
+                            oninput="handleCustomerSearch('buyer')">
+                        <div class="customer-suggestions" id="buyer-suggestions" style="display: none;"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyer-address">Address:</label>
+                        <textarea id="buyer-address" placeholder="Customer Address"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyer-gst">GSTIN/UIN:</label>
+                        <input type="text" id="buyer-gst" placeholder="Customer 15-digit GSTIN">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyer-state">State Name:</label>
+                        <input type="text" id="buyer-state" value="Maharashtra">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyer-code">State Code:</label>
+                        <input type="text" id="buyer-code" value="27">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyer-contact">Contact No:</label>
+                        <input type="text" id="buyer-contact" placeholder="Contact Number">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="place-of-supply">Place Of Supply:</label>
+                        <input type="text" id="place-of-supply" value="Maharashtra">
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <h3>Tax Settings</h3>
+                <div class="form-group">
+                    <label for="transaction_type">Select transaction type:</label>
+                    <div class="gst-input-group">
+                        <select id="transaction_type" name="transaction_type">
+                            <option value="intrastate">Intrastate (CGST & SGST)</option>
+                            <option value="interstate">Interstate (IGST)</option>
+                        </select>
+                        <input type="number" id="gst-percent-input" placeholder="GST %" value="18" step="0.01">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="clearCustomerInputs()" class="btn-clear">Clear All</button>
+                <button onclick="closeCustomerDetailsModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveCustomerDetails()" class="btn-apply">Save Customer Details</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discount Modal -->
+    <div id="discount-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Discount Settings</h3>
+                <span class="close" onclick="closeDiscountModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tax-input-group">
+                    <label for="discount-type-select">Discount Type:</label>
+                    <select id="discount-type-select" onchange="handleDiscountTypeChange()">
+                        <option value="none">No Discount</option>
+                        <option value="percent">Discount Percentage</option>
+                        <option value="amount">Discount Amount</option>
+                    </select>
+                </div>
+
+                <!-- Percent Input (hidden by default) -->
+                <div id="percent-input-group" class="tax-input-group" style="display: none;">
+                    <label for="discount-percent-input">Discount Percentage:</label>
+                    <input type="number" id="discount-percent-input" min="0" max="100" step="0.01" placeholder="0">
+                    <span>%</span>
+                </div>
+
+                <!-- Amount Input (hidden by default) -->
+                <div id="amount-input-group" class="tax-input-group" style="display: none;">
+                    <label for="discount-amount-input">Discount Amount:</label>
+                    <input type="number" id="discount-amount-input" min="0" step="0.01" placeholder="0">
+                    <span>₹</span>
+                </div>
+
+                <div class="discount-info"
+                    style="font-size: 0.9em; color: #666; margin-top: 10px; padding: 8px; background: #f8f9fa; border-radius: 4px;">
+                    <strong>Current Subtotal:</strong> ₹<span id="current-subtotal-display">0.00</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeDiscountModal()" class="btn-cancel">Cancel</button>
+                <button onclick="applyDiscountSettings()" class="btn-apply">Apply Discount</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Modal -->
+    <div id="gst-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>GST Settings</h3>
+                <span class="close" onclick="closeGSTModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="tax-input-group">
+                    <label for="gst-input">GST Percentage:</label>
+                    <input type="number" id="gst-input" min="0" max="100" step="0.01" placeholder="0">
+                    <span>%</span>
+                </div>
+                <div class="tax-input-group">
+                    <label for="gstin-input">GSTIN Number:</label>
+                    <input type="text" id="gstin-input" placeholder="Enter GSTIN">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeGSTModal()" class="btn-cancel">Cancel</button>
+                <button onclick="applyGSTSettings()" class="btn-apply">Apply GST</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Items Modal -->
+    <div id="manage-items-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Manage Items</h3>
+                <span class="close" onclick="closeManageItemsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="item-search" placeholder="Search items..." oninput="searchItems()">
+                    <button onclick="openAddItemModal()" class="btn-apply">Add New Item</button>
+                </div>
+                <div id="items-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Item Modal -->
+    <div id="add-item-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <h3 id="add-item-modal-title">Add New Item</h3>
+                <span class="close" onclick="closeAddItemModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Item Name:</label>
+                    <input type="text" id="saved-item-name" placeholder="Enter item name">
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Purchase Rate:</label>
+                        <input type="number" id="saved-purchase-rate" placeholder="Enter purchase rate" step="0.01"
+                            min="0">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Stock Quantity:</label>
+                        <input type="number" id="saved-stock-quantity" placeholder="Enter stock quantity" step="1"
+                            min="0" value="0">
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 2;">
+                        <label>Default Rate/MRP:</label>
+                        <input type="number" id="saved-default-rate" placeholder="Enter default rate" step="0.01"
+                            min="0">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Tax Type:</label>
+                        <select id="saved-tax-type">
+                            <option value="exclusive" selected>Exclusive</option>
+                            <option value="inclusive">Inclusive</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Default Quantity:</label>
+                        <input type="number" id="saved-default-quantity" placeholder="Enter default quantity"
+                            step="0.01" min="0" value="1">
+                    </div>
+                    <div class="form-group" style="flex: 1; position: relative;">
+                        <label>Default Unit:</label>
+                        <input type="text" id="saved-select-unit" placeholder="Enter default unit" autocomplete="off"
+                            oninput="handleSavedUnitSearch()">
+                        <div class="item-suggestions" id="saved-unit-suggestions" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1; position: relative;">
+                        <label>Category:</label>
+                        <input type="text" id="saved-category" placeholder="Enter category" autocomplete="off"
+                            oninput="handleSavedCategorySearch()">
+                        <div class="item-suggestions" id="saved-category-suggestions" style="display: none;"></div>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Minimum Stock:</label>
+                        <input type="number" id="saved-min-stock" placeholder="Min Alert Qty" step="1" min="0"
+                            value="0">
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin: 10px 0 15px 0;">
+                    <button type="button" onclick="toggleMoreOptions()" id="toggle-more-options-btn" class="btn-clear"
+                        style="margin: 0; width: 100%; display: flex; justify-content: center; align-items: center; background: #f0f0f0; color: #555; border: 1px solid #ddd;">
+                        More Options <span class="material-icons">keyboard_arrow_down</span>
+                    </button>
+                </div>
+
+                <div id="more-options-container" style="display: none;">
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Discount Type:</label>
+                            <select id="saved-discount-type">
+                                <option value="none">Select Discount</option>
+                                <option value="percent_per_unit">Discount % / unit</option>
+                                <option value="amt_per_unit">Discount amt / unit</option>
+                                <option value="percent_on_amount">Discount % on amount</option>
+                                <option value="amt_on_amount">Discount amt on amount</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Discount Value:</label>
+                            <input type="number" id="saved-discount-value" placeholder="Enter discount value"
+                                step="0.01" min="0">
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Dimension Type:</label>
+                            <select id="saved-dimension-type" onchange="handleSavedDimensionTypeChange()">
+                                <option value="none">Select Dimension</option>
+                                <option value="length">Length</option>
+                                <option value="widthXheight">Width X Height</option>
+                                <option value="widthXheightXdepth">Width X Height X Depth</option>
+                                <option value="dozen">Dozen (n/12)</option>
+                                <option value="lengthXwidthXheight">Length X Width X Height</option>
+                                <option value="widthXdepth">Width X Depth</option>
+                                <option value="lengthXheightXdepth">Length X Height X Depth</option>
+                                <option value="lengthXdepth">Length X Depth</option>
+                                <option value="lengthXheight">Length X Height</option>
+                                <option value="lengthXwidth">Length X Width</option>
+                                <option value="lengthXwidthXdepth">Length X Width X Depth</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group" style="flex: 1; display: none;" id="saved-measurement-unit-wrapper">
+                            <label>Measurement Unit:</label>
+                            <select id="saved-measurement-unit" onchange="handleSavedMeasurementUnitChange()">
+                                <option value="ft">ft</option>
+                                <option value="inch">inch</option>
+                                <option value="mtr">mtr</option>
+                                <option value="cm">cm</option>
+                                <option value="mm">mm</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="saved-dimension-inputs" style="display: none;">
+                        <label>Dimension Values:</label>
+                        <div class="dimension-inputs-group">
+                            <div class="dimension-input-with-toggle">
+                                <input type="checkbox" id="saved-dimension1-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension1" placeholder="Value 1" step="0.01" min="0">
+                            </div>
+                            <div class="dimension-input-with-toggle" style="display: none;">
+                                <input type="checkbox" id="saved-dimension2-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension2" placeholder="Value 2" step="0.01" min="0">
+                            </div>
+                            <div class="dimension-input-with-toggle" style="display: none;">
+                                <input type="checkbox" id="saved-dimension3-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension3" placeholder="Value 3" step="0.01" min="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Barcode:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="saved-barcode" placeholder="Scan or enter barcode" style="flex: 2;">
+                            <select id="saved-barcode-type" style="flex: 1;">
+                                <option value="CODE_128">Code 128</option>
+                                <option value="EAN_13">EAN 13</option>
+                                <option value="QR_CODE">QR Code</option>
+                                <option value="UPC_A">UPC A</option>
+                            </select>
+                            <button onclick="openScanner('modal')" class="icon-btn-square" title="Scan">
+                                <span class="material-icons">qr_code_scanner</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Batch Number:</label>
+                            <input type="text" id="saved-batch-number" placeholder="Batch No.">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Section Code:</label>
+                            <input type="text" id="saved-section-code" placeholder="Section/Rack">
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Product Code:</label>
+                            <input type="text" id="saved-product-code" placeholder="Enter product code">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>HSN/SAC Code:</label>
+                            <input type="text" id="saved-hsn-code" placeholder="Enter HSN/SAC code">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Other Names (comma separated):</label>
+                        <textarea id="saved-other-names" placeholder="Enter other names separated by commas"
+                            rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes:</label>
+                        <textarea id="saved-notes" placeholder="Enter notes" rows="3"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer"
+                style="position: sticky; bottom: 0; background: #fff; z-index: 10; border-top: 1px solid #ddd;">
+                <div class="form-actions" style="margin-top: 0; padding: 0; border-top: none;">
+                    <button onclick="closeAddItemModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="saveItem()" class="btn-apply" id="save-item-btn">Save Item</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Customers Modal -->
+    <div id="manage-customers-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Manage Customers</h3>
+                <span class="close" onclick="closeManageCustomersModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="customer-search" placeholder="Search customers..."
+                        oninput="searchCustomers()">
+                    <button onclick="handleAddCustomer()" class="btn-apply" id="add-customer-main-btn">Add New
+                        Customer</button>
+                </div>
+                <!-- Toggle for Regular/GST Customers -->
+                <div class="mode-toggle" style="margin: 15px 0; display: flex; align-items: center; gap: 10px;">
+                    <span>Regular Customers</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="customer-mode-toggle" onchange="toggleCustomerMode()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>GST Customers</span>
+                </div>
+                <div id="customers-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Customer Modal -->
+    <div id="add-customer-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="add-customer-modal-title">Add New Customer</h3>
+                <span class="close" onclick="closeAddCustomerModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Customer Name:</label>
+                    <input type="text" id="saved-customer-name" placeholder="Enter customer name">
+                </div>
+
+                <div class="form-group">
+                    <label>Address:</label>
+                    <textarea id="saved-customer-address" placeholder="Enter address" rows="3"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone:</label>
+                    <input type="text" id="saved-customer-phone" placeholder="Enter phone number">
+                </div>
+
+                <div class="form-group">
+                    <label>GSTIN:</label>
+                    <input type="text" id="saved-customer-gstin" placeholder="Enter GSTIN">
+                </div>
+
+                <div class="form-actions">
+                    <button onclick="closeAddCustomerModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="saveCustomer()" class="btn-apply" id="save-customer-btn">Save Customer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Saved Bills Modal -->
+    <div id="saved-bills-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Saved Bills</h3>
+                <span class="close" onclick="closeSavedBillsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="saved-bills-search" placeholder="Search bills..."
+                        oninput="searchSavedBills()">
+                </div>
+                <!-- Toggle for Regular/GST Bills -->
+                <div class="mode-toggle" style="margin: 15px 0; display: flex; align-items: center; gap: 10px;">
+                    <span>Regular Bills</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="bills-mode-toggle" onchange="toggleBillsMode()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>GST Bills</span>
+                </div>
+                <div id="saved-bills-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Manage Customers Modal -->
+    <div id="gst-manage-customers-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Manage GST Customers</h3>
+                <span class="close" onclick="closeGSTManageCustomersModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="gst-customer-search" placeholder="Search GST customers..."
+                        oninput="searchGSTCustomers()">
+                    <button onclick="openAddGSTCustomerModal()" class="btn-apply">Add New GST Customer</button>
+                </div>
+                <div id="gst-customers-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit GST Customer Modal -->
+    <div id="add-gst-customer-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="add-gst-customer-modal-title">Add New GST Customer</h3>
+                <span class="close" onclick="closeAddGSTCustomerModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Customer Name:</label>
+                    <input type="text" id="saved-gst-customer-name" placeholder="Enter customer name">
+                </div>
+
+                <div class="form-group">
+                    <label>Address:</label>
+                    <textarea id="saved-gst-customer-address" placeholder="Enter address" rows="3"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Phone:</label>
+                    <input type="text" id="saved-gst-customer-phone" placeholder="Enter phone number">
+                </div>
+
+                <div class="form-group">
+                    <label>GSTIN:</label>
+                    <input type="text" id="saved-gst-customer-gstin" placeholder="Enter GSTIN">
+                </div>
+
+                <div class="form-group">
+                    <label>State Name:</label>
+                    <input type="text" id="saved-gst-customer-state" placeholder="Enter state name" value="Maharashtra">
+                </div>
+
+                <div class="form-group">
+                    <label>State Code:</label>
+                    <input type="text" id="saved-gst-customer-state-code" placeholder="Enter state code" value="27">
+                </div>
+
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" id="saved-gst-customer-email" placeholder="Enter email">
+                </div>
+
+                <div class="form-actions">
+                    <button onclick="closeAddGSTCustomerModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="saveGSTCustomer()" class="btn-apply" id="save-gst-customer-btn">Save GST
+                        Customer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GST Saved Bills Modal -->
+    <div id="gst-saved-bills-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>GST Saved Bills</h3>
+                <span class="close" onclick="closeGSTSavedBillsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="gst-saved-bills-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- History Modal -->
+    <div id="history-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Bill History</h3>
+                <span class="close" onclick="closeHistoryModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="history-search" placeholder="Search history..." oninput="searchHistory()">
+                    <button onclick="openClearHistoryConfirmation()" class="btn-delete">Clear All History</button>
+                </div>
+                <div id="history-list" class="items-list" style="max-height: 400px; overflow-y: auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear History Confirmation Modal -->
+    <div id="clear-history-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Confirm Clear History</h3>
+                <span class="close" onclick="closeClearHistoryModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to clear all history? This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeClearHistoryModal()" class="btn-cancel">Cancel</button>
+                <button onclick="clearAllHistory()" class="btn-delete">Yes, Clear All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Sidebar -->
+    <div id="settings-overlay" onclick="toggleSettingsSidebar()"></div>
+    <div id="settings-sidebar">
+        <h2>Settings <button class="settings-close-btn" onclick="toggleSettingsSidebar()">×</button></h2>
+        <div class="settings-content">
+            <button onclick="openGSTModeModal()" class="settings-btn gst-mode-btn"><span
+                    class="material-icons">receipt_long</span></button>
+            <button onclick="openCompanyInfoModal()" class="settings-btn company-info-btn"><span
+                    class="material-icons">business</span>COMPANY INFO</button>
+            <button onclick="openCustomerDetailsModal()" class="settings-btn customer-details-btn"
+                style="display: none;"><span class="material-icons">person</span>CUSTOMER DETAILS</button>
+            <button onclick="openHistoryModal()" class="settings-btn"><span
+                    class="material-icons">history</span>HISTORY</button>
+            <button onclick="openManageItemsModal()" class="settings-btn"><span
+                    class="material-icons">inventory_2</span>MANAGE ITEMS</button>
+            <button onclick="openManageCustomersModal()" class="settings-btn"><span
+                    class="material-icons">groups</span>MANAGE CUSTOMERS</button>
+            <button onclick="openSavedBillsModal()" class="settings-btn"><span
+                    class="material-icons">folder_open</span>SAVED BILLS</button>
+            <button onclick="saveCurrentBill()" class="settings-btn"><span class="material-icons">save</span>SAVE
+                BILL</button>
+            <button onclick="backupData()" class="settings-btn"><span
+                    class="material-icons">backup</span>BACKUP</button>
+            <button onclick="restoreData()" class="settings-btn"><span
+                    class="material-icons">cloud_download</span>RESTORE</button>
+            <button onclick="cycleTheme()" class="settings-btn"><span class="material-icons">palette</span>CHANGE
+                THEME</button>
+            <button onclick="toggleDimensionsDisplay()" class="settings-btn"><span
+                    class="material-icons">layers</span>TOGGLE DIMENSIONS</button>
+            <button onclick="openTaxAdjustmentModal()" class="settings-btn tax-adjustment-btn" style="display: none;">
+                <span class="material-icons">calculate</span>ADJUST TAX RATES
+            </button>
+            <button onclick="toggleProfitView()" class="settings-btn"><span
+                    class="material-icons">calculate</span>PROFIT CALCULATION</button>
+            <!-- Add this button in your settings-sidebar -->
+            <button onclick="openTermsListModal()" class="settings-btn" id="addTermsListSectionBtn">
+                <span class="material-icons">list</span>ADD TERMS
+            </button>
+            <button onclick="toggleAutoApplyRates()" class="settings-btn auto-apply-rates-btn">
+                <span class="material-icons">auto_awesome</span>AUTO RATES: ON
+            </button>
+            <button onclick="openBatchInvoiceModal()" class="settings-btn">
+                <span class="material-icons">receipt</span>BATCH INVOICE
+            </button>
+            <button onclick="openRestoredBillsModal()" class="settings-btn">
+                <span class="material-icons">cloud_download</span>RESTORED BILLS
+            </button>
+            <button onclick="openBillHeadingModal()" class="settings-btn">
+                <span class="material-icons">title</span>BILL HEADING
+            </button>
+            <button onclick="openBrandingModal()" class="settings-btn">
+                <span class="material-icons">branding_watermark</span>LOGO & SIGN
+            </button>
+            <!-- Add this button in the settings sidebar with other buttons -->
+            <button onclick="handlePrint()" class="settings-btn"><span class="material-icons">print</span>PRINT</button>
+        </div>
+    </div>
+
+    <div id="tools">
+        <button onclick="toggleView()" data-view="bill"><span class="material-icons"
+                id="view-icon">description</span><span id="view-text">SHOW BILL</span></button>
+        <button onclick="undoAction()"><span class="material-icons">undo</span>UNDO</button>
+        <button onclick="redoAction()"><span class="material-icons">redo</span>REDO</button>
+        <button onclick="clearAllData()"><span class="material-icons">auto_delete</span>CLEAR ALL</button>
+        <button onclick="downloadPDF()"><span class="material-icons">picture_as_pdf</span>PDF</button>
+        <button onclick="openColumnDialog()" style="display: inline-block;">
+            <span class="material-icons">visibility</span>COLUMNS
+        </button>
+        <button onclick="openDiscountModal()"><span class="material-icons">percent</span>DISCOUNT</button>
+        <button onclick="openAdjustmentModal()"><span class="material-icons">tune</span>ADJUSTMENTS</button>
+        <button onclick="openGSTModal()" id="gst-tool-btn"><span class="material-icons">request_quote</span>GST</button>
+        <button onclick="openSectionModal()"><span class="material-icons">view_day</span>SECTION</button>
+        <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;"><span
+                class="material-icons">vertical_align_bottom</span>FOOTER</button>
+        <!-- Settings Button -->
+        <button onclick="toggleSettingsSidebar()"><span class="material-icons">settings</span>SETTINGS</button>
+    </div>
+
+    <div id="main-container">
+        <!-- Regular Bill Container -->
+        <div id="bill-container" style="display: none">
+            <h4 id="regular-bill-heading"
+                style="display: none; text-align: center; margin-bottom: 5px; text-transform: uppercase;"></h4>
+            <div class="company-details" id="regular-company-details">
+                <div class="company-text">
+                    <div class="top-name" id="companyName">COMPANY NAME</div>
+                    <div class="contact">
+                        <p id="companyAddr">Address</p>
+                        <p id="reg-header-gstin-line">GSTIN : <span id="companyGstin">Your 15-digit GSTIN</span></p>
+                        <p id="reg-header-phone-line">Contact No : <span id="companyPhone">+91 1234567890</span></p>
+                        <p id="reg-header-email-line">Email : <span id="companyEmail">abcd@gmail.com</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="customer-details">
+                <table>
+                    <tr>
+                        <td class="label">
+                            Name:
+                            <div
+                                style="position: relative; display: inline-block; width: calc(100% - 70px); vertical-align: top;">
+                                <input type="text" id="custName" oninput="handleRegularCustomerSearch()"
+                                    autocomplete="off" style="width: 100%; margin-left: 5px;">
+                                <div class="customer-suggestions" id="regular-customer-suggestions"
+                                    style="display: none;"></div>
+                            </div>
+                        </td>
+                        <td class="label">
+                            Bill no: <input type="text" id="billNo" oninput="saveToLocalStorage()" />
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="label">
+                            Address: <input type="text" id="custAddr" oninput="saveToLocalStorage()" />
+                        </td>
+                        <td class="label">
+                            Date: <input type="text" id="billDate" oninput="saveToLocalStorage()" />
+                        </td>
+
+                    </tr>
+                    <tr>
+                        <td class="label">
+                            Contact no: <input type="text" id="custPhone" oninput="saveToLocalStorage()"
+                                pattern="[0-9]*" inputmode="numeric" />
+                        </td>
+
+                        <td class="label" id="custGSINTd">
+                            GSTIN: <input type="text" id="custGSTIN" oninput="saveGSTIN()">
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div class="list-of-items" id="bill-list-of-items">
+                <table id="copyListManual">
+                    <thead>
+                        <tr>
+                            <th>Sr No</th>
+                            <th>Particulars</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+                <table id="bill-total-table">
+                    <tbody id="bill-total-tbody">
+                        <tr>
+                            <td colspan="5" class="total-cell" style="text-align: right; width: 80%;">TOTAL</td>
+                            <td id="createTotalAmountManual" class="total-cell" style="text-align: center; width: 20%;">
+                                0.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table class="bill-footer" id="regular-bill-footer" style="display: none; margin-top: 20px;">
+                    <tbody>
+                        <tr>
+                            <td>
+                                <p><strong>Amount Chargeable (in words)</strong></p>
+                            </td>
+                            <td class="align-center" colspan="2">
+                                <p id="reg-bill-company-signatory">for COMPANY NAME</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p id="reg-bill-amount-words">Rupees Zero Only</p>
+                            </td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
+                                id="reg-stamp-cell"></td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
+                                id="reg-signature-cell"></td>
+                        </tr>
+                        <tr>
+                            <td class="bank-info">
+                                <p><strong>A/C Holder Name :</strong> <span id="reg-bill-account-holder">-</span></p>
+                                <p><strong>A/C No :</strong> <span id="reg-bill-account-number">-</span></p>
+                                <span><strong>IFSC :</strong> <span id="reg-bill-ifsc-code">-</span></span>
+                                <span><strong>Branch :</strong> <span id="reg-bill-branch">-</span></span>
+                                <p><strong>Bank Name :</strong> <span id="reg-bill-bank-name">-</span></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <b>Declaration : </b>
+                                <p><small>We declare that this invoice shows the actual price of the </small></p>
+                                <p><small>goods described and that all particulars are true and correct</small></p>
+                            </td>
+                            <td style="text-align:center; vertical-align: middle;" colspan="2">Authorised Signatory</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- GST Bill Container -->
+        <div id="gst-bill-container" style="display: none">
+
+            <h4 id="gst-bill-heading"
+                style="display: none; text-align: center; margin-bottom: 5px; text-transform: uppercase;"></h4>
+            <div class="company-details" id="gst-company-details">
+                <div class="company-text">
+                    <div class="top-name" id="gstCompanyName">COMPANY NAME</div>
+                    <div class="contact">
+                        <p id="gstCompanyAddr">Address</p>
+                        <p>GSTIN : <span id="gstCompanyGstin">Your 15-digit GSTIN</span></p>
+                        <p>Contact No : <span id="gstCompanyPhone">+91 1234567890</span></p>
+                        <p>Email : <span id="gstCompanyEmail">abcd@gmil.com</span></p>
+                    </div>
+                </div>
+            </div>
+            <!-- Updated Customer Details Section in GST Bill -->
+            <div class="customer-details">
+                <div class="invoice-number-date">
+                    <div>Invoice No : <strong id="bill-invoice-no">001</strong></div>
+                    <div>Dated : <strong id="bill-date-gst">26 AUG 25</strong></div>
+                </div>
+
+                <!-- Bill To Section with Heading -->
+                <div id="billTo">
+                    <h4>Bill To</h4>
+                    <div id="billToContent">
+                        <p id="billToName">jhone doe</p>
+                        <p id="billToAddr">new york city</p>
+                        <p>GSTIN : <span id="billToGstin">customer 15-digit GSTIN</span></p>
+                        <p>Contact : <span id="billToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
+                        <p>State : <span id="billToState">maharashtra</span>, Code : <span
+                                id="billToStateCode">27</span></p>
+                    </div>
+                </div>
+
+                <!-- Ship To Section with Heading (initially hidden) -->
+                <div id="shipTo" style="display: none;">
+                    <h4>Ship To</h4>
+                    <div id="shipToContent">
+                        <p id="shipToName">jhone doe</p>
+                        <p id="shipToAddr">new york city</p>
+                        <p>GSTIN : <span id="shipToGstin">customer 15-digit GSTIN</span></p>
+                        <p>Contact : <span id="shipToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
+                        <p>State : <span id="shipToState">maharashtra</span>, Code : <span
+                                id="shipToStateCode">27</span></p>
+                        <p>Place Of Supply: : <span id="shipToPOS">pune</span></p>
+                    </div>
+                </div>
+            </div>
+            <div class="list-of-items" id="gst-bill-list-of-items">
+                <!-- Updated GST Table with HSN/SAC after Particulars -->
+                <table id="gstCopyListManual">
+                    <thead>
+                        <tr>
+                            <th>Sr No</th>
+                            <th>Particulars</th>
+                            <th>HSN/SAC</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+
+                <table id="gst-bill-totals-table">
+                    <tbody>
+                        <tr>
+                            <td>Sub Total</td>
+                            <td id="gst-sub-total">0.00</td>
+                        </tr>
+                        <tr id="gst-discount-row" style="display: none;">
+                            <td>Discount(<span id="gst-discount-percent">0</span>%)</td>
+                            <td id="gst-discount-amount">-0.00</td>
+                        </tr>
+                        <tr id="gst-cgst-row" style="display: none;">
+                            <td>CGST</td>
+                            <td id="gst-cgst-amount">0.00</td>
+                        </tr>
+                        <tr id="gst-sgst-row" style="display: none;">
+                            <td>SGST</td>
+                            <td id="gst-sgst-amount">0.00</td>
+                        </tr>
+                        <tr id="gst-igst-row" style="display: none;">
+                            <td>IGST</td>
+                            <td id="gst-igst-amount">0.00</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Grand Total</strong></td>
+                            <td><strong id="gst-grand-total">0.00</strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="tax-section">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="align-center" rowspan="2">HSN/SAC</th>
+                                <th class="align-center" rowspan="2">Taxable Value</th>
+                                <th class="align-center" colspan="2">Central Tax</th>
+                                <th class="align-center" colspan="2">State Tax</th>
+                                <th class="align-center" rowspan="2">Total Tax Amount</th>
+                            </tr>
+                            <tr>
+                                <th class="align-center">Rate</th>
+                                <th class="align-center">Amount</th>
+                                <th class="align-center">Rate</th>
+                                <th class="align-center">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bill-tax-tbody">
+                            <tr id="gst-no-tax-data">
+                                <td colspan="7" class="align-center">No tax data available</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <table class="bill-footer">
+                    <tbody>
+                        <tr>
+                            <td>
+                                <p><strong>Amount Chargeable (in words)</strong></p>
+                            </td>
+                            <td class="align-center" colspan="2">
+                                <p id="bill-company-signatory">for SHREE BALAJI PLY AND HARDWARE</p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <p id="bill-amount-words">Rupees Zero Only</p>
+                            </td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
+                                id="stamp-cell">
+                            </td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
+                                id="signature-cell">
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="bank-info">
+                                <p><strong>A/C Holder Name :</strong> <span id="bill-account-holder">-</span></p>
+                                <p><strong>A/C No :</strong> <span id="bill-account-number">-</span></p>
+                                <span><strong>IFSC :</strong> <span id="bill-ifsc-code">-</span></span>
+                                <span><strong>Branch :</strong> <span id="bill-branch">-</span></span>
+                                <p><strong>Bank Name :</strong> <span id="bill-bank-name">-</span></p>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <b>Declaration : </b>
+                                <p><small>We declare that this invoice shows the actual price of the </small></p>
+                                <p><small>goods described and that all particulars are true and correct</small></p>
+                            </td>
+                            <td style="text-align:center; vertical-align: middle;" colspan="2">Authorised Signatory</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="manual-item-container">
+            <div class="size-input">
+                <div style="position: relative; flex: 1; display: flex; gap: 5px;">
+                    <input id="itemNameManual" type="text" autocomplete="off" placeholder="Custom Item Name..."
+                        onchange="handleItemNameInput()" oninput="handleItemSearch()" style="flex: 1;">
+                    <button onclick="openScanner('main')" id="addItemScan" class="icon-btn-square" title="Scan Barcode">
+                        <span class="material-icons">qr_code_scanner</span>
+                    </button>
+                    <div class="item-suggestions" id="item-suggestions" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- HSN Input for GST Mode -->
+            <div class="size-input" id="hsn-input-container" style="display: none;">
+                <input type="text" id="hsnCodeManual" placeholder="HSN/SAC Code" />
+                <input type="text" id="productCodeManual" placeholder="Product Code" />
+            </div>
+
+            <!-- Discount Inputs - Hidden by default -->
+            <div class="size-input" id="discount-inputs-container" style="display: none;">
+                <select id="discountType" aria-label="Select discount type">
+                    <option value="none">Select Discount</option>
+                    <option value="percent_per_unit">Discount % / unit</option>
+                    <option value="amt_per_unit">Discount amt / unit</option>
+                    <option value="percent_on_amount">Discount % on amount</option>
+                    <option value="amt_on_amount">Discount amt on amount</option>
+                </select>
+                <input type="number" id="discountValue" placeholder="Discount Value" step="0.01" min="0">
+            </div>
+
+            <!-- Dimension Inputs - Hidden by default -->
+            <div class="size-input" id="dimension-inputs-container" style="display: none;">
+                <select id="dimensionType" onchange="handleDimensionTypeChange()">
+                    <option value="none">Select Dimension</option>
+                    <option value="length">Length</option>
+                    <option value="widthXheight">Width X Height</option>
+                    <option value="widthXheightXdepth">Width X Height X Depth</option>
+                    <option value="dozen">Dozen (n/12)</option>
+                    <!-- NEW OPTIONS -->
+                    <option value="lengthXwidthXheight">Length X Width X Height</option>
+                    <option value="widthXdepth">Width X Depth</option>
+                    <option value="lengthXheightXdepth">Length X Height X Depth</option>
+                    <option value="lengthXdepth">Length X Depth</option>
+                    <option value="lengthXheight">Length X Height</option>
+                    <option value="lengthXwidth">Length X Width</option>
+                    <option value="lengthXwidthXdepth">Length X Width X Depth</option>
+                </select>
+
+                <select id="measurementUnit" onchange="handleMeasurementUnitChange()" style="display: none;">
+                    <option value="ft">ft</option>
+                    <option value="inch">inch</option>
+                    <option value="mtr">mtr</option>
+                    <option value="cm">cm</option>
+                    <option value="mm">mm</option>
+                </select>
+                <select id="convertUnit" onchange="handleConvertUnitChange()" style="display: none; margin-left: 5px;">
+                    <option value="none">Select Convert</option>
+                    <option value="ft">ft</option>
+                    <option value="inch">inch</option>
+                    <option value="mtr">mtr</option>
+                    <option value="cm">cm</option>
+                    <option value="mm">mm</option>
+                </select>
+            </div>
+
+            <!-- Dimension Inputs -->
+            <!-- Replace the dimensionInputs div with this: -->
+            <div class="size-input" id="dimensionInputs" style="display: none;">
+                <div class="dimension-input-with-toggle">
+                    <input type="checkbox" id="dimension1-toggle" class="dimension-toggle" checked
+                        onchange="updateDimensionCalculation()">
+                    <input type="number" id="dimension1" placeholder="Value 1" step="0.01" min="0">
+                </div>
+                <div class="dimension-input-with-toggle" style="display: none;">
+                    <input type="checkbox" id="dimension2-toggle" class="dimension-toggle" checked
+                        onchange="updateDimensionCalculation()">
+                    <input type="number" id="dimension2" placeholder="Value 2" step="0.01" min="0">
+                </div>
+                <div class="dimension-input-with-toggle" style="display: none;">
+                    <input type="checkbox" id="dimension3-toggle" class="dimension-toggle" checked
+                        onchange="updateDimensionCalculation()">
+                    <input type="number" id="dimension3" placeholder="Value 3" step="0.01" min="0">
+                </div>
+            </div>
+
+            <div class="size-input">
+                <input id="quantityManual" type="number" placeholder="Quantity" step="0.01" min="0" />
+                <div style="position: relative; flex: 1;">
+                    <input id="selectUnit" type="text" placeholder="Enter Unit..." oninput="handleUnitSearch()"
+                        autocomplete="off" style="width: 100%;">
+                    <div class="item-suggestions" id="unit-suggestions" style="display: none;"></div>
+                </div>
+                <input id="rateManual" type="number" placeholder="Rate" step="0.01" min="0" />
+            </div>
+
+            <textarea id="itemNotesManual" rows="3" placeholder="Add notes for this item..."
+                oninput="autoSave()"></textarea>
+
+            <div class="size-input">
+                <button onclick="addRowManual()" id="addItemBtnManual">Add Item</button>
+                <button onclick="updateRowManual()" id="updateItemBtnManual" style="display: none;">Update Item</button>
+                <button onclick="toggleDiscountInputs()" id="toggleDiscountBtn">Discount</button>
+                <button onclick="toggleDimensionInputs()" id="toggleDimensionBtn">Dimensions</button>
+                <button onclick="toggleConvertOptions()" id="toggleConvertBtn"
+                    style="display: none; background-color: #95a5a6;">Convert</button>
+                <button onclick="toggleGSTInclusive()" id="gstInclusiveBtn" style="display: none;">Exclusive</button>
+            </div>
+
+            <div id="addedItemsManual">
+                <table id="createListManual">
+                    <thead>
+                        <tr>
+                            <th>Sr No</th>
+                            <th>Particulars</th>
+                            <th>Qty</th>
+                            <th>Unit</th>
+                            <th>Rate</th>
+                            <th>Amount</th>
+                            <th>Actions</th> <!-- Changed from Remove to Actions -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                    </tbody>
+                </table>
+                <table>
+                    <tr>
+                        <td colspan="5" class="total-cell">TOTAL AMT</td>
+                        <td id="createTotalAmountManual" class="total-cell">0.00</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Notification System -->
+    <div id="notification-container" class="notification-container"></div>
+
+    <!-- Custom Confirm Dialog -->
+    <div id="confirm-dialog" class="confirm-dialog">
+        <div class="confirm-dialog-content">
+            <div class="confirm-dialog-header">
+                <h3>Confirmation</h3>
+            </div>
+            <div class="confirm-dialog-body">
+                <p id="confirm-message">Are you sure?</p>
+            </div>
+            <div class="confirm-dialog-footer">
+                <button id="confirm-no" class="btn-cancel">No</button>
+                <button id="confirm-yes" class="btn-apply">Yes</button>
+            </div>
+        </div>
+    </div>
+    <!-- Terms List Modal -->
+    <div id="terms-list-modal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>Create Terms & Conditions</h3>
+                <span class="close" onclick="closeTermsListModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="max-height:70vh;overflow-y:scroll;">
+                <div class="form-group">
+                    <label for="terms-heading">Heading:</label>
+                    <input type="text" id="terms-heading" placeholder="Enter heading (e.g., Notes, Terms, Disclaimer)"
+                        oninput="updateTermsPreview()">
+                </div>
+
+                <div class="form-group">
+                    <label>List Type & Style:</label>
+                    <div class="terms-controls">
+                        <select id="terms-list-type" onchange="handleListTypeChange()">
+                            <option value="ul">Unordered List</option>
+                            <option value="ol">Ordered List</option>
+                        </select>
+                        <select id="terms-list-style" onchange="updateTermsPreview()">
+                            <!-- Options will be populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>List Items:</label>
+                    <div id="terms-items-container">
+                        <!-- Dynamic items will be added here -->
+                    </div>
+                    <button type="button" onclick="addTermsListItem()" class="btn-add-item">
+                        <i class="material-icons">add</i> Add Item
+                    </button>
+                </div>
+
+                <div class="terms-preview-section">
+                    <h4>Preview:</h4>
+                    <div id="terms-preview" class="terms-preview">
+                        <!-- Preview will be updated here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeTermsListModal()" class="btn-cancel">Cancel</button>
+                <button id="delete-terms-btn" onclick="deleteCurrentTerms()" class="btn-delete" style="display: none;">
+                    <i class="material-icons">delete</i> Delete Terms
+                </button>
+                <button onclick="saveTermsList()" class="btn-apply">Save Terms</button>
+            </div>
+        </div>
+    </div>
+    <div id="batch-invoice-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Batch Invoice Generator</h3>
+                <span class="close" onclick="closeBatchInvoiceModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Enter product codes and quantities:</label>
+                    <textarea id="batch-invoice-input" rows="6"
+                        placeholder="Format: [productCode@qty, productCode@qty, ..., contactNumber, customerName]&#10;Example: [111222@2, 123@1, 9876543210, John Doe]"></textarea>
+                </div>
+                <div class="form-actions">
+                    <button onclick="closeBatchInvoiceModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="generateBatchInvoice()" class="btn-apply">Generate Invoice</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Column Visibility Dialog -->
+    <div id="columnDialog" class="dialog-overlay" style="display: none;">
+        <div class="dialog-content">
+            <h3>Show/Hide Columns</h3>
+            <div class="checkbox-group">
+                <label><input type="checkbox" id="colSrNo" checked> SR NO</label>
+                <label><input type="checkbox" id="colQty" checked> QTY</label>
+                <label><input type="checkbox" id="colUnit" checked> UNIT</label>
+                <label><input type="checkbox" id="colRate" checked> RATE</label>
+                <label><input type="checkbox" id="colAmt" checked> AMT</label>
+                <label><input type="checkbox" id="colTotal" checked> TOTAL TABLE</label>
+            </div>
+            <div class="dialog-buttons">
+                <button onclick="applyColumnVisibility()">Apply</button>
+                <button onclick="closeColumnDialog()">Cancel</button>
+            </div>
+        </div>
+    </div>
+    <!-- Restored Bills Modal -->
+    <div id="restored-bills-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Restored Bills</h3>
+                <span class="close" onclick="closeRestoredBillsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="restored-bills-search" placeholder="Search restored bills..."
+                        oninput="searchRestoredBills()">
+                    <button onclick="restoreIndividualBill()" class="btn-primary">
+                        <i class="material-icons">add</i> Restore Bill from JSON
+                    </button>
+                </div>
+                <div id="restored-bills-list" class="items-list">
+                    <!-- Restored bills will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="add-stock-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Add Stock</h3>
+                <span class="close" onclick="closeAddStockModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="stock-item-name" style="font-weight: bold; margin-bottom: 15px;"></p>
+                <div class="stock-input-group">
+                    <input type="number" id="add-stock-quantity" placeholder="Qty to add" min="1" step="1">
+                    <button onclick="saveAddedStock()" class="btn-apply">Add</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bill-heading-modal" class="modal">
+        <div class="modal-content" style="max-width: 450px;">
+            <div class="modal-header">
+                <h3>Bill Headings</h3>
+                <span class="close" onclick="closeBillHeadingModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Regular Bill Heading:</label>
+                    <input type="text" id="regular-heading-input" placeholder="e.g. ESTIMATE / QUOTATION">
+                </div>
+                <div class="form-group">
+                    <label>GST Bill Heading:</label>
+                    <input type="text" id="gst-heading-input" placeholder="e.g. TAX INVOICE">
+                </div>
+
+                <div class="form-group">
+                    <label>Font Size (px):</label>
+                    <input type="number" id="heading-font-size-input" placeholder="e.g. 18" value="18">
+                </div>
+
+                <div class="form-group">
+                    <label>Text Case:</label>
+                    <select id="heading-text-transform">
+                        <option value="none">Normal</option>
+                        <option value="uppercase" selected>Uppercase</option>
+                        <option value="lowercase">Lowercase</option>
+                        <option value="capitalize">Capitalize</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBillHeadingModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveBillHeadings()" class="btn-apply">Save Headings</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="branding-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3>Logo, Sign & Stamp</h3>
+                <span class="close" onclick="closeBrandingModal()">&times;</span>
+            </div>
+            <div class="modal-body" style="height: 70vh; overflow-y: auto;">
+                <div class="form-group">
+                    <label>Company Logo:</label>
+                    <div id="logo-preview" class="img-preview-box"></div>
+
+                    <input type="file" id="logo-upload" accept="image/*" onchange="previewImage(this, 'logo')">
+
+                    <div style="margin-top: 10px; display: flex; gap: 10px;">
+                        <div style="flex: 1;">
+                            <label>Logo Position:</label>
+                            <select id="logo-position" style="width: 100%;">
+                                <option value="left">Left</option>
+                                <option value="right">Right</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Border Radius (%):</label>
+                            <input type="number" id="logo-radius" value="0" min="0" max="50" placeholder="0-50"
+                                style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <button onclick="clearImage('logo')" class="btn-cancel"
+                        style="margin-top:5px; padding: 5px 10px; font-size: 12px;">Remove Logo</button>
+                </div>
+                <hr>
+                <div class="form-group">
+                    <label>Signature:</label>
+                    <div id="sign-preview" class="img-preview-box"></div>
+
+                    <input type="file" id="sign-upload" accept="image/*" onchange="previewImage(this, 'signature')">
+                    <button onclick="clearImage('signature')" class="btn-cancel"
+                        style="margin-top:5px; padding: 5px 10px; font-size: 12px;">Remove Signature</button>
+                </div>
+                <div class="form-group">
+                    <label>Stamp/Seal:</label>
+                    <div id="stamp-preview" class="img-preview-box"></div>
+
+                    <input type="file" id="stamp-upload" accept="image/*" onchange="previewImage(this, 'stamp')">
+                    <button onclick="clearImage('stamp')" class="btn-cancel"
+                        style="margin-top:5px; padding: 5px 10px; font-size: 12px;">Remove Stamp</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeBrandingModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveBrandingSettings()" class="btn-apply">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="adjustment-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Adjustment Chain (Sequential)</h3>
+                <span class="close" onclick="closeAdjustmentModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="adjustment-form-wrapper" style="background: #f8f9fa; padding: 15px; border-radius: 4px;">
+                    <input type="hidden" id="adj-id">
+                    <div class="form-group" style="margin-bottom: 10px;">
+                        <label>Description:</label>
+                        <input type="text" id="adj-name" placeholder="e.g. Discount, GST, Packing" style="width: 100%;">
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 15px; margin-bottom: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Type:</label>
+                            <select id="adj-type" style="width: 100%;">
+                                <option value="amount">₹ Fixed Amount</option>
+                                <option value="percent">% Percent</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Value:</label>
+                            <input type="number" id="adj-value" placeholder="0" step="0.01" style="width: 100%;">
+                        </div>
+                    </div>
+
+                    <div class="form-row" style="display: flex; gap: 15px; align-items: flex-end;">
+                        <div class="form-group" style="flex: 2;">
+                            <label>Operation:</label>
+                            <select id="adj-operation" style="width: 100%;">
+                                <option value="add">(+) Add</option>
+                                <option value="subtract">(-) Subtract</option>
+
+                            </select>
+                        </div>
+                        <div class="form-group" style="width: 60px;">
+                            <label>Color:</label>
+                            <input type="color" id="adj-color" value="#000000"
+                                style="padding:0; height:38px; width: 100%; cursor: pointer;">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <button onclick="saveAdjustment()" class="btn-apply" id="btn-save-adj"
+                                style="width: 100%;">Add</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <table class="unified-ledger-table" id="adj-preview-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th>Source Amt</th>
+                                <th>Adj Value</th>
+                                <th>Adj Amount</th>
+                                <th>Running Balance</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adj-preview-tbody">
+                        </tbody>
+                    </table>
+                    <p style="font-size: 0.8em; color: #666; margin-top: 5px;">
+                        <i class="material-icons" style="font-size: 12px;">info</i>
+                        Drag rows to reorder. Calculation is sequential (Top to Bottom).
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAdjustmentModal()" class="btn-apply">Done</button>
+            </div>
+        </div>
+    </div>
+    <div id="scanner-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Scan Barcode</h3>
+                <span class="close" onclick="closeScannerModal()">×</span>
+            </div>
+            <div class="modal-body" style="text-align: center;">
+                <div class="scan-mode-toggle">
+                    <button onclick="setScanMode('manual')" id="btn-scan-manual" class="btn-mode active">Manual</button>
+                    <button onclick="setScanMode('auto')" id="btn-scan-auto" class="btn-mode">Automatic</button>
+                </div>
+                <div class="manual-barcode-entry"
+                    style="display: flex; gap: 10px; margin-bottom: 15px; padding: 0 10px;">
+                    <input type="text" id="manual-barcode-text" placeholder="Type Barcode or Product Code"
+                        onkeypress="handleManualEnter(event)"
+                        style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button onclick="handleManualEntry()" class="icon-btn-square" title="Add Item"
+                        style="background-color: var(--primary-color); color: white;">
+                        <span class="material-icons">add</span>
+                    </button>
+                </div>
+                <div id="scanner-container"
+                    style="position: relative; width: 300px; height: 300px; margin: 0 auto; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    <video id="scanner-video" style="width: 100%; height: 100%; object-fit: cover;"></video>
+                    <div class="scan-overlay"></div>
+                </div>
+
+                <div style="margin-top: 10px;">
+                    <select id="camera-select" style="width: 300px; padding: 5px;"></select>
+                </div>
+
+                <div id="quick-add-form"
+                    style="display: none; margin-top: 15px; text-align: left; border-top: 1px solid #eee; padding-top: 15px;">
+                    <h4 id="scanned-item-name" style="margin: 0 0 10px 0; color: var(--primary-color);"></h4>
+                    <input type="hidden" id="quick-item-name">
+
+                    <div class="size-input" style="margin-bottom: 10px;">
+                        <input id="quick-quantity" type="number" placeholder="Quantity" step="0.01" min="0"
+                            style="width: 60px;" oninput="updateQuickAddHeader()">
+                        <div style="position: relative; flex: 1;">
+                            <input id="quick-unit" type="text" placeholder="Unit" style="width: 100%;">
+                        </div>
+                        <input id="quick-rate" type="number" placeholder="Rate" step="0.01" min="0"
+                            style="width: 100px;">
+                    </div>
+
+                    <button onclick="processQuickAdd()" class="btn-apply" style="width: 100%;">Add Item</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <div id="code-display-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <div class="modal-header">
+                <h3 id="code-modal-title">Code View</h3>
+                <span class="close" onclick="closeCodeModal()">×</span>
+            </div>
+            <div class="modal-body">
+
+                <div id="printable-code-card" style="background: white; padding: 20px; border-radius: 8px;">
+
+                    <h2 id="code-product-name-display"
+                        style="margin: 0 0 10px 0; color: #333; font-size: 1.4em; word-wrap: break-word;"></h2>
+
+                    <div id="code-canvas-container"
+                        style="margin: 10px auto; display: flex; justify-content: center; align-items: center; min-height: 100px;">
+                    </div>
+
+                    <div id="code-text-display"
+                        style="font-family: monospace; font-size: 1.2em; font-weight: bold; margin-top: 10px; color: #000;">
+                    </div>
+                </div>
+
+                <div style="padding-top: 20px; border-top: 1px solid #eee; margin-top: 10px;">
+                    <button onclick="downloadCodeImage()" class="btn-apply"
+                        style="width: 100%; display: flex; justify-content: center; gap: 10px;">
+                        <span class="material-icons">download</span> Download High Res Image
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="index.js"></script>
+</body>
+
+</html>
