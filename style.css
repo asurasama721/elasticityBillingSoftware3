@@ -3,7 +3,7 @@
     --secondary-color: #2980b9;
     --text-color: #333;
     --bg-color: #f9f9f9;
-    --border-color: rgba(221, 221, 221, 1);
+    --border-color: #ddd;
     --highlight-color: #f1c40f;
     --total-bg: #ecf0f1;
     --gst-tint: rgba(255, 255, 255, 0.1);
@@ -1208,7 +1208,6 @@ body.gst-mode .settings-btn:hover .material-icons {
     position: sticky;
     bottom: 0;
 }
-
 
 /* Scrollbar styling for the modal body */
 #add-item-modal .modal-body::-webkit-scrollbar {
@@ -3530,4 +3529,48 @@ terms modal
 #scanner-video {
     transform: scaleX(-1);
     /* Mirror effect for better UX */
+}
+
+/* Styling for the More Options Button */
+#toggle-more-options-btn {
+    transition: background-color 0.2s;
+    font-weight: 500;
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+#toggle-more-options-btn:hover {
+    background-color: #e0e0e0 !important;
+}
+
+#toggle-more-options-btn .material-icons {
+    margin-left: 5px;
+    font-size:20px;
+}
+
+/* Scanner Mode Toggle Buttons */
+.scan-mode-toggle {
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-mode {
+    padding: 8px 20px;
+    border: 1px solid var(--border-color);
+    background: #f8f9fa;
+    color: #666;
+    cursor: pointer;
+    border-radius: 20px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.btn-mode.active {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
 }
