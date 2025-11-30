@@ -42,6 +42,10 @@ let adjDragSrcEl = null;  // Unique drag source for adjustments
 let codeReader = null;
 let currentScannerMode = null; // 'main' or 'modal'
 let scannedItemData = null;
+let scannerMode = 'manual'; // 'manual' or 'auto'
+let lastScannedCode = null;
+let lastScanTime = 0;
+const SCAN_DELAY = 1500;
 
 // Add this with other global variables
 let sectionModalState = {
@@ -1602,7 +1606,7 @@ function toggleDimensionsDisplay() {
 }
 
 async function handleItemSearch() {
-    const searchTerm = document.getElementById('itemNameManual').value.trim();
+    const searchTerm = document.getElementById('itemNameManual').value.trim().toLowerCase();
     const suggestions = document.getElementById('item-suggestions');
 
     if (searchTerm.length < 1) {
@@ -1618,20 +1622,34 @@ async function handleItemSearch() {
             return;
         }
 
-        const filtered = items.filter(item =>
-            item && item.value && (
-                item.value.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (item.value.otherNames && item.value.otherNames.toLowerCase().includes(searchTerm.toLowerCase()))
-            )
-        ).slice(0, 5);
+        // Expanded Search Logic (Matches barcode, batch, etc.)
+        const filtered = items.filter(item => {
+            if (!item || !item.value) return false;
+
+            const data = item.value;
+
+            const name = (data.name || '').toLowerCase();
+            const otherNames = (data.otherNames || '').toLowerCase();
+            const barcode = (data.barcode || '').toLowerCase();
+            const productCode = (data.productCode || '').toLowerCase();
+            const sectionCode = (data.sectionCode || '').toLowerCase();
+            const batchNumber = (data.batchNumber || '').toLowerCase();
+
+            return name.includes(searchTerm) ||
+                otherNames.includes(searchTerm) ||
+                barcode.includes(searchTerm) ||
+                productCode.includes(searchTerm) ||
+                sectionCode.includes(searchTerm) ||
+                batchNumber.includes(searchTerm);
+        }).slice(0, 5);
 
         suggestions.innerHTML = '';
         filtered.forEach(item => {
             const div = document.createElement('div');
             div.className = 'item-suggestion-item';
 
-            // ADD STOCK DISPLAY
-            const stockText = item.value.stockQuantity !== undefined ? ` ( Stock : ${item.value.stockQuantity} )` : '';
+            // Only show Name + Stock (No extra info)
+            const stockText = item.value.stockQuantity !== undefined ? ` (Stock: ${item.value.stockQuantity})` : '';
             div.textContent = item.value.name + stockText;
 
             div.onclick = () => selectItemSuggestion(item.value.name);
@@ -1654,31 +1672,107 @@ function selectItemSuggestion(itemName) {
     handleItemNameInput();
 }
 
+// Toggle More Options in Add Item Modal
+function toggleMoreOptions() {
+    const container = document.getElementById('more-options-container');
+    const btn = document.getElementById('toggle-more-options-btn');
+    const icon = btn.querySelector('.material-icons');
+
+    if (container.style.display === 'none') {
+        container.style.display = 'block';
+        btn.innerHTML = 'Hide Options <span class="material-icons">keyboard_arrow_up</span>';
+        btn.style.backgroundColor = '#e0e0e0';
+    } else {
+        container.style.display = 'none';
+        btn.innerHTML = 'More Options <span class="material-icons">keyboard_arrow_down</span>';
+        btn.style.backgroundColor = '#f0f0f0';
+    }
+}
+
+// Logic for Category Suggestions (Fetch from DB)
+async function handleSavedCategorySearch() {
+    const input = document.getElementById('saved-category');
+    const suggestionsBox = document.getElementById('saved-category-suggestions');
+    const searchTerm = input.value.trim().toLowerCase();
+
+    if (searchTerm.length < 1) {
+        suggestionsBox.style.display = 'none';
+        return;
+    }
+
+    try {
+        const allItems = await getAllFromDB('savedItems');
+        // Extract unique categories
+        const categories = [...new Set(allItems.map(item => item.value.category).filter(c => c))];
+
+        const filtered = categories.filter(cat => cat.toLowerCase().includes(searchTerm)).slice(0, 5);
+
+        suggestionsBox.innerHTML = '';
+
+        if (filtered.length > 0) {
+            filtered.forEach(cat => {
+                const div = document.createElement('div');
+                div.className = 'item-suggestion-item';
+                div.textContent = cat;
+                div.onclick = () => {
+                    input.value = cat;
+                    suggestionsBox.style.display = 'none';
+                };
+                suggestionsBox.appendChild(div);
+            });
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error searching categories:', error);
+        suggestionsBox.style.display = 'none';
+    }
+}
+
 // --- Unit Suggestion Logic ---
 const defaultUnits = ['nos', 'pair', 'pak', 'box', 'pouch', 'kg', 'g', 'ft', 'sqft', 'sheet', 'ltr', 'ml', 'pc', 'set'];
 
-function handleUnitSearch() {
+async function handleUnitSearch() {
     const input = document.getElementById('selectUnit');
     const suggestionsBox = document.getElementById('unit-suggestions');
     const searchTerm = input.value.trim().toLowerCase();
 
-    // Filter units
-    const filtered = defaultUnits.filter(unit =>
-        unit.toLowerCase().includes(searchTerm)
-    );
+    try {
+        // 1. Static Units (Your default list)
+        const staticUnits = ['nos', 'pair', 'pak', 'box', 'pouch', 'kg', 'g', 'ft', 'sqft', 'sheet', 'ltr', 'ml', 'pc', 'set'];
 
-    suggestionsBox.innerHTML = '';
+        // 2. Fetch Dynamic Units from DB (Existing saved items)
+        const allItems = await getAllFromDB('savedItems');
+        const dbUnits = allItems.map(item => item.value.defaultUnit).filter(u => u);
 
-    if (filtered.length > 0) {
-        filtered.forEach(unit => {
-            const div = document.createElement('div');
-            div.className = 'item-suggestion-item';
-            div.textContent = unit;
-            div.onclick = () => selectUnitSuggestion(unit);
-            suggestionsBox.appendChild(div);
-        });
-        suggestionsBox.style.display = 'block';
-    } else {
+        // 3. Merge and Deduplicate (Combine lists and remove duplicates)
+        const uniqueUnits = [...new Set([...staticUnits, ...dbUnits])];
+
+        // 4. Filter based on what user typed
+        const filtered = uniqueUnits.filter(unit => unit.toLowerCase().includes(searchTerm)).slice(0, 5);
+
+        suggestionsBox.innerHTML = '';
+
+        if (filtered.length > 0) {
+            filtered.forEach(unit => {
+                const div = document.createElement('div');
+                div.className = 'item-suggestion-item';
+                div.textContent = unit;
+
+                // When clicked, fill input and hide suggestions
+                div.onclick = () => {
+                    input.value = unit;
+                    suggestionsBox.style.display = 'none';
+                };
+                suggestionsBox.appendChild(div);
+            });
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("Error fetching units", error);
         suggestionsBox.style.display = 'none';
     }
 }
@@ -1689,28 +1783,45 @@ function selectUnitSuggestion(unit) {
 }
 
 // --- Saved Item Unit Suggestion Logic ---
-function handleSavedUnitSearch() {
+// Updated Unit Suggestions (Static + DB Units)
+async function handleSavedUnitSearch() {
     const input = document.getElementById('saved-select-unit');
     const suggestionsBox = document.getElementById('saved-unit-suggestions');
     const searchTerm = input.value.trim().toLowerCase();
 
-    // Filter units (using the defaultUnits array defined earlier)
-    const filtered = defaultUnits.filter(unit =>
-        unit.toLowerCase().includes(searchTerm)
-    );
+    try {
+        // 1. Static Units
+        const staticUnits = ['nos', 'pair', 'pak', 'box', 'pouch', 'kg', 'g', 'ft', 'sqft', 'sheet', 'ltr', 'ml', 'pc', 'set'];
 
-    suggestionsBox.innerHTML = '';
+        // 2. Fetch Dynamic Units from DB
+        const allItems = await getAllFromDB('savedItems');
+        const dbUnits = allItems.map(item => item.value.defaultUnit).filter(u => u);
 
-    if (filtered.length > 0) {
-        filtered.forEach(unit => {
-            const div = document.createElement('div');
-            div.className = 'item-suggestion-item';
-            div.textContent = unit;
-            div.onclick = () => selectSavedUnitSuggestion(unit);
-            suggestionsBox.appendChild(div);
-        });
-        suggestionsBox.style.display = 'block';
-    } else {
+        // 3. Merge and Deduplicate
+        const uniqueUnits = [...new Set([...staticUnits, ...dbUnits])];
+
+        // 4. Filter
+        const filtered = uniqueUnits.filter(unit => unit.toLowerCase().includes(searchTerm)).slice(0, 5);
+
+        suggestionsBox.innerHTML = '';
+
+        if (filtered.length > 0) {
+            filtered.forEach(unit => {
+                const div = document.createElement('div');
+                div.className = 'item-suggestion-item';
+                div.textContent = unit;
+                div.onclick = () => {
+                    input.value = unit;
+                    suggestionsBox.style.display = 'none';
+                };
+                suggestionsBox.appendChild(div);
+            });
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+    } catch (error) {
+        console.error("Error fetching units", error);
         suggestionsBox.style.display = 'none';
     }
 }
@@ -1727,6 +1838,7 @@ async function handleItemNameInput() {
     try {
         let item = await getFromDB('savedItems', itemName);
 
+        // Fallback search in Other Names
         if (!item) {
             const allItems = await getAllFromDB('savedItems');
             item = allItems.find(savedItem => {
@@ -1737,6 +1849,7 @@ async function handleItemNameInput() {
         }
 
         if (item) {
+            // 1. Basic Fields
             document.getElementById('dimensionType').value = item.dimensionType || 'none';
             document.getElementById('quantityManual').value = item.defaultQuantity || 1;
             document.getElementById('selectUnit').value = item.defaultUnit || '';
@@ -1744,36 +1857,33 @@ async function handleItemNameInput() {
             document.getElementById('hsnCodeManual').value = item.hsnCode || '';
             document.getElementById('productCodeManual').value = item.productCode || '';
 
-            // --- NEW: Auto-toggle GST Inclusive Button based on Item Setting ---
+            // 2. GST Inclusive Logic
             if (isGSTMode) {
                 const gstBtn = document.getElementById('gstInclusiveBtn');
                 if (gstBtn) {
-                    // Get saved tax type (default to 'exclusive' if not set)
                     const savedTaxType = item.taxType || 'exclusive';
-
                     if (savedTaxType === 'inclusive') {
                         isGSTInclusive = true;
                         gstBtn.textContent = 'Inclusive';
-                        gstBtn.style.backgroundColor = '#27ae60'; // Green for active
+                        gstBtn.style.backgroundColor = '#27ae60';
                     } else {
                         isGSTInclusive = false;
                         gstBtn.textContent = 'Exclusive';
-                        gstBtn.style.backgroundColor = ''; // Default style
+                        gstBtn.style.backgroundColor = '';
                     }
                 }
             }
-            // ------------------------------------------------------------------
 
+            // 3. Populate Dimension Values
             if (item.dimensionValues) {
                 document.getElementById('dimension1').value = parseFloat(item.dimensionValues[0]) || '';
                 document.getElementById('dimension2').value = parseFloat(item.dimensionValues[1]) || '';
                 document.getElementById('dimension3').value = parseFloat(item.dimensionValues[2]) || '';
             }
 
-            // --- NEW LOGIC: Determine Identifier based on Mode ---
+            // 4. Rate Logic (Customer Specific vs Default)
             let identifier = null;
             if (isGSTMode) {
-                // GST Mode: Use GSTIN from display or input
                 const displayGstin = document.getElementById('billToGstin').textContent.trim();
                 const inputGstin = document.getElementById('consignee-gst').value.trim();
                 if (displayGstin && displayGstin !== 'customer 15-digit GSTIN' && displayGstin !== 'N/A') {
@@ -1782,7 +1892,6 @@ async function handleItemNameInput() {
                     identifier = inputGstin;
                 }
             } else {
-                // Regular Mode: Use Name
                 identifier = document.getElementById('custName').value.trim();
             }
 
@@ -1795,7 +1904,6 @@ async function handleItemNameInput() {
             const discountBtn = document.getElementById('toggleDiscountBtn');
 
             if (suggestedData) {
-                // Apply History Data
                 document.getElementById('rateManual').value = suggestedData.rate;
                 document.getElementById('discountType').value = suggestedData.discountType;
                 document.getElementById('discountValue').value = suggestedData.discountValue;
@@ -1808,7 +1916,6 @@ async function handleItemNameInput() {
                     discountBtn.style.backgroundColor = '';
                 }
             } else {
-                // Fallback to Item Defaults
                 document.getElementById('rateManual').value = item.defaultRate || '';
                 document.getElementById('discountType').value = item.discountType || 'none';
                 document.getElementById('discountValue').value = item.discountValue || '';
@@ -1822,6 +1929,7 @@ async function handleItemNameInput() {
                 }
             }
 
+            // 5. Update Global Dimensions Object
             currentDimensions.type = item.dimensionType || 'none';
             currentDimensions.unit = item.measurementUnit || 'ft';
             if (item.dimensionValues) {
@@ -1835,7 +1943,29 @@ async function handleItemNameInput() {
             }
 
             document.getElementById('measurementUnit').value = item.measurementUnit || 'ft';
+
+            // 6. Update UI Visibility
             handleDimensionTypeChange();
+
+            // 7. RESTORE TOGGLE STATES (CHECKBOXES)
+            // This is the new logic to auto-check/uncheck based on saved item config
+            if (item.dimensionToggles) {
+                if (document.getElementById('dimension1-toggle'))
+                    document.getElementById('dimension1-toggle').checked = item.dimensionToggles.toggle1 !== false;
+
+                if (document.getElementById('dimension2-toggle'))
+                    document.getElementById('dimension2-toggle').checked = item.dimensionToggles.toggle2 !== false;
+
+                if (document.getElementById('dimension3-toggle'))
+                    document.getElementById('dimension3-toggle').checked = item.dimensionToggles.toggle3 !== false;
+            } else {
+                // Default to all checked if no config exists
+                if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = true;
+                if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = true;
+                if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = true;
+            }
+
+            // 8. Calculate
             calculateDimensions();
 
             const dimensionContainer = document.getElementById('dimension-inputs-container');
@@ -1844,9 +1974,14 @@ async function handleItemNameInput() {
             if (item.dimensionType && item.dimensionType !== 'none') {
                 dimensionContainer.style.display = 'flex';
                 dimensionBtn.style.backgroundColor = '#3498db';
+                // Show convert button if dimensions exist
+                const convertBtn = document.getElementById('toggleConvertBtn');
+                if (convertBtn) convertBtn.style.display = 'inline-block';
             } else {
                 dimensionContainer.style.display = 'none';
                 dimensionBtn.style.backgroundColor = '';
+                const convertBtn = document.getElementById('toggleConvertBtn');
+                if (convertBtn) convertBtn.style.display = 'none';
             }
 
             document.getElementById('quantityManual').focus();
@@ -1875,12 +2010,12 @@ function openAddItemModal() {
     document.getElementById('add-item-modal-title').textContent = 'Add New Item';
     document.getElementById('save-item-btn').textContent = 'Save Item';
 
-    // Reset Fields
+    // 1. Reset Standard Fields
     document.getElementById('saved-item-name').value = '';
     document.getElementById('saved-category').value = '';
     document.getElementById('saved-batch-number').value = '';
     document.getElementById('saved-section-code').value = '';
-    document.getElementById('saved-barcode').value = ''; // Reset Barcode
+    document.getElementById('saved-barcode').value = '';
 
     document.getElementById('saved-stock-quantity').value = '0';
     document.getElementById('saved-dimension-type').value = 'none';
@@ -1888,7 +2023,7 @@ function openAddItemModal() {
     document.getElementById('saved-default-quantity').value = '1';
     document.getElementById('saved-select-unit').value = '';
     document.getElementById('saved-default-rate').value = '';
-    document.getElementById('saved-tax-type').value = 'exclusive'; // Reset Tax Type
+    document.getElementById('saved-tax-type').value = 'exclusive';
 
     document.getElementById('saved-dimension1').value = '';
     document.getElementById('saved-dimension2').value = '';
@@ -1902,11 +2037,26 @@ function openAddItemModal() {
     document.getElementById('saved-other-names').value = '';
     document.getElementById('saved-notes').value = '';
 
+    // 2. Reset New Fields
+    document.getElementById('saved-min-stock').value = '0';
+
+    // 3. Reset UI State (Collapse "More Options")
+    document.getElementById('more-options-container').style.display = 'none';
+    document.getElementById('toggle-more-options-btn').innerHTML = 'More Options <span class="material-icons">keyboard_arrow_down</span>';
+
+    // 4. Reset Suggestions Boxes (Good practice)
+    document.getElementById('saved-category-suggestions').style.display = 'none';
+    document.getElementById('saved-unit-suggestions').style.display = 'none';
+
+    // 5. Force Dimension Toggles to Checked (Default for NEW items)
     if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = true;
     if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = true;
     if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = true;
-    if(document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = 'CODE_128';
 
+    // Reset Barcode Type
+    if (document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = 'CODE_128';
+
+    // 6. Update UI visibility based on reset values
     handleSavedDimensionTypeChange();
     document.getElementById('add-item-modal').style.display = 'block';
 }
@@ -1916,6 +2066,7 @@ function closeAddItemModal() {
 }
 
 // Handle dimension type change in saved items modal
+// FIND this function in index.js and REPLACE it with this version:
 function handleSavedDimensionTypeChange() {
     // 1. Get Elements (Modal Specific IDs)
     const dimensionType = document.getElementById('saved-dimension-type').value;
@@ -1931,43 +2082,30 @@ function handleSavedDimensionTypeChange() {
     const dim2 = document.getElementById('saved-dimension2');
     const dim3 = document.getElementById('saved-dimension3');
 
-    // Toggles (Safety check in case elements don't exist yet)
-    const dim1Toggle = document.getElementById('saved-dimension1-toggle');
-    const dim2Toggle = document.getElementById('saved-dimension2-toggle');
-    const dim3Toggle = document.getElementById('saved-dimension3-toggle');
+    // Inputs Containers
+    const inputs = document.querySelectorAll('#saved-dimension-inputs .dimension-input-with-toggle');
+
+    // --- REMOVED THE FORCED RESET LOGIC HERE --- 
+    // The lines setting .checked = true were deleted
 
     // Reset values only if they're not already set
     if (dim1 && !dim1.value) dim1.value = '';
     if (dim2 && !dim2.value) dim2.value = '';
     if (dim3 && !dim3.value) dim3.value = '';
 
-    // Reset all toggles to checked
-    if (dim1Toggle) dim1Toggle.checked = true;
-    if (dim2Toggle) dim2Toggle.checked = true;
-    if (dim3Toggle) dim3Toggle.checked = true;
-
     // --- VISIBILITY LOGIC ---
     if (dimensionType === 'none' || dimensionType === 'dozen') {
         // HIDE THE CONTAINER
         if (measurementUnitWrapper) measurementUnitWrapper.style.display = 'none';
-        if (measurementUnitSelect) measurementUnitSelect.style.display = 'none'; // Extra safety
-
+        if (measurementUnitSelect) measurementUnitSelect.style.display = 'none';
         if (dimensionInputs) dimensionInputs.style.display = 'none';
-
-        // Special logic for Dozen (optional: adjust qty if needed)
-        if (dimensionType === 'dozen') {
-            const quantityInput = document.getElementById('saved-default-quantity');
-            // Logic to auto-calculate dozen if needed can go here
-        }
     } else {
         // SHOW THE CONTAINER
         if (measurementUnitWrapper) measurementUnitWrapper.style.display = 'block';
         if (measurementUnitSelect) measurementUnitSelect.style.display = 'block';
-
         if (dimensionInputs) dimensionInputs.style.display = 'block';
 
-        // Show/hide appropriate inputs based on dimension type
-        const inputs = document.querySelectorAll('#saved-dimension-inputs .dimension-input-with-toggle');
+        // Hide all inputs first
         inputs.forEach(input => input.style.display = 'none');
 
         // Show first input for all types
@@ -2128,6 +2266,7 @@ async function editItem(itemName) {
             // Populate Fields
             document.getElementById('saved-item-name').value = item.name;
             document.getElementById('saved-category').value = item.category || '';
+            document.getElementById('saved-min-stock').value = item.minStock || 0;
             document.getElementById('saved-batch-number').value = item.batchNumber || '';
             document.getElementById('saved-section-code').value = item.sectionCode || '';
             document.getElementById('saved-barcode').value = item.barcode || ''; // Populate Barcode
@@ -2140,7 +2279,7 @@ async function editItem(itemName) {
             document.getElementById('saved-default-rate').value = item.defaultRate || '';
             document.getElementById('saved-tax-type').value = item.taxType || 'exclusive'; // Populate Tax Type
 
-            if(document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = item.barcodeType || 'CODE_128';
+            if (document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = item.barcodeType || 'CODE_128';
 
             if (item.dimensionValues) {
                 document.getElementById('saved-dimension1').value = parseFloat(item.dimensionValues[0]) || '';
@@ -2153,14 +2292,17 @@ async function editItem(itemName) {
             }
 
             if (item.dimensionToggles) {
-                document.getElementById('saved-dimension1-toggle').checked = item.dimensionToggles.toggle1 !== false;
-                document.getElementById('saved-dimension2-toggle').checked = item.dimensionToggles.toggle2 !== false;
-                document.getElementById('saved-dimension3-toggle').checked = item.dimensionToggles.toggle3 !== false;
+                if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = item.dimensionToggles.toggle1;
+                if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = item.dimensionToggles.toggle2;
+                if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = item.dimensionToggles.toggle3;
             } else {
-                document.getElementById('saved-dimension1-toggle').checked = true;
-                document.getElementById('saved-dimension2-toggle').checked = true;
-                document.getElementById('saved-dimension3-toggle').checked = true;
+                // Default to true if not found
+                if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = true;
+                if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = true;
+                if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = true;
             }
+
+            updateSavedDimensionCalculation();
 
             document.getElementById('saved-discount-type').value = item.discountType || 'none';
             document.getElementById('saved-discount-value').value = item.discountValue || '';
@@ -2169,6 +2311,8 @@ async function editItem(itemName) {
             document.getElementById('saved-purchase-rate').value = item.purchaseRate || '';
             document.getElementById('saved-other-names').value = item.otherNames || '';
             document.getElementById('saved-notes').value = item.notes || '';
+            document.getElementById('more-options-container').style.display = 'none';
+            document.getElementById('toggle-more-options-btn').innerHTML = 'More Options <span class="material-icons">keyboard_arrow_down</span>';
 
             handleSavedDimensionTypeChange();
             document.getElementById('add-item-modal').style.display = 'block';
@@ -2201,6 +2345,7 @@ async function saveItem() {
     const discountValue = parseFloat(document.getElementById('saved-discount-value').value) || 0;
     const hsnCode = document.getElementById('saved-hsn-code').value.trim();
     const stockQuantity = parseInt(document.getElementById('saved-stock-quantity').value) || 0;
+    const minStock = parseInt(document.getElementById('saved-min-stock').value) || 0;
     const productCode = document.getElementById('saved-product-code').value.trim();
     const purchaseRate = parseFloat(document.getElementById('saved-purchase-rate').value) || 0;
     const otherNames = document.getElementById('saved-other-names').value.trim();
@@ -2486,7 +2631,7 @@ async function loadItemsList() {
         items.forEach(item => {
             const itemCard = document.createElement('div');
             itemCard.className = 'item-card';
-            
+
             // Create unique ID for the dropdown menu
             const safeName = item.value.name.replace(/[^a-zA-Z0-9]/g, '-');
             const menuId = `menu-item-${safeName}-${Date.now()}`; // Added timestamp for uniqueness
@@ -2505,46 +2650,46 @@ async function loadItemsList() {
 
             // 2. Handle Stock
             let stockInfo = item.value.stockQuantity !== undefined ? `<div>Stock: ${item.value.stockQuantity}</div>` : '';
-            
+
             // 3. Handle Discount
             let discountInfo = (item.value.discountType && item.value.discountType !== 'none') ? `<div>Discount: ${item.value.discountType} - ${item.value.discountValue}</div>` : '';
-            
+
             // 4. Handle Notes
             let notesInfo = (item.value.notes && item.value.notes !== 'None' && item.value.notes.trim() !== '') ? `<div>Notes: ${item.value.notes}</div>` : '';
-            
+
             // 5. Other Fields
             let otherNamesInfo = item.value.otherNames ? `<div>Other Names: ${item.value.otherNames}</div>` : '';
             let hsnInfo = item.value.hsnCode ? `<div>HSN/SAC: ${item.value.hsnCode}</div>` : '';
             let productCodeInfo = item.value.productCode ? `<div>Product Code: ${item.value.productCode}</div>` : '';
             let purchaseRateInfo = item.value.purchaseRate ? `<div>Purchase Rate: ₹${item.value.purchaseRate}</div>` : '';
-            
+
             let categoryInfo = item.value.category ? `<div>Category: ${item.value.category}</div>` : '';
             let batchInfo = item.value.batchNumber ? `<div>Batch: ${item.value.batchNumber}</div>` : '';
             let sectionInfo = item.value.sectionCode ? `<div>Section: ${item.value.sectionCode}</div>` : '';
-            
+
             // Tax Type Info
             let taxTypeInfo = item.value.taxType ? ` <span style="font-size:0.85em; color:#666;">(${item.value.taxType})</span>` : '';
 
             // --- NEW: Conditional Code Options Logic ---
             let codeOptions = '';
-            
+
             if (item.value.productCode) {
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.productCode}', '${item.value.name}', 'Product Code')">
                     <span class="material-icons">qr_code_2</span> Product Code QR
                 </button>`;
             }
-            
+
             if (item.value.sectionCode) {
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.sectionCode}', '${item.value.name}', 'Section Code')">
                     <span class="material-icons">qr_code_2</span> Section Code QR
                 </button>`;
             }
-            
+
             if (item.value.barcode) {
                 // Default to CODE128 if not saved
-                const bType = item.value.barcodeType || 'CODE128'; 
+                const bType = item.value.barcodeType || 'CODE128';
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('barcode', '${item.value.barcode}', '${item.value.name}', '${bType}')">
                     <span class="material-icons">view_week</span> View Barcode
@@ -2646,65 +2791,85 @@ async function deleteItem(itemName) {
 function openCodeModal(type, codeValue, itemName, meta) {
     const modal = document.getElementById('code-display-modal');
     const container = document.getElementById('code-canvas-container');
-    const title = document.getElementById('code-modal-title');
+    const headerTitle = document.getElementById('code-modal-title');
+    const cardTitle = document.getElementById('code-product-name-display');
     const textDisplay = document.getElementById('code-text-display');
 
     // Reset
     container.innerHTML = '';
-    title.textContent = itemName;
+    headerTitle.textContent = meta || 'Code View';
+    cardTitle.textContent = itemName;
     textDisplay.textContent = codeValue;
 
     if (type === 'qr') {
-        // Generate QR Code
-        // Create a div for QRCode lib to append to
         const qrDiv = document.createElement('div');
         container.appendChild(qrDiv);
 
+        // 1. GENERATE AT HIGH RESOLUTION (600x600)
+        // This creates plenty of pixels for a sharp result
         new QRCode(qrDiv, {
             text: codeValue,
-            width: 200,
-            height: 200,
+            width: 600,
+            height: 600,
             colorDark: "#000000",
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H
         });
 
-        // Add meta label (Product/Section Code)
+        // 2. VISUALLY SCALE DOWN
+        // CSS makes it fit the modal, but the image data remains high-res
+        const qrImg = qrDiv.querySelector('img');
+        if (qrImg) {
+            qrImg.style.width = "200px"; 
+            qrImg.style.height = "auto";
+        }
+
+        // Add meta label
         const label = document.createElement('div');
         label.textContent = meta;
         label.style.fontSize = '0.8em';
         label.style.color = '#666';
         label.style.marginTop = '5px';
-        textDisplay.appendChild(label); // Append meta to text area
+        textDisplay.appendChild(label); 
 
     } else if (type === 'barcode') {
-        // Generate Barcode
         const canvas = document.createElement('canvas');
         container.appendChild(canvas);
 
-        // Map saved format to JsBarcode format string if needed
-        // JsBarcode supports: CODE128, EAN13, UPC, etc.
-        // Our select has: CODE_128, EAN_13, UPC_A
-        let format = meta.replace('_', ''); // Simple normalization
+        let format = meta.replace('_', ''); 
         if (format === 'UPCA') format = 'UPC';
 
         try {
+            // 1. GENERATE AT HIGH RESOLUTION
+            // Thicker bars (width: 4) and taller height ensure crisp rendering
             JsBarcode(canvas, codeValue, {
                 format: format,
                 lineColor: "#000",
-                width: 2,
-                height: 100,
-                displayValue: false // We show value separately below
+                width: 4,        
+                height: 150,     
+                displayValue: false,
+                margin: 10
             });
+
+            // 2. VISUALLY SCALE DOWN
+            canvas.style.maxWidth = "100%";
+            canvas.style.height = "100px"; // Visual height
+
         } catch (e) {
             console.error("Barcode generation error", e);
             container.innerHTML = '<p style="color:red">Invalid format for this barcode type</p>';
         }
+        
+        const label = document.createElement('div');
+        label.textContent = meta;
+        label.style.fontSize = '0.7em';
+        label.style.color = '#888';
+        label.style.marginTop = '2px';
+        textDisplay.appendChild(label);
     }
 
     modal.style.display = 'block';
 
-    // Explicitly close settings sidebar if open
     const sidebar = document.getElementById("settings-sidebar");
     if (sidebar) sidebar.classList.remove("open");
 }
@@ -2714,29 +2879,33 @@ function closeCodeModal() {
 }
 
 function downloadCodeImage() {
-    const container = document.getElementById('code-canvas-container');
-    const title = document.getElementById('code-modal-title').textContent;
-    const code = document.getElementById('code-text-display').textContent;
-
-    // Check for canvas (Barcode) or img (QR Code)
-    let dataUrl;
-    const canvas = container.querySelector('canvas');
-    const img = container.querySelector('img');
-
-    if (canvas) {
-        dataUrl = canvas.toDataURL("image/png");
-    } else if (img) {
-        dataUrl = img.src;
-    } else {
+    // Check if html2canvas is loaded
+    if (typeof html2canvas === 'undefined') {
+        showNotification("Error: html2canvas library is missing.", "error");
         return;
     }
 
-    const link = document.createElement('a');
-    link.download = `${title}-${code}.png`;
-    link.href = dataUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const element = document.getElementById('printable-code-card');
+    const itemName = document.getElementById('code-product-name-display').textContent;
+    const safeName = itemName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const code = document.getElementById('code-text-display').innerText.split('\n')[0]; 
+
+    html2canvas(element, {
+        scale: 5, // SCALE 5: Captures at 5x screen resolution (Very Sharp)
+        backgroundColor: "#ffffff",
+        logging: false,
+        useCORS: true
+    }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${safeName}-${code}.png`;
+        link.href = canvas.toDataURL("image/png");
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }).catch(err => {
+        console.error("Download failed:", err);
+        showNotification("Image generation failed", "error");
+    });
 }
 
 //Useless loadsaved function 
@@ -3785,6 +3954,8 @@ async function addRowManual() {
     };
 
     document.getElementById("itemNameManual").focus();
+
+    applyColumnVisibility()
 }
 
 async function updateRowManual() {
@@ -14073,7 +14244,31 @@ async function openScanner(mode) {
     currentScannerMode = mode;
     document.getElementById('scanner-modal').style.display = 'block';
 
-    // Reset UI
+    // Get UI references
+    const toggleContainer = document.querySelector('.scan-mode-toggle');
+    const manualEntryContainer = document.querySelector('.manual-barcode-entry');
+
+    if (mode === 'modal') {
+        // --- ADD ITEM MODE ---
+        // 1. Force logic to 'manual' (so it doesn't try to auto-add to bill)
+        if (typeof setScanMode === 'function') {
+            setScanMode('manual');
+        } else {
+            scannerMode = 'manual';
+        }
+
+        // 2. Hide extra UI elements
+        if (toggleContainer) toggleContainer.style.display = 'none';
+        if (manualEntryContainer) manualEntryContainer.style.display = 'none';
+
+    } else {
+        // --- MAIN BILLING MODE ---
+        // 1. Show UI elements
+        if (toggleContainer) toggleContainer.style.display = 'flex';
+        if (manualEntryContainer) manualEntryContainer.style.display = 'flex';
+    }
+
+    // Reset Standard UI Components
     document.getElementById('scanner-container').style.display = 'flex';
     document.getElementById('camera-select').style.display = 'inline-block';
     document.getElementById('quick-add-form').style.display = 'none';
@@ -14092,7 +14287,6 @@ async function openScanner(mode) {
             sourceSelect.appendChild(sourceOption);
         });
 
-        // Use the last camera (usually back camera on mobile) or first available
         const selectedDeviceId = videoInputDevices.length > 1 ? videoInputDevices[videoInputDevices.length - 1].deviceId : videoInputDevices[0].deviceId;
 
         startDecoding(selectedDeviceId);
@@ -14113,19 +14307,36 @@ function startDecoding(deviceId) {
         if (result) {
             handleScanSuccess(result);
         }
-        if (err && !(err instanceof ZXing.NotFoundException)) {
+        if (err) {
+            // IGNORE specific errors that occur during closing/resizing
+            if (err instanceof ZXing.NotFoundException || 
+                err.message.includes("IndexSizeError") || 
+                err.message.includes("The source width is 0")) {
+                return;
+            }
+            // Log genuine errors
             console.error(err);
         }
     });
 }
 
 function closeScannerModal() {
+    // 1. Stop the library reader immediately
     if (codeReader) {
         codeReader.reset();
     }
+
+    // 2. Forcefully stop the actual video tracks
+    const video = document.getElementById('scanner-video');
+    if (video && video.srcObject) {
+        const tracks = video.srcObject.getTracks();
+        tracks.forEach(track => track.stop());
+        video.srcObject = null;
+    }
+
+    // 3. Hide the modal
     document.getElementById('scanner-modal').style.display = 'none';
 }
-
 // --- NEW Helper Function for Dynamic Header ---
 function updateQuickAddHeader() {
     const headerEl = document.getElementById('scanned-item-name');
@@ -14146,78 +14357,190 @@ function updateQuickAddHeader() {
 }
 // --- UPDATED handleScanSuccess Function ---
 async function handleScanSuccess(result) {
-    // Play beep sound (optional)
-    // const audio = new Audio('beep.mp3'); audio.play();
-
     const barcodeText = result.text;
-    console.log("Scanned:", barcodeText);
+    const currentTime = Date.now();
 
-    if (currentScannerMode === 'modal') {
-        // Mode B: Autofill Add/Edit Item Modal
-        document.getElementById('saved-barcode').value = barcodeText;
+    // --- AUTOMATIC MODE LOGIC ---
+    if (scannerMode === 'auto') {
+        if (barcodeText === lastScannedCode && (currentTime - lastScanTime < SCAN_DELAY)) {
+            return; 
+        }
+        
+        lastScannedCode = barcodeText;
+        lastScanTime = currentTime;
 
-        // Map ZXing format to our select values
-        const typeSelect = document.getElementById('saved-barcode-type');
-        if (barcodeText.length === 13) typeSelect.value = 'EAN_13';
-        else if (barcodeText.length === 12) typeSelect.value = 'UPC_A';
-        else typeSelect.value = 'CODE_128';
-
-        closeScannerModal();
-        showNotification('Barcode Scanned!', 'success');
-
-    } else if (currentScannerMode === 'main') {
-        // Mode A: Quick Add to Bill
-
-        // 1. Search DB for barcode
         const allItems = await getAllFromDB('savedItems');
-        const foundItem = allItems.find(item => item.value.barcode === barcodeText);
+        const foundItem = allItems.find(item => 
+            item.value.barcode === barcodeText || item.value.productCode === barcodeText
+        );
 
         if (foundItem) {
-            // Stop Camera
-            codeReader.reset();
-            document.getElementById('scanner-container').style.display = 'none';
-            document.getElementById('camera-select').style.display = 'none';
-
-            // Show Quick Add Form
-            const form = document.getElementById('quick-add-form');
-            form.style.display = 'block';
-
-            // Populate Form Data
-            document.getElementById('quick-item-name').value = foundItem.value.name;
-            document.getElementById('quick-quantity').value = 1;
-            document.getElementById('quick-unit').value = foundItem.value.defaultUnit || '';
-            document.getElementById('quick-rate').value = foundItem.value.defaultRate || 0;
-
-            // Store full item data
-            scannedItemData = foundItem.value;
-
-            // --- NEW: Check for Existing Quantity Logic ---
-            const existingRow = Array.from(document.querySelectorAll('#createListManual tbody tr[data-id]')).find(row => {
-                const nameCell = row.querySelector('.itemNameClass');
-                return nameCell && nameCell.textContent.trim() === foundItem.value.name;
-            });
-
-            const headerEl = document.getElementById('scanned-item-name');
-            // Store base name to prevent overwriting
-            headerEl.setAttribute('data-base-name', foundItem.value.name);
-
-            if (existingRow) {
-                const currentQty = parseFloat(existingRow.getAttribute('data-original-quantity') || existingRow.children[2].textContent);
-                headerEl.setAttribute('data-existing-qty', currentQty);
-            } else {
-                headerEl.setAttribute('data-existing-qty', 0);
-            }
-
-            // Update Header Text immediately based on default qty (1)
-            updateQuickAddHeader();
-            // ----------------------------------------------
-
-            document.getElementById('quick-quantity').focus();
-
+            playBeep(); // PLAY SOUND
+            await processAutomaticAdd(foundItem.value);
         } else {
-            showNotification(`Item with barcode ${barcodeText} not found!`, 'error');
+            showNotification(`Item not found: ${barcodeText}`, 'error');
+        }
+        return; 
+    }
+
+    // --- MANUAL MODE LOGIC ---
+    if (document.getElementById('quick-add-form').style.display !== 'block') {
+        if (currentScannerMode === 'modal') {
+            document.getElementById('saved-barcode').value = barcodeText;
+            const typeSelect = document.getElementById('saved-barcode-type');
+            if (barcodeText.length === 13) typeSelect.value = 'EAN_13';
+            else if (barcodeText.length === 12) typeSelect.value = 'UPC_A';
+            else typeSelect.value = 'CODE_128';
+            
+            playBeep(); // PLAY SOUND
+            closeScannerModal();
+            showNotification('Barcode Scanned!', 'success');
+        } else if (currentScannerMode === 'main') {
+            const allItems = await getAllFromDB('savedItems');
+            const foundItem = allItems.find(item => 
+                item.value.barcode === barcodeText || item.value.productCode === barcodeText
+            );
+
+            if (foundItem) {
+                playBeep(); // PLAY SOUND
+                
+                // Pause Camera UI
+                document.getElementById('scanner-container').style.display = 'none';
+                document.getElementById('camera-select').style.display = 'none';
+
+                // Show Form
+                const form = document.getElementById('quick-add-form');
+                form.style.display = 'block';
+
+                // Populate Form
+                document.getElementById('quick-item-name').value = foundItem.value.name;
+                
+                const defaultQty = foundItem.value.defaultQuantity ? parseFloat(foundItem.value.defaultQuantity) : 1;
+                document.getElementById('quick-quantity').value = defaultQty;
+                
+                document.getElementById('quick-unit').value = foundItem.value.defaultUnit || '';
+                document.getElementById('quick-rate').value = foundItem.value.defaultRate || 0;
+
+                scannedItemData = foundItem.value;
+
+                // Existing Qty Logic for Header
+                const existingRow = Array.from(document.querySelectorAll('#createListManual tbody tr[data-id]')).find(row => {
+                    const nameCell = row.querySelector('.itemNameClass');
+                    return nameCell && nameCell.textContent.trim() === foundItem.value.name;
+                });
+
+                const headerEl = document.getElementById('scanned-item-name');
+                headerEl.setAttribute('data-base-name', foundItem.value.name);
+
+                if (existingRow) {
+                    const currentQty = parseFloat(existingRow.getAttribute('data-original-quantity') || existingRow.children[2].textContent);
+                    headerEl.setAttribute('data-existing-qty', currentQty);
+                } else {
+                    headerEl.setAttribute('data-existing-qty', 0);
+                }
+                
+                updateQuickAddHeader();
+                document.getElementById('quick-quantity').focus();
+            } else {
+                showNotification(`Item ${barcodeText} not found!`, 'error');
+            }
         }
     }
+}
+
+async function processAutomaticAdd(itemData) {
+    const itemName = itemData.name;
+
+    // CHANGED: Use saved Default Quantity, otherwise fallback to 1
+    const addedQty = itemData.defaultQuantity ? parseFloat(itemData.defaultQuantity) : 1;
+
+    const addedUnit = itemData.defaultUnit || '';
+    const addedRate = itemData.defaultRate || 0;
+
+    // 1. Check if exists in current bill
+    const existingRow = Array.from(document.querySelectorAll('#createListManual tbody tr[data-id]')).find(row => {
+        const nameCell = row.querySelector('.itemNameClass');
+        return nameCell && nameCell.textContent.trim() === itemName;
+    });
+
+    if (existingRow) {
+        // --- UPDATE EXISTING ---
+        const rowId = existingRow.getAttribute('data-id');
+        const currentQty = parseFloat(existingRow.getAttribute('data-original-quantity') || existingRow.children[2].textContent);
+
+        // Increment by the Default Quantity
+        const newTotalQty = currentQty + addedQty;
+
+        currentlyEditingRowIdManual = rowId;
+
+        // Populate globals for updateRowManual
+        document.getElementById('itemNameManual').value = itemName;
+        document.getElementById('quantityManual').value = newTotalQty;
+        document.getElementById('selectUnit').value = addedUnit;
+        document.getElementById('rateManual').value = addedRate;
+        document.getElementById('itemNotesManual').value = existingRow.querySelector('.notes')?.textContent || '';
+
+        // Restore dimensions logic
+        const dimType = existingRow.getAttribute('data-dimension-type') || 'none';
+        document.getElementById('dimensionType').value = dimType;
+        const dimValues = JSON.parse(existingRow.getAttribute('data-dimension-values') || '[0,0,0]');
+        document.getElementById('dimension1').value = dimValues[0] || '';
+        document.getElementById('dimension2').value = dimValues[1] || '';
+        document.getElementById('dimension3').value = dimValues[2] || '';
+
+        // Setup Dimensions Object
+        currentDimensions.type = dimType;
+        currentDimensions.values = dimValues;
+        currentDimensions.unit = existingRow.getAttribute('data-dimension-unit') || 'ft';
+        calculateDimensions();
+
+        await updateRowManual();
+        showNotification(`Updated: ${itemName} (+${addedQty})`, 'success');
+
+    } else {
+        // --- ADD NEW ---
+        document.getElementById('itemNameManual').value = itemName;
+
+        // Set Initial Quantity to Default Quantity
+        document.getElementById('quantityManual').value = addedQty;
+
+        document.getElementById('selectUnit').value = addedUnit;
+        document.getElementById('rateManual').value = addedRate;
+
+        // Load Item Dimensions
+        const dimType = itemData.dimensionType || 'none';
+        document.getElementById('dimensionType').value = dimType;
+
+        // Restore saved toggle states if they exist
+        if (itemData.dimensionToggles) {
+            if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = itemData.dimensionToggles.toggle1;
+            if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = itemData.dimensionToggles.toggle2;
+            if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = itemData.dimensionToggles.toggle3;
+        } else {
+            // Default checked if no config
+            if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = true;
+            if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = true;
+            if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = true;
+        }
+
+        if (dimType !== 'none') {
+            currentDimensions.type = dimType;
+            currentDimensions.values = itemData.dimensionValues || [0, 0, 0];
+            currentDimensions.unit = itemData.measurementUnit || 'ft';
+            calculateDimensions();
+        } else {
+            currentDimensions = { type: 'none', unit: 'ft', values: [0, 0, 0], calculatedArea: 0 };
+        }
+
+        await addRowManual();
+        showNotification(`Added: ${itemName}`, 'success');
+    }
+
+    // Reset Globals after Op
+    currentlyEditingRowIdManual = null;
+    document.getElementById('itemNameManual').value = '';
+    document.getElementById('quantityManual').value = '';
+    document.getElementById('rateManual').value = '';
 }
 
 async function processQuickAdd() {
@@ -14330,4 +14653,121 @@ async function processQuickAdd() {
         codeReader.reset(); // Reset to be safe
         startDecoding(selectedDeviceId);
     }
+}
+
+function setScanMode(mode) {
+    scannerMode = mode;
+
+    // Update UI
+    document.getElementById('btn-scan-manual').className = mode === 'manual' ? 'btn-mode active' : 'btn-mode';
+    document.getElementById('btn-scan-auto').className = mode === 'auto' ? 'btn-mode active' : 'btn-mode';
+
+    // Reset scanner UI if switching modes
+    document.getElementById('quick-add-form').style.display = 'none';
+    document.getElementById('scanner-container').style.display = 'flex';
+    document.getElementById('camera-select').style.display = 'inline-block';
+
+    // Restart scanning if needed
+    if (codeReader) {
+        codeReader.reset();
+        const selectedDeviceId = document.getElementById('camera-select').value;
+        if (selectedDeviceId) startDecoding(selectedDeviceId);
+    }
+}
+
+// Handle "Enter" key in manual barcode input
+function handleManualEnter(event) {
+    if (event.key === 'Enter') {
+        handleManualEntry();
+    }
+}
+
+// Process Manual Barcode Entry
+async function handleManualEntry() {
+    const input = document.getElementById('manual-barcode-text');
+    const code = input.value.trim();
+
+    if (!code) {
+        showNotification('Please enter a barcode', 'warning');
+        return;
+    }
+
+    try {
+        const allItems = await getAllFromDB('savedItems');
+        
+        // Search by Barcode OR Product Code
+        const foundItem = allItems.find(item => 
+            item.value.barcode === code || item.value.productCode === code
+        );
+
+        if (foundItem) {
+            // REMOVED: playBeep();  <-- Sound removed for manual entry
+
+            if (scannerMode === 'auto') {
+                // --- AUTOMATIC MODE: Add Instantly ---
+                await processAutomaticAdd(foundItem.value);
+                input.value = '';
+                input.focus();
+            } else {
+                // --- MANUAL MODE: Open Form ---
+                
+                // Hide Scanner UI to show form
+                document.getElementById('scanner-container').style.display = 'none';
+                document.getElementById('camera-select').style.display = 'none';
+
+                // Show Form
+                const form = document.getElementById('quick-add-form');
+                form.style.display = 'block';
+
+                // Populate Form
+                document.getElementById('quick-item-name').value = foundItem.value.name;
+                
+                const defaultQty = foundItem.value.defaultQuantity ? parseFloat(foundItem.value.defaultQuantity) : 1;
+                document.getElementById('quick-quantity').value = defaultQty;
+                
+                document.getElementById('quick-unit').value = foundItem.value.defaultUnit || '';
+                document.getElementById('quick-rate').value = foundItem.value.defaultRate || 0;
+
+                scannedItemData = foundItem.value;
+
+                // Header Logic
+                const existingRow = Array.from(document.querySelectorAll('#createListManual tbody tr[data-id]')).find(row => {
+                    const nameCell = row.querySelector('.itemNameClass');
+                    return nameCell && nameCell.textContent.trim() === foundItem.value.name;
+                });
+
+                const headerEl = document.getElementById('scanned-item-name');
+                headerEl.setAttribute('data-base-name', foundItem.value.name);
+
+                if (existingRow) {
+                    const currentQty = parseFloat(existingRow.getAttribute('data-original-quantity') || existingRow.children[2].textContent);
+                    headerEl.setAttribute('data-existing-qty', currentQty);
+                } else {
+                    headerEl.setAttribute('data-existing-qty', 0);
+                }
+                
+                updateQuickAddHeader();
+                
+                // Clear input and focus quantity in form
+                input.value = '';
+                document.getElementById('quick-quantity').focus();
+            }
+
+        } else {
+            showNotification(`Item not found: ${code}`, 'error');
+            input.select(); 
+        }
+    } catch (error) {
+        console.error('Error in manual entry:', error);
+        showNotification('Error checking database', 'error');
+    }
+}
+
+
+// Short Beep Sound (Base64 encoded)
+const beepAudio = new Audio("./beep.mpeg");
+
+function playBeep() {
+    beepAudio.currentTime = 0;
+    beepAudio.play().catch(e => console.log("Audio play failed (user interaction needed first)", e));
 }
