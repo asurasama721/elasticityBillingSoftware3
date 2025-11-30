@@ -694,129 +694,146 @@
                     </div>
                 </div>
 
-
-                <div class="form-group">
-                    <label>Category:</label>
-                    <input type="text" id="saved-category" placeholder="Enter category">
-                </div>
-
                 <div class="form-row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Discount Type:</label>
-                        <select id="saved-discount-type">
-                            <option value="none">Select Discount</option>
-                            <option value="percent_per_unit">Discount % / unit</option>
-                            <option value="amt_per_unit">Discount amt / unit</option>
-                            <option value="percent_on_amount">Discount % on amount</option>
-                            <option value="amt_on_amount">Discount amt on amount</option>
-                        </select>
+                    <div class="form-group" style="flex: 1; position: relative;">
+                        <label>Category:</label>
+                        <input type="text" id="saved-category" placeholder="Enter category" autocomplete="off"
+                            oninput="handleSavedCategorySearch()">
+                        <div class="item-suggestions" id="saved-category-suggestions" style="display: none;"></div>
                     </div>
                     <div class="form-group" style="flex: 1;">
-                        <label>Discount Value:</label>
-                        <input type="number" id="saved-discount-value" placeholder="Enter discount value" step="0.01"
-                            min="0">
+                        <label>Minimum Stock:</label>
+                        <input type="number" id="saved-min-stock" placeholder="Min Alert Qty" step="1" min="0"
+                            value="0">
                     </div>
                 </div>
 
-                <div class="form-row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Dimension Type:</label>
-                        <select id="saved-dimension-type" onchange="handleSavedDimensionTypeChange()">
-                            <option value="none">Select Dimension</option>
-                            <option value="length">Length</option>
-                            <option value="widthXheight">Width X Height</option>
-                            <option value="widthXheightXdepth">Width X Height X Depth</option>
-                            <option value="dozen">Dozen (n/12)</option>
-                            <option value="lengthXwidthXheight">Length X Width X Height</option>
-                            <option value="widthXdepth">Width X Depth</option>
-                            <option value="lengthXheightXdepth">Length X Height X Depth</option>
-                            <option value="lengthXdepth">Length X Depth</option>
-                            <option value="lengthXheight">Length X Height</option>
-                            <option value="lengthXwidth">Length X Width</option>
-                            <option value="lengthXwidthXdepth">Length X Width X Depth</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="flex: 1; display: none;" id="saved-measurement-unit-wrapper">
-                        <label>Measurement Unit:</label>
-                        <select id="saved-measurement-unit" onchange="handleSavedMeasurementUnitChange()">
-                            <option value="ft">ft</option>
-                            <option value="inch">inch</option>
-                            <option value="mtr">mtr</option>
-                            <option value="cm">cm</option>
-                            <option value="mm">mm</option>
-                        </select>
-                    </div>
+                <div style="text-align: center; margin: 10px 0 15px 0;">
+                    <button type="button" onclick="toggleMoreOptions()" id="toggle-more-options-btn" class="btn-clear"
+                        style="margin: 0; width: 100%; display: flex; justify-content: center; align-items: center; background: #f0f0f0; color: #555; border: 1px solid #ddd;">
+                        More Options <span class="material-icons">keyboard_arrow_down</span>
+                    </button>
                 </div>
 
-                <div class="form-group" id="saved-dimension-inputs" style="display: none;">
-                    <label>Dimension Values:</label>
-                    <div class="dimension-inputs-group">
-                        <div class="dimension-input-with-toggle">
-                            <input type="checkbox" id="saved-dimension1-toggle" class="dimension-toggle" checked
-                                onchange="updateSavedDimensionCalculation()">
-                            <input type="number" id="saved-dimension1" placeholder="Value 1" step="0.01" min="0">
+                <div id="more-options-container" style="display: none;">
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Discount Type:</label>
+                            <select id="saved-discount-type">
+                                <option value="none">Select Discount</option>
+                                <option value="percent_per_unit">Discount % / unit</option>
+                                <option value="amt_per_unit">Discount amt / unit</option>
+                                <option value="percent_on_amount">Discount % on amount</option>
+                                <option value="amt_on_amount">Discount amt on amount</option>
+                            </select>
                         </div>
-                        <div class="dimension-input-with-toggle" style="display: none;">
-                            <input type="checkbox" id="saved-dimension2-toggle" class="dimension-toggle" checked
-                                onchange="updateSavedDimensionCalculation()">
-                            <input type="number" id="saved-dimension2" placeholder="Value 2" step="0.01" min="0">
-                        </div>
-                        <div class="dimension-input-with-toggle" style="display: none;">
-                            <input type="checkbox" id="saved-dimension3-toggle" class="dimension-toggle" checked
-                                onchange="updateSavedDimensionCalculation()">
-                            <input type="number" id="saved-dimension3" placeholder="Value 3" step="0.01" min="0">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Discount Value:</label>
+                            <input type="number" id="saved-discount-value" placeholder="Enter discount value"
+                                step="0.01" min="0">
                         </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Barcode:</label>
-                    <div style="display: flex; gap: 10px;">
-                        <input type="text" id="saved-barcode" placeholder="Scan or enter barcode" style="flex: 2;">
-                        <select id="saved-barcode-type" style="flex: 1;">
-                            <option value="CODE_128">Code 128</option>
-                            <option value="EAN_13">EAN 13</option>
-                            <option value="QR_CODE">QR Code</option>
-                            <option value="UPC_A">UPC A</option>
-                        </select>
-                        <button onclick="openScanner('modal')" class="icon-btn-square" title="Scan">
-                            <span class="material-icons">qr_code_scanner</span>
-                        </button>
-                    </div>
-                </div>
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Dimension Type:</label>
+                            <select id="saved-dimension-type" onchange="handleSavedDimensionTypeChange()">
+                                <option value="none">Select Dimension</option>
+                                <option value="length">Length</option>
+                                <option value="widthXheight">Width X Height</option>
+                                <option value="widthXheightXdepth">Width X Height X Depth</option>
+                                <option value="dozen">Dozen (n/12)</option>
+                                <option value="lengthXwidthXheight">Length X Width X Height</option>
+                                <option value="widthXdepth">Width X Depth</option>
+                                <option value="lengthXheightXdepth">Length X Height X Depth</option>
+                                <option value="lengthXdepth">Length X Depth</option>
+                                <option value="lengthXheight">Length X Height</option>
+                                <option value="lengthXwidth">Length X Width</option>
+                                <option value="lengthXwidthXdepth">Length X Width X Depth</option>
+                            </select>
+                        </div>
 
-                <div class="form-row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Batch Number:</label>
-                        <input type="text" id="saved-batch-number" placeholder="Batch No.">
+                        <div class="form-group" style="flex: 1; display: none;" id="saved-measurement-unit-wrapper">
+                            <label>Measurement Unit:</label>
+                            <select id="saved-measurement-unit" onchange="handleSavedMeasurementUnitChange()">
+                                <option value="ft">ft</option>
+                                <option value="inch">inch</option>
+                                <option value="mtr">mtr</option>
+                                <option value="cm">cm</option>
+                                <option value="mm">mm</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>Section Code:</label>
-                        <input type="text" id="saved-section-code" placeholder="Section/Rack">
-                    </div>
-                </div>
 
-                <div class="form-row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>Product Code:</label>
-                        <input type="text" id="saved-product-code" placeholder="Enter product code">
+                    <div class="form-group" id="saved-dimension-inputs" style="display: none;">
+                        <label>Dimension Values:</label>
+                        <div class="dimension-inputs-group">
+                            <div class="dimension-input-with-toggle">
+                                <input type="checkbox" id="saved-dimension1-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension1" placeholder="Value 1" step="0.01" min="0">
+                            </div>
+                            <div class="dimension-input-with-toggle" style="display: none;">
+                                <input type="checkbox" id="saved-dimension2-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension2" placeholder="Value 2" step="0.01" min="0">
+                            </div>
+                            <div class="dimension-input-with-toggle" style="display: none;">
+                                <input type="checkbox" id="saved-dimension3-toggle" class="dimension-toggle" checked
+                                    onchange="updateSavedDimensionCalculation()">
+                                <input type="number" id="saved-dimension3" placeholder="Value 3" step="0.01" min="0">
+                            </div>
+                        </div>
                     </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>HSN/SAC Code:</label>
-                        <input type="text" id="saved-hsn-code" placeholder="Enter HSN/SAC code">
+
+                    <div class="form-group">
+                        <label>Barcode:</label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="saved-barcode" placeholder="Scan or enter barcode" style="flex: 2;">
+                            <select id="saved-barcode-type" style="flex: 1;">
+                                <option value="CODE_128">Code 128</option>
+                                <option value="EAN_13">EAN 13</option>
+                                <option value="QR_CODE">QR Code</option>
+                                <option value="UPC_A">UPC A</option>
+                            </select>
+                            <button onclick="openScanner('modal')" class="icon-btn-square" title="Scan">
+                                <span class="material-icons">qr_code_scanner</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-                <div class="form-group">
-                    <label>Other Names (comma separated):</label>
-                    <textarea id="saved-other-names" placeholder="Enter other names separated by commas"
-                        rows="2"></textarea>
-                </div>
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Batch Number:</label>
+                            <input type="text" id="saved-batch-number" placeholder="Batch No.">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>Section Code:</label>
+                            <input type="text" id="saved-section-code" placeholder="Section/Rack">
+                        </div>
+                    </div>
 
-                <div class="form-group">
-                    <label>Notes:</label>
-                    <textarea id="saved-notes" placeholder="Enter notes" rows="3"></textarea>
+                    <div class="form-row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Product Code:</label>
+                            <input type="text" id="saved-product-code" placeholder="Enter product code">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label>HSN/SAC Code:</label>
+                            <input type="text" id="saved-hsn-code" placeholder="Enter HSN/SAC code">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Other Names (comma separated):</label>
+                        <textarea id="saved-other-names" placeholder="Enter other names separated by commas"
+                            rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes:</label>
+                        <textarea id="saved-notes" placeholder="Enter notes" rows="3"></textarea>
+                    </div>
                 </div>
             </div>
 
@@ -1854,7 +1871,20 @@
                 <span class="close" onclick="closeScannerModal()">×</span>
             </div>
             <div class="modal-body" style="text-align: center;">
-
+                <div class="scan-mode-toggle">
+                    <button onclick="setScanMode('manual')" id="btn-scan-manual" class="btn-mode active">Manual</button>
+                    <button onclick="setScanMode('auto')" id="btn-scan-auto" class="btn-mode">Automatic</button>
+                </div>
+                <div class="manual-barcode-entry"
+                    style="display: flex; gap: 10px; margin-bottom: 15px; padding: 0 10px;">
+                    <input type="text" id="manual-barcode-text" placeholder="Type Barcode or Product Code"
+                        onkeypress="handleManualEnter(event)"
+                        style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button onclick="handleManualEntry()" class="icon-btn-square" title="Add Item"
+                        style="background-color: var(--primary-color); color: white;">
+                        <span class="material-icons">add</span>
+                    </button>
+                </div>
                 <div id="scanner-container"
                     style="position: relative; width: 300px; height: 300px; margin: 0 auto; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center;">
                     <video id="scanner-video" style="width: 100%; height: 100%; object-fit: cover;"></video>
@@ -1886,32 +1916,45 @@
             </div>
         </div>
     </div>
+
     <div id="code-display-modal" class="modal">
         <div class="modal-content" style="max-width: 400px; text-align: center;">
             <div class="modal-header">
-                <h3 id="code-modal-title">Item Name</h3>
+                <h3 id="code-modal-title">Code View</h3>
                 <span class="close" onclick="closeCodeModal()">×</span>
             </div>
             <div class="modal-body">
-                <div id="code-canvas-container"
-                    style="margin: 20px auto; padding: 10px; background: white; display: flex; justify-content: center; align-items: center; min-height: 150px;">
-                </div>
-                <div id="code-text-display"
-                    style="font-family: monospace; font-size: 1.2em; margin-bottom: 15px; font-weight: bold;"></div>
 
-                <button onclick="downloadCodeImage()" class="btn-apply"
-                    style="width: 100%; display: flex; justify-content: center; gap: 10px;">
-                    <span class="material-icons">download</span> Download
-                </button>
+                <div id="printable-code-card" style="background: white; padding: 20px; border-radius: 8px;">
+
+                    <h2 id="code-product-name-display"
+                        style="margin: 0 0 10px 0; color: #333; font-size: 1.4em; word-wrap: break-word;"></h2>
+
+                    <div id="code-canvas-container"
+                        style="margin: 10px auto; display: flex; justify-content: center; align-items: center; min-height: 100px;">
+                    </div>
+
+                    <div id="code-text-display"
+                        style="font-family: monospace; font-size: 1.2em; font-weight: bold; margin-top: 10px; color: #000;">
+                    </div>
+                </div>
+
+                <div style="padding-top: 20px; border-top: 1px solid #eee; margin-top: 10px;">
+                    <button onclick="downloadCodeImage()" class="btn-apply"
+                        style="width: 100%; display: flex; justify-content: center; gap: 10px;">
+                        <span class="material-icons">download</span> Download High Res Image
+                    </button>
+                </div>
             </div>
         </div>
     </div>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="index.js"></script>
 </body>
-
 
 </html>
