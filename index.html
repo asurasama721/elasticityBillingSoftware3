@@ -1745,7 +1745,7 @@
                     <label>Company Logo:</label>
                     <div id="logo-preview" class="img-preview-box"></div>
 
-                    <input type="file" id="logo-upload" accept="image/*" onchange="previewImage(this, 'logo')">
+                    <input type="file" id="logo-upload" accept=".jpg, .jpeg, .png" onchange="previewImage(this, 'logo')">
 
                     <div style="margin-top: 10px; display: flex; gap: 10px;">
                         <div style="flex: 1;">
@@ -1770,7 +1770,7 @@
                     <label>Signature:</label>
                     <div id="sign-preview" class="img-preview-box"></div>
 
-                    <input type="file" id="sign-upload" accept="image/*" onchange="previewImage(this, 'signature')">
+                    <input type="file" id="sign-upload" accept=".jpg, .jpeg, .png" onchange="previewImage(this, 'signature')">
                     <button onclick="clearImage('signature')" class="btn-cancel"
                         style="margin-top:5px; padding: 5px 10px; font-size: 12px;">Remove Signature</button>
                 </div>
@@ -1778,7 +1778,7 @@
                     <label>Stamp/Seal:</label>
                     <div id="stamp-preview" class="img-preview-box"></div>
 
-                    <input type="file" id="stamp-upload" accept="image/*" onchange="previewImage(this, 'stamp')">
+                    <input type="file" id="stamp-upload" accept=".jpg, .jpeg, .png" onchange="previewImage(this, 'stamp')">
                     <button onclick="clearImage('stamp')" class="btn-cancel"
                         style="margin-top:5px; padding: 5px 10px; font-size: 12px;">Remove Stamp</button>
                 </div>
@@ -1980,3 +1980,4 @@
 </body>
 
 </html>
+
