@@ -2820,7 +2820,7 @@ function openCodeModal(type, codeValue, itemName, meta) {
         // CSS makes it fit the modal, but the image data remains high-res
         const qrImg = qrDiv.querySelector('img');
         if (qrImg) {
-            qrImg.style.width = "200px"; 
+            qrImg.style.width = "200px";
             qrImg.style.height = "auto";
         }
 
@@ -2830,13 +2830,13 @@ function openCodeModal(type, codeValue, itemName, meta) {
         label.style.fontSize = '0.8em';
         label.style.color = '#666';
         label.style.marginTop = '5px';
-        textDisplay.appendChild(label); 
+        textDisplay.appendChild(label);
 
     } else if (type === 'barcode') {
         const canvas = document.createElement('canvas');
         container.appendChild(canvas);
 
-        let format = meta.replace('_', ''); 
+        let format = meta.replace('_', '');
         if (format === 'UPCA') format = 'UPC';
 
         try {
@@ -2845,8 +2845,8 @@ function openCodeModal(type, codeValue, itemName, meta) {
             JsBarcode(canvas, codeValue, {
                 format: format,
                 lineColor: "#000",
-                width: 4,        
-                height: 150,     
+                width: 4,
+                height: 150,
                 displayValue: false,
                 margin: 10
             });
@@ -2859,7 +2859,7 @@ function openCodeModal(type, codeValue, itemName, meta) {
             console.error("Barcode generation error", e);
             container.innerHTML = '<p style="color:red">Invalid format for this barcode type</p>';
         }
-        
+
         const label = document.createElement('div');
         label.textContent = meta;
         label.style.fontSize = '0.7em';
@@ -2888,7 +2888,7 @@ function downloadCodeImage() {
     const element = document.getElementById('printable-code-card');
     const itemName = document.getElementById('code-product-name-display').textContent;
     const safeName = itemName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const code = document.getElementById('code-text-display').innerText.split('\n')[0]; 
+    const code = document.getElementById('code-text-display').innerText.split('\n')[0];
 
     html2canvas(element, {
         scale: 5, // SCALE 5: Captures at 5x screen resolution (Very Sharp)
@@ -7527,7 +7527,7 @@ function openShareModal() {
     // Close sidebar if open
     const sidebar = document.getElementById("settings-sidebar");
     if (sidebar) sidebar.classList.remove("open");
-    
+
     document.getElementById('share-modal').style.display = 'block';
 }
 
@@ -7614,7 +7614,7 @@ async function handleSharePDF() {
 
         // Generate Blob using html2pdf
         const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
-        
+
         element.classList.remove('pdf-mode');
 
         // Restore View if needed
@@ -8192,7 +8192,8 @@ function updateUIForGSTMode() {
         regFooterBtn.style.display = (!isGSTMode && currentView === 'bill') ? 'inline-block' : 'none';
     }
 
-    const rateToggleBtn = document.querySelector('#tools button:nth-child(6)');
+    const rateToggleBtn = document.getElementById('rate-toggle-btn'); // Use specific ID
+
     if (rateToggleBtn) {
         rateToggleBtn.style.display = isGSTMode ? 'none' : 'inline-block';
         if (isGSTMode) {
@@ -14432,8 +14433,8 @@ function startDecoding(deviceId) {
         }
         if (err) {
             // IGNORE specific errors that occur during closing/resizing
-            if (err instanceof ZXing.NotFoundException || 
-                err.message.includes("IndexSizeError") || 
+            if (err instanceof ZXing.NotFoundException ||
+                err.message.includes("IndexSizeError") ||
                 err.message.includes("The source width is 0")) {
                 return;
             }
@@ -14486,14 +14487,14 @@ async function handleScanSuccess(result) {
     // --- AUTOMATIC MODE LOGIC ---
     if (scannerMode === 'auto') {
         if (barcodeText === lastScannedCode && (currentTime - lastScanTime < SCAN_DELAY)) {
-            return; 
+            return;
         }
-        
+
         lastScannedCode = barcodeText;
         lastScanTime = currentTime;
 
         const allItems = await getAllFromDB('savedItems');
-        const foundItem = allItems.find(item => 
+        const foundItem = allItems.find(item =>
             item.value.barcode === barcodeText || item.value.productCode === barcodeText
         );
 
@@ -14503,7 +14504,7 @@ async function handleScanSuccess(result) {
         } else {
             showNotification(`Item not found: ${barcodeText}`, 'error');
         }
-        return; 
+        return;
     }
 
     // --- MANUAL MODE LOGIC ---
@@ -14514,19 +14515,19 @@ async function handleScanSuccess(result) {
             if (barcodeText.length === 13) typeSelect.value = 'EAN_13';
             else if (barcodeText.length === 12) typeSelect.value = 'UPC_A';
             else typeSelect.value = 'CODE_128';
-            
+
             playBeep(); // PLAY SOUND
             closeScannerModal();
             showNotification('Barcode Scanned!', 'success');
         } else if (currentScannerMode === 'main') {
             const allItems = await getAllFromDB('savedItems');
-            const foundItem = allItems.find(item => 
+            const foundItem = allItems.find(item =>
                 item.value.barcode === barcodeText || item.value.productCode === barcodeText
             );
 
             if (foundItem) {
                 playBeep(); // PLAY SOUND
-                
+
                 // Pause Camera UI
                 document.getElementById('scanner-container').style.display = 'none';
                 document.getElementById('camera-select').style.display = 'none';
@@ -14537,10 +14538,10 @@ async function handleScanSuccess(result) {
 
                 // Populate Form
                 document.getElementById('quick-item-name').value = foundItem.value.name;
-                
+
                 const defaultQty = foundItem.value.defaultQuantity ? parseFloat(foundItem.value.defaultQuantity) : 1;
                 document.getElementById('quick-quantity').value = defaultQty;
-                
+
                 document.getElementById('quick-unit').value = foundItem.value.defaultUnit || '';
                 document.getElementById('quick-rate').value = foundItem.value.defaultRate || 0;
 
@@ -14561,7 +14562,7 @@ async function handleScanSuccess(result) {
                 } else {
                     headerEl.setAttribute('data-existing-qty', 0);
                 }
-                
+
                 updateQuickAddHeader();
                 document.getElementById('quick-quantity').focus();
             } else {
@@ -14817,9 +14818,9 @@ async function handleManualEntry() {
 
     try {
         const allItems = await getAllFromDB('savedItems');
-        
+
         // Search by Barcode OR Product Code
-        const foundItem = allItems.find(item => 
+        const foundItem = allItems.find(item =>
             item.value.barcode === code || item.value.productCode === code
         );
 
@@ -14833,7 +14834,7 @@ async function handleManualEntry() {
                 input.focus();
             } else {
                 // --- MANUAL MODE: Open Form ---
-                
+
                 // Hide Scanner UI to show form
                 document.getElementById('scanner-container').style.display = 'none';
                 document.getElementById('camera-select').style.display = 'none';
@@ -14844,10 +14845,10 @@ async function handleManualEntry() {
 
                 // Populate Form
                 document.getElementById('quick-item-name').value = foundItem.value.name;
-                
+
                 const defaultQty = foundItem.value.defaultQuantity ? parseFloat(foundItem.value.defaultQuantity) : 1;
                 document.getElementById('quick-quantity').value = defaultQty;
-                
+
                 document.getElementById('quick-unit').value = foundItem.value.defaultUnit || '';
                 document.getElementById('quick-rate').value = foundItem.value.defaultRate || 0;
 
@@ -14868,9 +14869,9 @@ async function handleManualEntry() {
                 } else {
                     headerEl.setAttribute('data-existing-qty', 0);
                 }
-                
+
                 updateQuickAddHeader();
-                
+
                 // Clear input and focus quantity in form
                 input.value = '';
                 document.getElementById('quick-quantity').focus();
@@ -14878,7 +14879,7 @@ async function handleManualEntry() {
 
         } else {
             showNotification(`Item not found: ${code}`, 'error');
-            input.select(); 
+            input.select();
         }
     } catch (error) {
         console.error('Error in manual entry:', error);
