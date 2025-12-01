@@ -13799,15 +13799,83 @@ function updateModalPreviews() {
 
 // Handle new file selection for preview
 async function previewImage(input, type) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            // Update global state temporarily (will be saved on Save button)
-            brandingSettings[type] = e.target.result;
-            updateModalPreviews(); // Refresh UI
-        };
-        reader.readAsDataURL(input.files[0]);
+    // 1. Check if file exists
+    if (!input.files || !input.files[0]) {
+        return;
     }
+
+    try {
+        const file = input.files[0];
+        // Alert to confirm file selection worked (Remove this alert later)
+        // alert("File selected: " + (file.size / 1024 / 1024).toFixed(2) + "MB");
+
+        // 2. Use ObjectURL (Lightweight pointer)
+        const objectUrl = URL.createObjectURL(file);
+        
+        const img = new Image();
+        img.onload = function() {
+            try {
+                // 3. Create canvas
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+
+                // 4. Aggressive resizing (Max 300px is safe for all phones)
+                const MAX_WIDTH = 300;
+                const MAX_HEIGHT = 300;
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+
+                // 5. Draw image
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // 6. Low quality compression to save memory
+                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
+
+                // 7. Update State
+                brandingSettings[type] = compressedDataUrl;
+                
+                // 8. Force UI Update
+                updateModalPreviews();
+                
+                // 9. Cleanup
+                URL.revokeObjectURL(objectUrl);
+                
+                // Alert success (Remove later)
+                // alert("Image loaded successfully!");
+
+            } catch (err) {
+                alert("Error processing image: " + err.message);
+                console.error(err);
+            }
+        };
+
+        img.onerror = function() {
+            alert("Error: Could not load image file.");
+        };
+
+        img.src = objectUrl;
+
+    } catch (e) {
+        alert("Critical Error: " + e.message);
+    }
+
+    // 10. Clear input so you can select the same file again if needed
+    input.value = '';
 }
 
 async function saveBrandingSettings() {
@@ -14895,3 +14963,4 @@ function playBeep() {
     beepAudio.currentTime = 0;
     beepAudio.play().catch(e => console.log("Audio play failed (user interaction needed first)", e));
 }
+
