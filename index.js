@@ -7519,6 +7519,129 @@ function handlePrint() {
         }, 1000);
     }, 500);
 }
+
+
+// --- SHARE FUNCTIONALITY ---
+
+function openShareModal() {
+    // Close sidebar if open
+    const sidebar = document.getElementById("settings-sidebar");
+    if (sidebar) sidebar.classList.remove("open");
+    
+    document.getElementById('share-modal').style.display = 'block';
+}
+
+function closeShareModal() {
+    document.getElementById('share-modal').style.display = 'none';
+}
+
+// 1. WhatsApp "Say Hi" Logic
+function handleSayHi() {
+    let phone = '';
+
+    if (isGSTMode) {
+        // GST Mode: Get from Bill Display (Span)
+        phone = document.getElementById('billToContact').textContent;
+        // Fallback: If display says "Not provided", try the input field in customer dialog
+        if (!phone || phone.trim() === 'Not provided' || phone.trim() === '') {
+            phone = document.getElementById('consignee-contact').value;
+        }
+    } else {
+        // Regular Mode: Get from Input
+        phone = document.getElementById('custPhone').value;
+    }
+
+    // Clean number: remove non-digits
+    phone = (phone || '').replace(/\D/g, "");
+
+    if (phone.length < 10) {
+        showNotification("No valid phone number found!", "error");
+        return;
+    }
+
+    // Open WhatsApp
+    const msg = encodeURIComponent("Hi");
+    window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
+}
+
+// 2. Native Share PDF Logic
+async function handleSharePDF() {
+    // Check if Web Share API is supported for files
+    if (!navigator.share || !navigator.canShare) {
+        showNotification("Sharing is not supported on this device/browser.", "error");
+        return;
+    }
+
+    showNotification("Generating PDF...", "info");
+
+    // --- Prepare Container (Similar to downloadPDF logic) ---
+    // Auto-Switch to Bill View if needed
+    let wasInputView = false;
+    if (currentView === 'input') {
+        toggleView();
+        wasInputView = true;
+    }
+
+    let element;
+    // Determine filename
+    let billNoVal = isGSTMode ? document.getElementById("bill-invoice-no").textContent : document.getElementById("billNo").value;
+    const filename = `bill-${billNoVal || 'document'}.pdf`;
+
+    if (isGSTMode) {
+        element = document.getElementById("gst-bill-container");
+    } else {
+        element = document.getElementById("bill-container");
+        // Handle Footer Visibility
+        const regFooter = document.getElementById('regular-bill-footer');
+        if (regFooter) {
+            regFooter.style.display = isRegularFooterVisible ? 'table' : 'none';
+            if (isRegularFooterVisible) updateRegularFooterInfo();
+        }
+    }
+
+    // --- Generate PDF Blob ---
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 3, dpi: 400, useCORS: true, letterRendering: true, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'], avoid: ['tr', '.section-row', '.section-total-row', '.bill-footer'] }
+    };
+
+    try {
+        element.classList.add('pdf-mode');
+
+        // Generate Blob using html2pdf
+        const pdfBlob = await html2pdf().set(opt).from(element).outputPdf('blob');
+        
+        element.classList.remove('pdf-mode');
+
+        // Restore View if needed
+        if (wasInputView) toggleView();
+
+        // Create File object
+        const file = new File([pdfBlob], filename, { type: "application/pdf" });
+
+        // Invoke Native Share
+        if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                title: 'Bill PDF',
+                text: `Here is the bill: ${filename}`,
+                files: [file]
+            });
+            closeShareModal();
+        } else {
+            showNotification("Your device does not support file sharing.", "error");
+        }
+
+    } catch (error) {
+        console.error("Sharing failed:", error);
+        element.classList.remove('pdf-mode');
+        showNotification("Error generating or sharing PDF", "error");
+    }
+}
+
 function hideTableColumn(table, colIndex, displayStyle) {
     if (!table) return;
     const rows = table.getElementsByTagName('tr');
