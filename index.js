@@ -13799,83 +13799,15 @@ function updateModalPreviews() {
 
 // Handle new file selection for preview
 async function previewImage(input, type) {
-    // 1. Check if file exists
-    if (!input.files || !input.files[0]) {
-        return;
-    }
-
-    try {
-        const file = input.files[0];
-        // Alert to confirm file selection worked (Remove this alert later)
-        // alert("File selected: " + (file.size / 1024 / 1024).toFixed(2) + "MB");
-
-        // 2. Use ObjectURL (Lightweight pointer)
-        const objectUrl = URL.createObjectURL(file);
-        
-        const img = new Image();
-        img.onload = function() {
-            try {
-                // 3. Create canvas
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-
-                // 4. Aggressive resizing (Max 300px is safe for all phones)
-                const MAX_WIDTH = 300;
-                const MAX_HEIGHT = 300;
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_WIDTH) {
-                        height *= MAX_WIDTH / width;
-                        width = MAX_WIDTH;
-                    }
-                } else {
-                    if (height > MAX_HEIGHT) {
-                        width *= MAX_HEIGHT / height;
-                        height = MAX_HEIGHT;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-
-                // 5. Draw image
-                ctx.drawImage(img, 0, 0, width, height);
-
-                // 6. Low quality compression to save memory
-                const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
-
-                // 7. Update State
-                brandingSettings[type] = compressedDataUrl;
-                
-                // 8. Force UI Update
-                updateModalPreviews();
-                
-                // 9. Cleanup
-                URL.revokeObjectURL(objectUrl);
-                
-                // Alert success (Remove later)
-                // alert("Image loaded successfully!");
-
-            } catch (err) {
-                alert("Error processing image: " + err.message);
-                console.error(err);
-            }
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            // Update global state temporarily (will be saved on Save button)
+            brandingSettings[type] = e.target.result;
+            updateModalPreviews(); // Refresh UI
         };
-
-        img.onerror = function() {
-            alert("Error: Could not load image file.");
-        };
-
-        img.src = objectUrl;
-
-    } catch (e) {
-        alert("Critical Error: " + e.message);
+        reader.readAsDataURL(input.files[0]);
     }
-
-    // 10. Clear input so you can select the same file again if needed
-    input.value = '';
 }
 
 async function saveBrandingSettings() {
@@ -14434,7 +14366,13 @@ async function initScanner() {
 
 async function openScanner(mode) {
     currentScannerMode = mode;
-    document.getElementById('scanner-modal').style.display = 'block';
+    
+    const modal = document.getElementById('scanner-modal');
+    modal.style.display = 'block';
+
+    // --- RESET VISIBILITY (In case it was hidden previously) ---
+    modal.style.opacity = '1';
+    modal.style.pointerEvents = 'auto';
 
     // Get UI references
     const toggleContainer = document.querySelector('.scan-mode-toggle');
@@ -14462,6 +14400,7 @@ async function openScanner(mode) {
 
     // Reset Standard UI Components
     document.getElementById('scanner-container').style.display = 'flex';
+    document.getElementById('scanner-controls').style.display = 'flex';
     document.getElementById('camera-select').style.display = 'inline-block';
     document.getElementById('quick-add-form').style.display = 'none';
 
@@ -14479,6 +14418,7 @@ async function openScanner(mode) {
             sourceSelect.appendChild(sourceOption);
         });
 
+        // Use last camera (often back camera on mobile) or first available
         const selectedDeviceId = videoInputDevices.length > 1 ? videoInputDevices[videoInputDevices.length - 1].deviceId : videoInputDevices[0].deviceId;
 
         startDecoding(selectedDeviceId);
@@ -14529,6 +14469,16 @@ function closeScannerModal() {
     // 3. Hide the modal
     document.getElementById('scanner-modal').style.display = 'none';
 }
+
+function hideScannerModal() {
+    const modal = document.getElementById('scanner-modal');
+    
+    // Make invisible but keep in DOM so camera keeps running
+    modal.style.opacity = '0';
+    modal.style.pointerEvents = 'none';
+    
+    showNotification("Scanner running in background", "info");
+}
 // --- NEW Helper Function for Dynamic Header ---
 function updateQuickAddHeader() {
     const headerEl = document.getElementById('scanned-item-name');
@@ -14570,7 +14520,7 @@ async function handleScanSuccess(result) {
             playBeep(); // PLAY SOUND
             await processAutomaticAdd(foundItem.value);
         } else {
-            showNotification(`Item not found: ${barcodeText}`, 'error');
+            // showNotification(`Item not found: ${barcodeText}`, 'error');
         }
         return;
     }
@@ -14598,7 +14548,8 @@ async function handleScanSuccess(result) {
 
                 // Pause Camera UI
                 document.getElementById('scanner-container').style.display = 'none';
-                document.getElementById('camera-select').style.display = 'none';
+                document.getElementById('scanner-controls').style.display = 'none'; // <--- NEW
+                // document.getElementById('camera-select').style.display = 'none';
 
                 // Show Form
                 const form = document.getElementById('quick-add-form');
@@ -14634,7 +14585,7 @@ async function handleScanSuccess(result) {
                 updateQuickAddHeader();
                 document.getElementById('quick-quantity').focus();
             } else {
-                showNotification(`Item ${barcodeText} not found!`, 'error');
+                // showNotification(`Item ${barcodeText} not found!`, 'error');
             }
         }
     }
@@ -14834,7 +14785,8 @@ async function processQuickAdd() {
     document.getElementById('quick-add-form').style.display = 'none';
     // Show the camera container
     document.getElementById('scanner-container').style.display = 'flex';
-    document.getElementById('camera-select').style.display = 'inline-block';
+    document.getElementById('scanner-controls').style.display = 'flex'; // <--- NEW (Use flex)
+    // document.getElementById('camera-select').style.display = 'inline-block';
 
     // Clear temp data
     scannedItemData = null;
@@ -14857,6 +14809,7 @@ function setScanMode(mode) {
     // Reset scanner UI if switching modes
     document.getElementById('quick-add-form').style.display = 'none';
     document.getElementById('scanner-container').style.display = 'flex';
+    document.getElementById('scanner-controls').style.display = 'flex'; // <--- NEW
     document.getElementById('camera-select').style.display = 'inline-block';
 
     // Restart scanning if needed
@@ -14905,7 +14858,8 @@ async function handleManualEntry() {
 
                 // Hide Scanner UI to show form
                 document.getElementById('scanner-container').style.display = 'none';
-                document.getElementById('camera-select').style.display = 'none';
+                document.getElementById('scanner-controls').style.display = 'none'; // <--- NEW
+                // document.getElementById('camera-select').style.display = 'none';
 
                 // Show Form
                 const form = document.getElementById('quick-add-form');
@@ -14946,7 +14900,7 @@ async function handleManualEntry() {
             }
 
         } else {
-            showNotification(`Item not found: ${code}`, 'error');
+            // showNotification(`Item not found: ${code}`, 'error');
             input.select();
         }
     } catch (error) {
@@ -14963,4 +14917,3 @@ function playBeep() {
     beepAudio.currentTime = 0;
     beepAudio.play().catch(e => console.log("Audio play failed (user interaction needed first)", e));
 }
-
