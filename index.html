@@ -1119,6 +1119,7 @@
         <button onclick="redoAction()"><span class="material-icons">redo</span>REDO</button>
         <button onclick="clearAllData()"><span class="material-icons">auto_delete</span>CLEAR ALL</button>
         <button onclick="downloadPDF()"><span class="material-icons">picture_as_pdf</span>PDF</button>
+        <button onclick="openShareModal()"><span class="material-icons">share</span>SHARE</button>
         <button onclick="openColumnDialog()" style="display: inline-block;">
             <span class="material-icons">visibility</span>COLUMNS
         </button>
@@ -1949,6 +1950,25 @@
         </div>
     </div>
     
+    <div id="share-modal" class="modal">
+    <div class="modal-content" style="max-width: 400px; text-align: center;">
+        <div class="modal-header">
+            <h3>Share Options</h3>
+            <span class="close" onclick="closeShareModal()">×</span>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px; color: #666;">Choose how you want to share:</p>
+            
+            <button onclick="handleSharePDF()" class="btn-primary" style="width: 100%; justify-content: center; margin-bottom: 15px; padding: 12px; font-size: 16px;">
+                <span class="material-icons">picture_as_pdf</span> Share Bill PDF
+            </button>
+            
+            <button onclick="handleSayHi()" class="btn-primary" style="width: 100%; justify-content: center; background-color: #128C7E; padding: 12px; font-size: 16px;">
+                <span class="material-icons">chat</span> Say Hi on WhatsApp
+            </button>
+        </div>
+    </div>
+</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
