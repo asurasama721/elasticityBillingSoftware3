@@ -1143,6 +1143,11 @@ document.addEventListener('DOMContentLoaded', async function () {
             });
         });
 
+
+        // OCR start
+
+        // OVR end
+
         // ADD THIS: Close restored bills modal
         const closeRestoredBtn = document.querySelector('#restored-bills-modal .close');
         if (closeRestoredBtn) {
@@ -1838,7 +1843,6 @@ async function handleItemNameInput() {
     try {
         let item = await getFromDB('savedItems', itemName);
 
-        // Fallback search in Other Names
         if (!item) {
             const allItems = await getAllFromDB('savedItems');
             item = allItems.find(savedItem => {
@@ -1849,7 +1853,6 @@ async function handleItemNameInput() {
         }
 
         if (item) {
-            // 1. Basic Fields
             document.getElementById('dimensionType').value = item.dimensionType || 'none';
             document.getElementById('quantityManual').value = item.defaultQuantity || 1;
             document.getElementById('selectUnit').value = item.defaultUnit || '';
@@ -1857,12 +1860,31 @@ async function handleItemNameInput() {
             document.getElementById('hsnCodeManual').value = item.hsnCode || '';
             document.getElementById('productCodeManual').value = item.productCode || '';
 
-            // 2. GST Inclusive Logic
+            // --- UPDATED: Rate & Tax Logic with Priority ---
+            let rateToFill = 0;
+            let taxTypeToUse = 'exclusive';
+
+            if (item.salePrice && item.salePrice > 0) {
+                // Priority 1: Sale Price exists
+                rateToFill = item.salePrice;
+                taxTypeToUse = item.saleTaxType || 'exclusive';
+            } else if (item.mrp && item.mrp > 0) {
+                // Priority 2: Sale Price empty, MRP exists
+                rateToFill = item.mrp;
+                taxTypeToUse = item.mrpTaxType || 'exclusive';
+            } else if (item.defaultRate > 0) {
+                // Priority 3: Fallback
+                rateToFill = item.defaultRate;
+                taxTypeToUse = item.taxType || 'exclusive';
+            }
+
+            document.getElementById('rateManual').value = rateToFill > 0 ? rateToFill : '';
+
+            // Set GST Toggle
             if (isGSTMode) {
                 const gstBtn = document.getElementById('gstInclusiveBtn');
                 if (gstBtn) {
-                    const savedTaxType = item.taxType || 'exclusive';
-                    if (savedTaxType === 'inclusive') {
+                    if (taxTypeToUse === 'inclusive') {
                         isGSTInclusive = true;
                         gstBtn.textContent = 'Inclusive';
                         gstBtn.style.backgroundColor = '#27ae60';
@@ -1873,15 +1895,14 @@ async function handleItemNameInput() {
                     }
                 }
             }
+            // ----------------------------------------------
 
-            // 3. Populate Dimension Values
             if (item.dimensionValues) {
                 document.getElementById('dimension1').value = parseFloat(item.dimensionValues[0]) || '';
                 document.getElementById('dimension2').value = parseFloat(item.dimensionValues[1]) || '';
                 document.getElementById('dimension3').value = parseFloat(item.dimensionValues[2]) || '';
             }
 
-            // 4. Rate Logic (Customer Specific vs Default)
             let identifier = null;
             if (isGSTMode) {
                 const displayGstin = document.getElementById('billToGstin').textContent.trim();
@@ -1916,7 +1937,6 @@ async function handleItemNameInput() {
                     discountBtn.style.backgroundColor = '';
                 }
             } else {
-                document.getElementById('rateManual').value = item.defaultRate || '';
                 document.getElementById('discountType').value = item.discountType || 'none';
                 document.getElementById('discountValue').value = item.discountValue || '';
 
@@ -1929,7 +1949,6 @@ async function handleItemNameInput() {
                 }
             }
 
-            // 5. Update Global Dimensions Object
             currentDimensions.type = item.dimensionType || 'none';
             currentDimensions.unit = item.measurementUnit || 'ft';
             if (item.dimensionValues) {
@@ -1944,28 +1963,18 @@ async function handleItemNameInput() {
 
             document.getElementById('measurementUnit').value = item.measurementUnit || 'ft';
 
-            // 6. Update UI Visibility
             handleDimensionTypeChange();
 
-            // 7. RESTORE TOGGLE STATES (CHECKBOXES)
-            // This is the new logic to auto-check/uncheck based on saved item config
             if (item.dimensionToggles) {
-                if (document.getElementById('dimension1-toggle'))
-                    document.getElementById('dimension1-toggle').checked = item.dimensionToggles.toggle1 !== false;
-
-                if (document.getElementById('dimension2-toggle'))
-                    document.getElementById('dimension2-toggle').checked = item.dimensionToggles.toggle2 !== false;
-
-                if (document.getElementById('dimension3-toggle'))
-                    document.getElementById('dimension3-toggle').checked = item.dimensionToggles.toggle3 !== false;
+                if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = item.dimensionToggles.toggle1 !== false;
+                if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = item.dimensionToggles.toggle2 !== false;
+                if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = item.dimensionToggles.toggle3 !== false;
             } else {
-                // Default to all checked if no config exists
                 if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = true;
                 if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = true;
                 if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = true;
             }
 
-            // 8. Calculate
             calculateDimensions();
 
             const dimensionContainer = document.getElementById('dimension-inputs-container');
@@ -1974,7 +1983,6 @@ async function handleItemNameInput() {
             if (item.dimensionType && item.dimensionType !== 'none') {
                 dimensionContainer.style.display = 'flex';
                 dimensionBtn.style.backgroundColor = '#3498db';
-                // Show convert button if dimensions exist
                 const convertBtn = document.getElementById('toggleConvertBtn');
                 if (convertBtn) convertBtn.style.display = 'inline-block';
             } else {
@@ -2017,13 +2025,22 @@ function openAddItemModal() {
     document.getElementById('saved-section-code').value = '';
     document.getElementById('saved-barcode').value = '';
 
+    // --- NEW: Reset Brand & Vendor ---
+    document.getElementById('saved-brand-name').value = '';
+    document.getElementById('saved-vendor-name').value = '';
+
+    // --- NEW: Reset Sale Price & MRP ---
+    document.getElementById('saved-sale-price').value = '';
+    document.getElementById('saved-sale-tax-type').value = 'exclusive';
+    document.getElementById('saved-mrp').value = '';
+    document.getElementById('saved-mrp-tax-type').value = 'exclusive'; // Default Exclusive
+    // ----------------------------------
+
     document.getElementById('saved-stock-quantity').value = '0';
     document.getElementById('saved-dimension-type').value = 'none';
     document.getElementById('saved-measurement-unit').value = 'ft';
     document.getElementById('saved-default-quantity').value = '1';
     document.getElementById('saved-select-unit').value = '';
-    document.getElementById('saved-default-rate').value = '';
-    document.getElementById('saved-tax-type').value = 'exclusive';
 
     document.getElementById('saved-dimension1').value = '';
     document.getElementById('saved-dimension2').value = '';
@@ -2269,15 +2286,25 @@ async function editItem(itemName) {
             document.getElementById('saved-min-stock').value = item.minStock || 0;
             document.getElementById('saved-batch-number').value = item.batchNumber || '';
             document.getElementById('saved-section-code').value = item.sectionCode || '';
-            document.getElementById('saved-barcode').value = item.barcode || ''; // Populate Barcode
+            document.getElementById('saved-barcode').value = item.barcode || '';
+
+            // --- NEW: Populate Brand & Vendor ---
+            document.getElementById('saved-brand-name').value = item.brandName || '';
+            document.getElementById('saved-vendor-name').value = item.vendorName || '';
+
+            // --- NEW: Populate Sale Price & MRP ---
+            document.getElementById('saved-sale-price').value = item.salePrice || item.defaultRate || '';
+            document.getElementById('saved-sale-tax-type').value = item.saleTaxType || item.taxType || 'exclusive';
+
+            document.getElementById('saved-mrp').value = item.mrp || '';
+            document.getElementById('saved-mrp-tax-type').value = item.mrpTaxType || 'exclusive';
+            // --------------------------------------
 
             document.getElementById('saved-stock-quantity').value = item.stockQuantity || 0;
             document.getElementById('saved-dimension-type').value = item.dimensionType || 'none';
             document.getElementById('saved-measurement-unit').value = item.measurementUnit || 'ft';
             document.getElementById('saved-default-quantity').value = item.defaultQuantity || 1;
             document.getElementById('saved-select-unit').value = item.defaultUnit || '';
-            document.getElementById('saved-default-rate').value = item.defaultRate || '';
-            document.getElementById('saved-tax-type').value = item.taxType || 'exclusive'; // Populate Tax Type
 
             if (document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = item.barcodeType || 'CODE_128';
 
@@ -2296,7 +2323,6 @@ async function editItem(itemName) {
                 if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = item.dimensionToggles.toggle2;
                 if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = item.dimensionToggles.toggle3;
             } else {
-                // Default to true if not found
                 if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = true;
                 if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = true;
                 if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = true;
@@ -2330,10 +2356,16 @@ async function saveItem() {
     const batchNumber = document.getElementById('saved-batch-number').value.trim();
     const sectionCode = document.getElementById('saved-section-code').value.trim();
 
-    // NEW Fields
+    const brandName = document.getElementById('saved-brand-name').value.trim();
+    const vendorName = document.getElementById('saved-vendor-name').value.trim();
+
     const barcode = document.getElementById('saved-barcode').value.trim();
     const barcodeType = document.getElementById('saved-barcode-type') ? document.getElementById('saved-barcode-type').value : 'CODE128';
-    const taxType = document.getElementById('saved-tax-type').value;
+
+    const salePrice = parseFloat(document.getElementById('saved-sale-price').value) || 0;
+    const saleTaxType = document.getElementById('saved-sale-tax-type').value;
+    const mrp = parseFloat(document.getElementById('saved-mrp').value) || 0;
+    const mrpTaxType = document.getElementById('saved-mrp-tax-type').value;
 
     const dimensionType = document.getElementById('saved-dimension-type').value;
     const measurementUnit = document.getElementById('saved-measurement-unit').value;
@@ -2344,8 +2376,10 @@ async function saveItem() {
     const discountType = document.getElementById('saved-discount-type').value;
     const discountValue = parseFloat(document.getElementById('saved-discount-value').value) || 0;
     const hsnCode = document.getElementById('saved-hsn-code').value.trim();
+
     const stockQuantity = parseInt(document.getElementById('saved-stock-quantity').value) || 0;
     const minStock = parseInt(document.getElementById('saved-min-stock').value) || 0;
+
     const productCode = document.getElementById('saved-product-code').value.trim();
     const purchaseRate = parseFloat(document.getElementById('saved-purchase-rate').value) || 0;
     const otherNames = document.getElementById('saved-other-names').value.trim();
@@ -2367,25 +2401,65 @@ async function saveItem() {
         return;
     }
 
+    // --- UPDATED: Handle Stock History Logic ---
+    let lastStockQuantity = 0;
+    let lastStockUpdate = Date.now(); // Default for new items
+
+    if (currentlyEditingItemId) {
+        try {
+            const oldItem = await getFromDB('savedItems', currentlyEditingItemId);
+            if (oldItem) {
+                const oldStock = parseInt(oldItem.stockQuantity) || 0;
+
+                if (oldStock !== stockQuantity) {
+                    // Stock changed manually: Archive old stock
+                    lastStockQuantity = oldStock;
+                    lastStockUpdate = Date.now();
+                } else {
+                    // Stock didn't change: Preserve existing history
+                    lastStockQuantity = oldItem.lastStockQuantity !== undefined ? oldItem.lastStockQuantity : 0;
+                    lastStockUpdate = oldItem.lastStockUpdate || Date.now();
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching old item for stock history", e);
+        }
+    }
+    // -------------------------------------------
+
     const itemData = {
         name: itemName,
         category: category,
         batchNumber: batchNumber,
         sectionCode: sectionCode,
-        barcode: barcode,       // Save Barcode
+        barcode: barcode,
         barcodeType: barcodeType,
-        taxType: taxType,       // Save Tax Type
+        brandName: brandName,
+        vendorName: vendorName,
+        salePrice: salePrice,
+        saleTaxType: saleTaxType,
+        mrp: mrp,
+        mrpTaxType: mrpTaxType,
+
+        defaultRate: salePrice > 0 ? salePrice : mrp,
+        taxType: saleTaxType,
+
         dimensionType: dimensionType,
         measurementUnit: measurementUnit,
         dimensionValues: dimensionValues,
         dimensionToggles: toggleStates,
         defaultQuantity: defaultQuantity,
         defaultUnit: defaultUnit,
-        defaultRate: defaultRate,
         discountType: discountType,
         discountValue: discountValue,
         hsnCode: hsnCode,
+
         stockQuantity: stockQuantity,
+        minStock: minStock,
+        // Save history fields
+        lastStockQuantity: lastStockQuantity,
+        lastStockUpdate: lastStockUpdate,
+
         productCode: productCode,
         purchaseRate: purchaseRate,
         otherNames: otherNames,
@@ -2403,7 +2477,6 @@ async function saveItem() {
     } catch (error) {
         console.error('Error saving item:', error);
     }
-    await debugStock();
 }
 
 // Batch Invoice Functions
@@ -2628,15 +2701,29 @@ async function loadItemsList() {
             return;
         }
 
+        // Helper function to format date: dd-mm-yy, hh:mm AM/PM
+        const formatStockDate = (ts) => {
+            if (!ts) return '';
+            const d = new Date(ts);
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = String(d.getFullYear()).slice(-2);
+
+            let h = d.getHours();
+            const m = String(d.getMinutes()).padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12 || 12; // Convert 0 to 12
+
+            return `${day}-${month}-${year}, ${h}:${m} ${ampm}`;
+        };
+
         items.forEach(item => {
             const itemCard = document.createElement('div');
             itemCard.className = 'item-card';
 
-            // Create unique ID for the dropdown menu
             const safeName = item.value.name.replace(/[^a-zA-Z0-9]/g, '-');
-            const menuId = `menu-item-${safeName}-${Date.now()}`; // Added timestamp for uniqueness
+            const menuId = `menu-item-${safeName}-${Date.now()}`;
 
-            // 1. Handle Dimension Info & Unit
             let dimensionInfo = '';
             let unitInfo = '';
             if (item.value.dimensionType && item.value.dimensionType !== 'none') {
@@ -2648,54 +2735,64 @@ async function loadItemsList() {
                 }
             }
 
-            // 2. Handle Stock
-            let stockInfo = item.value.stockQuantity !== undefined ? `<div>Stock: ${item.value.stockQuantity}</div>` : '';
+            // --- UPDATED: Stock Info with History ---
+            let stockInfo = '';
+            if (item.value.stockQuantity !== undefined) {
+                const updateTimeStr = item.value.lastStockUpdate ? formatStockDate(item.value.lastStockUpdate) : '';
+                const updateDisplay = updateTimeStr ? ` <span style="font-size:0.85em; color:#666;">(Updated: ${updateTimeStr})</span>` : '';
 
-            // 3. Handle Discount
+                stockInfo = `<div>Stock: ${item.value.stockQuantity}${updateDisplay}</div>`;
+
+                if (item.value.lastStockQuantity !== undefined) {
+                    stockInfo += `<div>Last Stock: ${item.value.lastStockQuantity}</div>`;
+                }
+            }
+            // ----------------------------------------
+
             let discountInfo = (item.value.discountType && item.value.discountType !== 'none') ? `<div>Discount: ${item.value.discountType} - ${item.value.discountValue}</div>` : '';
-
-            // 4. Handle Notes
             let notesInfo = (item.value.notes && item.value.notes !== 'None' && item.value.notes.trim() !== '') ? `<div>Notes: ${item.value.notes}</div>` : '';
 
-            // 5. Other Fields
             let otherNamesInfo = item.value.otherNames ? `<div>Other Names: ${item.value.otherNames}</div>` : '';
             let hsnInfo = item.value.hsnCode ? `<div>HSN/SAC: ${item.value.hsnCode}</div>` : '';
             let productCodeInfo = item.value.productCode ? `<div>Product Code: ${item.value.productCode}</div>` : '';
             let purchaseRateInfo = item.value.purchaseRate ? `<div>Purchase Rate: ₹${item.value.purchaseRate}</div>` : '';
 
             let categoryInfo = item.value.category ? `<div>Category: ${item.value.category}</div>` : '';
+            let brandInfo = item.value.brandName ? `<div>Brand: ${item.value.brandName}</div>` : '';
+            let vendorInfo = item.value.vendorName ? `<div>Vendor: ${item.value.vendorName}</div>` : '';
+
+            let saleInfo = item.value.salePrice
+                ? `<div>Sale Price: ₹${item.value.salePrice} <span style="font-size:0.85em; color:#666;">(${item.value.saleTaxType})</span></div>`
+                : '';
+            let mrpInfo = item.value.mrp
+                ? `<div>MRP: ₹${item.value.mrp} <span style="font-size:0.85em; color:#666;">(${item.value.mrpTaxType})</span></div>`
+                : '';
+
             let batchInfo = item.value.batchNumber ? `<div>Batch: ${item.value.batchNumber}</div>` : '';
             let sectionInfo = item.value.sectionCode ? `<div>Section: ${item.value.sectionCode}</div>` : '';
 
-            // Tax Type Info
-            let taxTypeInfo = item.value.taxType ? ` <span style="font-size:0.85em; color:#666;">(${item.value.taxType})</span>` : '';
+            let taxTypeInfo = item.value.taxType ? ` <span style="font-size:0.85em; color:#666;">(Default: ${item.value.taxType})</span>` : '';
 
-            // --- NEW: Conditional Code Options Logic ---
             let codeOptions = '';
-
             if (item.value.productCode) {
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.productCode}', '${item.value.name}', 'Product Code')">
                     <span class="material-icons">qr_code_2</span> Product Code QR
                 </button>`;
             }
-
             if (item.value.sectionCode) {
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.sectionCode}', '${item.value.name}', 'Section Code')">
                     <span class="material-icons">qr_code_2</span> Section Code QR
                 </button>`;
             }
-
             if (item.value.barcode) {
-                // Default to CODE128 if not saved
                 const bType = item.value.barcodeType || 'CODE128';
                 codeOptions += `
                 <button class="dropdown-item" onclick="openCodeModal('barcode', '${item.value.barcode}', '${item.value.name}', '${bType}')">
                     <span class="material-icons">view_week</span> View Barcode
                 </button>`;
             }
-            // -------------------------------------------
 
             itemCard.innerHTML = `
                 <div class="card-header-row">
@@ -2730,13 +2827,16 @@ async function loadItemsList() {
                 
                 <div class="details-section hidden item-details">
                     ${categoryInfo}
+                    ${brandInfo}
+                    ${vendorInfo}
+                    ${saleInfo}
+                    ${mrpInfo}
                     ${batchInfo}
                     ${sectionInfo}
                     ${dimensionInfo}
                     ${unitInfo}
                     <div>Default Quantity: ${item.value.defaultQuantity || 1}</div>
                     <div>Default Unit: ${item.value.defaultUnit}</div>
-                    <div>Default Rate: ₹${item.value.defaultRate}${taxTypeInfo}</div> 
                     ${stockInfo}
                     ${productCodeInfo}
                     ${hsnInfo}
@@ -7540,29 +7640,54 @@ function handleSayHi() {
     let phone = '';
 
     if (isGSTMode) {
-        // GST Mode: Get from Bill Display (Span)
         phone = document.getElementById('billToContact').textContent;
-        // Fallback: If display says "Not provided", try the input field in customer dialog
+
         if (!phone || phone.trim() === 'Not provided' || phone.trim() === '') {
             phone = document.getElementById('consignee-contact').value;
         }
     } else {
-        // Regular Mode: Get from Input
         phone = document.getElementById('custPhone').value;
     }
 
-    // Clean number: remove non-digits
-    phone = (phone || '').replace(/\D/g, "");
+    // Clean: remove spaces, dashes, brackets
+    phone = (phone || '').replace(/[\s\-()]/g, '');
 
-    if (phone.length < 10) {
+    // If it starts with + -> keep as is
+    if (phone.startsWith('+')) {
+        // already correct international format
+    }
+    // If it starts with '00' -> convert to '+'
+    else if (phone.startsWith('00')) {
+        phone = '+' + phone.substring(2);
+    }
+    // If it starts with '91' AND length > 10 -> assume missing '+'
+    else if (phone.startsWith('91') && phone.length > 10) {
+        phone = '+' + phone;
+    }
+    // Else -> assume India default
+    else {
+        // Remove all non-digits again
+        phone = phone.replace(/\D/g, '');
+        // Must be at least 10 digits
+        if (phone.length < 10) {
+            showNotification("No valid phone number found!", "error");
+            return;
+        }
+        phone = '+91' + phone;
+    }
+
+    // Validate length (minimum international length)
+    const numeric = phone.replace(/\D/g, '');
+    if (numeric.length < 10) {
         showNotification("No valid phone number found!", "error");
         return;
     }
 
-    // Open WhatsApp
+    // Final WhatsApp Message
     const msg = encodeURIComponent("Hi");
     window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
 }
+
 
 // 2. Native Share PDF Logic
 async function handleSharePDF() {
@@ -13640,8 +13765,13 @@ async function saveAddedStock() {
 
         if (item) {
             // 2. Calculate new stock
-            // Use 0 if stockQuantity is undefined/null
             const currentStock = parseFloat(item.stockQuantity) || 0;
+
+            // --- UPDATED: Save Last Stock & Timestamp ---
+            item.lastStockQuantity = currentStock; // Archive current stock
+            item.lastStockUpdate = Date.now();     // Save timestamp
+            // ------------------------------------------
+
             const newStock = currentStock + quantityToAdd;
 
             // 3. Update item object
@@ -14366,7 +14496,7 @@ async function initScanner() {
 
 async function openScanner(mode) {
     currentScannerMode = mode;
-    
+
     const modal = document.getElementById('scanner-modal');
     modal.style.display = 'block';
 
@@ -14472,11 +14602,11 @@ function closeScannerModal() {
 
 function hideScannerModal() {
     const modal = document.getElementById('scanner-modal');
-    
+
     // Make invisible but keep in DOM so camera keeps running
     modal.style.opacity = '0';
     modal.style.pointerEvents = 'none';
-    
+
     showNotification("Scanner running in background", "info");
 }
 // --- NEW Helper Function for Dynamic Header ---
@@ -14916,4 +15046,1222 @@ const beepAudio = new Audio("./beep.mpeg");
 function playBeep() {
     beepAudio.currentTime = 0;
     beepAudio.play().catch(e => console.log("Audio play failed (user interaction needed first)", e));
+}
+
+
+/* ==========================================================================
+   ADVANCED OCR & DATA ENTRY ASSISTANT MODULE
+   ========================================================================== */
+
+var ocrState = {
+    isDragging: false,
+    isResizing: false,
+    dragStartX: 0, dragStartY: 0,
+    initialLeft: 0, initialTop: 0,
+    initialWidth: 0, initialHeight: 0,
+    resizeDir: '',
+    cropper: null,
+    currentFile: null,
+    worker: null,
+    extractedValue: '',
+    isReplaceMode: true,
+    originalImageSrc: null
+};
+
+// document.addEventListener('DOMContentLoaded', () => {
+//     initOCRWindowManagement();
+//     initOCRDragAndDrop();
+
+//     // Global click listener to close context menu
+//     document.addEventListener('click', (e) => {
+//         if (!e.target.closest('#ocr-context-menu')) {
+//             document.getElementById('ocr-context-menu').style.display = 'none';
+//         }
+//     });
+// });
+
+/* --- WINDOW MANAGEMENT (Drag & Resize) --- */
+function initOCRWindowManagement() {
+    const modal = document.getElementById('ocr-modal');
+    const header = document.getElementById('ocr-header');
+    if (!modal) return;
+
+    // Drag Logic
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.window-controls')) return;
+        ocrState.isDragging = true;
+        ocrState.dragStartX = e.clientX;
+        ocrState.dragStartY = e.clientY;
+        const rect = modal.getBoundingClientRect();
+        ocrState.initialLeft = rect.left;
+        ocrState.initialTop = rect.top;
+        modal.style.transform = 'none'; // Disable centering transform
+        modal.style.left = ocrState.initialLeft + 'px';
+        modal.style.top = ocrState.initialTop + 'px';
+    });
+
+    // Resize Logic
+    document.querySelectorAll('.resize-handle').forEach(handle => {
+        handle.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            ocrState.isResizing = true;
+            ocrState.resizeDir = handle.className.split(' ').find(c => c.endsWith('-resize')).replace('-resize', '');
+            ocrState.dragStartX = e.clientX;
+            ocrState.dragStartY = e.clientY;
+            const rect = modal.getBoundingClientRect();
+            ocrState.initialWidth = rect.width;
+            ocrState.initialHeight = rect.height;
+            ocrState.initialLeft = rect.left;
+            ocrState.initialTop = rect.top;
+            modal.style.transform = 'none';
+            modal.style.left = ocrState.initialLeft + 'px';
+            modal.style.top = ocrState.initialTop + 'px';
+        });
+    });
+
+    // Mouse Move
+    document.addEventListener('mousemove', (e) => {
+        if (ocrState.isDragging) {
+            const dx = e.clientX - ocrState.dragStartX;
+            const dy = e.clientY - ocrState.dragStartY;
+            modal.style.left = (ocrState.initialLeft + dx) + 'px';
+            modal.style.top = (ocrState.initialTop + dy) + 'px';
+        }
+        if (ocrState.isResizing) {
+            const dx = e.clientX - ocrState.dragStartX;
+            const dy = e.clientY - ocrState.dragStartY;
+
+            if (ocrState.resizeDir.includes('e')) modal.style.width = Math.max(600, ocrState.initialWidth + dx) + 'px';
+            if (ocrState.resizeDir.includes('s')) modal.style.height = Math.max(400, ocrState.initialHeight + dy) + 'px';
+            // Simple implementation for SE corner mostly used
+        }
+    });
+
+    // Mouse Up (End Interaction & Save)
+    document.addEventListener('mouseup', () => {
+        // Only save if we were actually interacting
+        if (ocrState.isDragging || ocrState.isResizing) {
+            saveOCRSettings(); // <--- Save position/size to LocalStorage
+        }
+
+        ocrState.isDragging = false;
+        ocrState.isResizing = false;
+    });
+}
+
+/* --- DRAG & DROP FILE ZONE --- */
+function initOCRDragAndDrop() {
+    const workbench = document.getElementById('ocr-workbench');
+
+    workbench.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        workbench.style.border = '2px dashed var(--primary-color)';
+        workbench.style.backgroundColor = 'rgba(52, 152, 219, 0.1)';
+    });
+
+    workbench.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        workbench.style.border = 'none';
+        workbench.style.backgroundColor = '#333';
+    });
+
+    workbench.addEventListener('drop', (e) => {
+        e.preventDefault();
+        workbench.style.border = 'none';
+        workbench.style.backgroundColor = '#333';
+        if (e.dataTransfer.files.length > 0) {
+            const fileInput = document.getElementById('ocr-file-input');
+            fileInput.files = e.dataTransfer.files;
+            handleOCRFile(fileInput);
+        }
+    });
+}
+
+/* --- CORE FUNCTIONS --- */
+
+function openOCRModal() {
+    document.getElementById('ocr-modal').style.display = 'flex';
+}
+
+function closeOCRModal() {
+    document.getElementById('ocr-modal').style.display = 'none';
+    if (ocrState.cropper) ocrState.cropper.destroy();
+}
+
+// function minimizeOCRModal() {
+//     // Basic minimize: just hide, or could shrink to a bar. 
+//     // For now, let's just close (or you can implement a dock)
+//     document.getElementById('ocr-modal').style.display = 'none';
+// }
+
+async function handleOCRFile(input) {
+    if (!input.files || !input.files[0]) return;
+    const file = input.files[0];
+    ocrState.currentFile = file;
+
+    // UI Reset
+    document.getElementById('ocr-empty-state').style.display = 'none';
+    const canvasContainer = document.getElementById('ocr-canvas-container');
+    canvasContainer.style.display = 'block';
+    const imgElement = document.getElementById('ocr-source-image');
+
+    // Enable Buttons
+    document.getElementById('btn-crop-scan').disabled = false;
+    document.getElementById('btn-filter').disabled = false;
+
+    if (ocrState.cropper) ocrState.cropper.destroy();
+
+    const fileType = file.name.split('.').pop().toLowerCase();
+
+    if (['png', 'jpg', 'jpeg', 'bmp', 'webp'].includes(fileType)) {
+        // Load Image directly
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imgElement.src = e.target.result;
+            ocrState.originalImageSrc = e.target.result;
+            initCropper(imgElement);
+        };
+        reader.readAsDataURL(file);
+    }
+    else if (fileType === 'pdf') {
+        // Render PDF Page 1 to Image
+        updateOCRProgress(10, 'Rendering PDF...');
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+        const page = await pdf.getPage(1); // Default to page 1
+
+        const viewport = page.getViewport({ scale: 2.0 });
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+       await page.render({ canvasContext: context, viewport: viewport }).promise;
+        
+        const pdfUrl = canvas.toDataURL('image/png');
+        imgElement.src = pdfUrl;
+        // NEW: Store original source
+        ocrState.originalImageSrc = pdfUrl;
+        initCropper(imgElement);
+        updateOCRProgress(0, 'Ready');
+    }
+    else {
+        // Docs/Excel: No visual crop, just process
+        document.getElementById('ocr-empty-state').style.display = 'block';
+        document.getElementById('ocr-empty-state').innerHTML = '<p>Document loaded. Click "Full Scan".</p>';
+        canvasContainer.style.display = 'none';
+        document.getElementById('btn-crop-scan').disabled = true;
+    }
+}
+
+function initCropper(imageElement) {
+    ocrState.cropper = new Cropper(imageElement, {
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.8,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+    });
+}
+
+/* --- OCR EXECUTION --- */
+
+async function ocrProcess(mode) {
+    // 1. Safety Check: Ensure a file is loaded
+    if (!ocrState.currentFile) {
+        showNotification("Please upload a file first to scan.", "error");
+        return;
+    }
+
+    const resultArea = document.getElementById('ocr-result');
+    const chipsContainer = document.getElementById('ocr-smart-chips');
+
+    resultArea.value = '';
+    chipsContainer.innerHTML = '';
+    updateOCRProgress(0, 'Starting Engine...');
+    document.getElementById('ocr-progress-container').style.display = 'block';
+
+    try {
+        let imageToScan;
+
+        // 2. Get Image Source
+        if (ocrState.currentFile.name.endsWith('.docx') || ocrState.currentFile.name.endsWith('.xlsx')) {
+            // Non-image formats
+            await processDocumentFile(ocrState.currentFile);
+            return;
+        }
+
+        if (mode === 'crop' && ocrState.cropper) {
+            // Get cropped canvas
+            imageToScan = ocrState.cropper.getCroppedCanvas({ fillColor: '#fff' });
+        } else if (ocrState.cropper) {
+            // Get full canvas
+            imageToScan = ocrState.cropper.element;
+        } else {
+            // Raw file fallback
+            imageToScan = ocrState.currentFile;
+        }
+
+        // 3. Initialize Tesseract
+        if (!ocrState.worker) {
+            ocrState.worker = await Tesseract.createWorker('eng', 1, {
+                logger: m => {
+                    if (m.status === 'recognizing text') {
+                        updateOCRProgress(m.progress * 100, `Scanning... ${Math.round(m.progress * 100)}%`);
+                    } else {
+                        updateOCRProgress(null, m.status);
+                    }
+                }
+            });
+        }
+
+        // 4. Run Recognition
+        const ret = await ocrState.worker.recognize(imageToScan);
+        const text = ret.data.text;
+
+        // 5. Display Results
+        resultArea.value = text;
+        localStorage.setItem('billApp_ocrText', text);
+        parseSmartData(text);
+        updateOCRProgress(100, 'Complete');
+        setTimeout(() => document.getElementById('ocr-progress-container').style.display = 'none', 2000);
+
+    } catch (error) {
+        console.error(error);
+        resultArea.value = "Error: " + error.message;
+        updateOCRProgress(0, 'Failed');
+    }
+}
+
+async function processDocumentFile(file) {
+    const resultArea = document.getElementById('ocr-result');
+    const fileType = file.name.split('.').pop().toLowerCase();
+    let text = '';
+
+    if (fileType === 'docx') {
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+        text = result.value;
+    } else if (fileType.includes('xls')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer);
+        workbook.SheetNames.forEach(name => {
+            text += XLSX.utils.sheet_to_csv(workbook.Sheets[name]);
+        });
+    }
+
+    resultArea.value = text;
+    localStorage.setItem('billApp_ocrText', text);
+    parseSmartData(text);
+    updateOCRProgress(100, 'Document Parsed');
+}
+
+/* --- INTELLIGENT FEATURES --- */
+
+function updateOCRProgress(percent, text) {
+    if (percent !== null) document.getElementById('ocr-progress-bar').style.width = percent + '%';
+    if (text) document.getElementById('ocr-status-text').textContent = text;
+}
+
+// 1. Toggle Menu
+function toggleFilterMenu() {
+    const menu = document.getElementById('filter-menu');
+    const btn = document.getElementById('btn-filter');
+    if (!menu || !btn) return;
+    
+    // Toggle Display
+    if (menu.style.display === 'none' || menu.style.display === '') {
+        // Calculate Position relative to Viewport
+        const rect = btn.getBoundingClientRect();
+        
+        menu.style.display = 'block';
+        menu.style.top = (rect.bottom + 5) + 'px';
+        menu.style.left = rect.left + 'px';
+        
+        // Initialize sliders if first run
+        if (!ocrState.originalImageSrc && ocrState.cropper) {
+             ocrState.originalImageSrc = ocrState.cropper.url; 
+        }
+    } else {
+        menu.style.display = 'none';
+    }
+}
+
+// 2. Real-time Filter Logic
+function updateImageFilters() {
+    if (!ocrState.cropper || !ocrState.originalImageSrc) return;
+
+    const thresholdVal = parseInt(document.getElementById('slider-threshold').value);
+    const contrastVal = parseInt(document.getElementById('slider-contrast').value);
+
+    // Update Label Text
+    document.getElementById('val-threshold').textContent = thresholdVal;
+    document.getElementById('val-contrast').textContent = contrastVal;
+
+    // Create an off-screen image to process the ORIGINAL pixels
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = ocrState.originalImageSrc;
+
+    img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+
+        // Pre-calculate Contrast Factor
+        // Factor formula: (259 * (contrast + 255)) / (255 * (259 - contrast))
+        const factor = (259 * (contrastVal + 255)) / (255 * (259 - contrastVal));
+
+        for (let i = 0; i < data.length; i += 4) {
+            // 1. Grayscale
+            let gray = 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+
+            // 2. Apply Contrast
+            gray = factor * (gray - 128) + 128;
+
+            // 3. Apply Threshold (Binarization)
+            // If slider is at 0, skip binarization (grayscale only)
+            // If > 0, apply binary cutoff
+            let finalVal = gray;
+            if (thresholdVal > 0) {
+                finalVal = gray > thresholdVal ? 255 : 0;
+            }
+
+            // Clamp values 0-255
+            finalVal = Math.max(0, Math.min(255, finalVal));
+
+            data[i] = finalVal;     // R
+            data[i+1] = finalVal;   // G
+            data[i+2] = finalVal;   // B
+            // Alpha (data[i+3]) remains unchanged
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+
+        // Update Cropper
+        canvas.toBlob((blob) => {
+            const newUrl = URL.createObjectURL(blob);
+            ocrState.cropper.replace(newUrl);
+        });
+    };
+}
+
+// 3. Reset Filters
+function resetFilters() {
+    document.getElementById('slider-threshold').value = 128;
+    document.getElementById('slider-contrast').value = 0;
+    
+    // Trigger update
+    updateImageFilters();
+}
+
+// Enhance Image (Simple Binarization filter)
+function applyImageFilter() {
+    if (!ocrState.cropper) {
+        showNotification("Please upload an image first.", "error");
+        return;
+    }
+
+    showNotification("Enhancing image for text clarity...", "info");
+
+    // 1. Get the current image data from Cropper
+    // using getCanvas() allows us to manipulate pixels
+    const canvas = ocrState.cropper.getCroppedCanvas();
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+
+    // 2. Loop through every pixel to apply filters
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+
+        // A. Grayscale Conversion (Human perception weighted)
+        // This converts colors (like pink) to a shade of gray
+        const gray = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+        // B. Binarization (Thresholding)
+        // If the gray value is lighter than 160, make it PURE WHITE (background).
+        // If it's darker, make it PURE BLACK (text).
+        // This removes the "pink" paper noise effectively.
+        const threshold = 160; 
+        const val = gray > threshold ? 255 : 0;
+
+        data[i] = val;     // Red
+        data[i + 1] = val; // Green
+        data[i + 2] = val; // Blue
+    }
+
+    // 3. Put the processed pixels back
+    ctx.putImageData(imgData, 0, 0);
+
+    // 4. Update the Cropper with the new "Clean" image
+    canvas.toBlob((blob) => {
+        const newUrl = URL.createObjectURL(blob);
+        
+        // This updates the visual in the workbench
+        ocrState.cropper.replace(newUrl);
+        
+        showNotification("Enhancement Complete! Try scanning now.", "success");
+    });
+}
+function parseSmartData(text) {
+    const container = document.getElementById('ocr-smart-chips');
+    container.innerHTML = '';
+
+    const patterns = [
+        { type: 'GSTIN', regex: /\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}[Z]{1}[A-Z\d]{1}/g, icon: 'badge' },
+        { type: 'Date', regex: /\b\d{1,2}[-\/.]\d{1,2}[-\/.]\d{2,4}\b/g, icon: 'event' },
+        { type: 'Amount', regex: /(?:Rs\.?|INR|₹)\s*[\d,]+\.?\d{0,2}\b/gi, icon: 'payments' },
+        { type: 'Phone', regex: /[6-9]\d{9}\b/g, icon: 'call' },
+        { type: 'Invoice', regex: /INV-?\d+/i, icon: 'receipt' }
+    ];
+
+    const uniqueMatches = new Set();
+
+    patterns.forEach(p => {
+        const matches = text.match(p.regex);
+        if (matches) {
+            matches.forEach(m => {
+                const clean = m.trim();
+                if (!uniqueMatches.has(clean) && clean.length > 2) {
+                    uniqueMatches.add(clean);
+                    createSmartChip(clean, p.type, p.icon, container);
+                }
+            });
+        }
+    });
+}
+
+function createSmartChip(text, type, icon, container) {
+    const chip = document.createElement('div');
+    chip.className = 'smart-chip';
+    chip.innerHTML = `<span class="material-icons" style="font-size:14px;">${icon}</span> ${text}`;
+
+    // Right Click (or Left Click) to open Magic Fill Menu
+    chip.onclick = (e) => {
+        openMagicFillMenu(e, text);
+    };
+
+    container.appendChild(chip);
+}
+
+/* --- MAGIC FILL SYSTEM --- */
+
+function openMagicFillMenu(e, text) {
+    e.stopPropagation();
+    ocrState.extractedValue = text;
+
+    const menu = document.getElementById('ocr-context-menu');
+    menu.style.display = 'block';
+
+    // Position menu at cursor
+    // Adjust for scroll and viewport edges in a real app
+    menu.style.left = e.pageX + 'px';
+    menu.style.top = e.pageY + 'px';
+}
+
+// Function to handle SELECT dropdowns from Magic Menu (Main Window)
+// Function to handle SELECT dropdowns (Executed in Main Window)
+function magicSelect(elementId, value) {
+    const el = document.getElementById(elementId);
+    
+    if (el) {
+        // 1. Set Value
+        el.value = value;
+        
+        // 2. Trigger Change Event (Important for listeners)
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        
+        // 3. Smart Toggling: Show container if currently hidden
+        if (elementId === 'dimensionType') {
+            const container = document.getElementById('dimension-inputs-container');
+            if (container && container.style.display === 'none') {
+                if (typeof toggleDimensionInputs === 'function') toggleDimensionInputs();
+            }
+        }
+        
+        if (elementId === 'convertUnit') {
+             const convertSelect = document.getElementById('convertUnit');
+             // Convert options might be hidden even if dimensions are shown
+             if (convertSelect && convertSelect.style.display === 'none') {
+                if (typeof toggleConvertOptions === 'function') toggleConvertOptions();
+             }
+        }
+        
+        if (elementId === 'discountType') {
+            const container = document.getElementById('discount-inputs-container');
+            if (container && container.style.display === 'none') {
+                if (typeof toggleDiscountInputs === 'function') toggleDiscountInputs();
+            }
+        }
+        
+        // 4. Hide Menu (if triggered from main window)
+        const menu = document.getElementById('magic-menu');
+        if (menu) menu.style.display = 'none';
+        
+        showNotification(`Selected: ${value}`, 'success');
+    } else {
+        console.error(`Element #${elementId} not found in Main Window.`);
+        showNotification(`Field '${elementId}' not found (Check Input Mode)`, 'error');
+    }
+}
+
+// NEW: Handle Copy Operation
+async function magicOperation(action) {
+    const selection = window.magicSelectedText;
+
+    try {
+        if (action === 'copy') {
+            if (selection) {
+                await navigator.clipboard.writeText(selection);
+                showNotification('Copied to clipboard', 'success');
+            } else {
+                showNotification('No text selected', 'warning');
+            }
+        } 
+        // Removed Paste/Cut handling logic as requested
+        
+        document.getElementById('magic-menu').style.display = 'none';
+    } catch (err) {
+        console.error('Clipboard error:', err);
+        showNotification('Clipboard action failed', 'error');
+    }
+}
+
+function magicFill(targetFieldId) {
+    const val = ocrState.extractedValue;
+
+    if (targetFieldId === 'copy') {
+        navigator.clipboard.writeText(val);
+        showNotification("Copied to clipboard", "success");
+    } else {
+        // Auto-detect mode (GST vs Regular)
+        let finalId = targetFieldId;
+
+        // Map generic IDs to specific mode IDs
+        if (isGSTMode) {
+            if (targetFieldId === 'custName') finalId = 'billToName'; // Span in GST view
+            if (targetFieldId === 'custGSTIN') finalId = 'billToGstin';
+            if (targetFieldId === 'billDate') finalId = 'bill-date-gst';
+            if (targetFieldId === 'billNo') finalId = 'bill-invoice-no';
+
+            // For spans, use textContent
+            const el = document.getElementById(finalId);
+            if (el) {
+                el.textContent = val;
+                // Also update hidden inputs if they exist for saving
+                if (finalId === 'billToName') document.getElementById('consignee-name').value = val;
+                showNotification(`Filled GST Field: ${val}`, "success");
+            }
+        } else {
+            // Regular Mode (Inputs)
+            const el = document.getElementById(targetFieldId);
+            if (el) {
+                el.value = val;
+                // Trigger input events for auto-save/validation
+                el.dispatchEvent(new Event('input'));
+                showNotification(`Filled Field: ${val}`, "success");
+            }
+        }
+    }
+
+    document.getElementById('ocr-context-menu').style.display = 'none';
+}
+
+function copyOCRText() {
+    const text = document.getElementById('ocr-result');
+    text.select();
+    navigator.clipboard.writeText(text.value);
+    showNotification("All text copied!", "success");
+}
+
+/* ==========================================
+   RIGHT-CLICK MAGIC FILL SYSTEM
+   ========================================== */
+
+let magicSelectedText = "";
+
+document.addEventListener('DOMContentLoaded', () => {
+    initOCRWindowManagement();
+    initOCRDragAndDrop();
+    loadOCRSettings(); 
+
+    // 1. Context Menu Trigger
+    document.addEventListener('contextmenu', (e) => {
+        const selection = window.getSelection().toString().trim();
+        const target = e.target;
+        
+        // Allow if text selected OR right-clicking an input/textarea inside OCR
+        if ((selection.length > 0 || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && target.closest('#ocr-modal')) {
+            e.preventDefault();
+            magicSelectedText = selection;
+            window.magicContextMenuTarget = target; // Save target for Paste/Cut
+            showMagicMenu(e.clientX, e.clientY);
+        }
+    });
+
+    // 2. Global Click Listener
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#ocr-context-menu')) document.getElementById('ocr-context-menu').style.display = 'none';
+        if (!e.target.closest('#magic-menu')) document.getElementById('magic-menu').style.display = 'none';
+        
+        const filterMenu = document.getElementById('filter-menu');
+        const filterBtn = document.getElementById('btn-filter');
+        if (filterMenu && filterMenu.style.display === 'block') {
+            if (!filterMenu.contains(e.target) && (!filterBtn || !filterBtn.contains(e.target))) {
+                filterMenu.style.display = 'none';
+            }
+        }
+    });
+
+    // 3. Smart Nested Submenu Positioning
+    const magicItems = document.querySelectorAll('.magic-item');
+    magicItems.forEach(item => {
+        item.addEventListener('mouseenter', function() {
+            const subMenu = this.querySelector('.magic-sub-menu');
+            if (subMenu) {
+                const rect = this.getBoundingClientRect();
+                const winWidth = window.innerWidth;
+                const winHeight = window.innerHeight;
+                const subMenuWidth = 160; 
+                const subMenuHeight = subMenu.scrollHeight || 300; 
+
+                // --- A. Horizontal Logic (Cascading Flip) ---
+                const parentMenu = this.closest('.magic-sub-menu');
+                const isParentFlippedLeft = parentMenu && parentMenu.classList.contains('flip-left');
+                
+                // Default: Flip if hitting right edge OR if parent is already flipped left
+                let shouldFlipLeft = isParentFlippedLeft || (rect.right + subMenuWidth > winWidth);
+
+                // Safety: If flipping left puts it off-screen to the left, force right
+                if (shouldFlipLeft && (rect.left - subMenuWidth < 0)) {
+                    shouldFlipLeft = false;
+                }
+
+                if (shouldFlipLeft) {
+                    subMenu.classList.add('flip-left');
+                } else {
+                    subMenu.classList.remove('flip-left');
+                }
+
+                // --- B. Vertical Logic (Flip Up) ---
+                if (rect.top + subMenuHeight > winHeight) {
+                    subMenu.classList.add('flip-up');
+                } else {
+                    subMenu.classList.remove('flip-up');
+                }
+            }
+        });
+    });
+
+    // 4. Restore/Save Text
+    const savedText = localStorage.getItem('billApp_ocrText');
+    const textArea = document.getElementById('ocr-result');
+    if(savedText && textArea) {
+        textArea.value = savedText;
+        if(window.ocrState) window.ocrState.extractedValue = savedText;
+    }
+    
+    if(textArea) {
+        textArea.addEventListener('input', () => {
+            localStorage.setItem('billApp_ocrText', textArea.value);
+        });
+    }
+});
+
+function showMagicMenu(x, y) {
+    const menu = document.getElementById('magic-menu');
+
+    // 1. Reset display to measure dimensions
+    menu.style.display = 'block';
+    menu.style.visibility = 'hidden';
+
+    const menuWidth = menu.offsetWidth;
+    const menuHeight = menu.offsetHeight;
+    const winWidth = window.innerWidth;
+    const winHeight = window.innerHeight;
+
+    // 2. Horizontal Flip (Prevent right overflow)
+    if (x + menuWidth > winWidth) {
+        x = x - menuWidth;
+    }
+
+    // 3. Vertical Flip (Prevent bottom overflow) - NEW LOGIC
+    if (y + menuHeight > winHeight) {
+        y = y - menuHeight; // Position above the cursor
+    }
+
+    // 4. Apply positions
+    menu.style.left = x + 'px';
+    menu.style.top = y + 'px';
+    menu.style.visibility = 'visible';
+}
+function magicFillField(elementId) {
+    const element = document.getElementById(elementId);
+
+    if (element) {
+        // --- NEW: Handle Replace vs Append ---
+        if (ocrState.isReplaceMode) {
+            // Replace Mode: Overwrite value
+            element.value = magicSelectedText;
+        } else {
+            // Append Mode: Add space + new text
+            const currentVal = element.value;
+            if (currentVal) {
+                element.value = currentVal + ' ' + magicSelectedText;
+            } else {
+                element.value = magicSelectedText;
+            }
+        }
+        // -------------------------------------
+
+        // 2. Trigger Events (Important for calculations/autosave)
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+
+        // 3. Visual Feedback
+        element.style.transition = "background-color 0.3s";
+        element.style.backgroundColor = "#e8f5e9"; // Light green flash
+        setTimeout(() => {
+            element.style.backgroundColor = "";
+        }, 500);
+
+        // 4. Focus
+        element.focus();
+
+        // 5. Special Handlers
+        if (elementId === 'itemNameManual') {
+            if (typeof handleItemNameInput === 'function') {
+                handleItemNameInput();
+            }
+        }
+
+        showNotification(`${ocrState.isReplaceMode ? 'Replaced' : 'Appended'}: ${magicSelectedText}`, 'success');
+    } else {
+        showNotification(`Field not found (Open the modal first!)`, 'error');
+    }
+}
+
+function toggleOCRWorkbench() {
+    const workbench = document.getElementById('ocr-workbench');
+    const chips = document.getElementById('ocr-smart-chips');
+    const resHeader = document.querySelector('#ocr-results-panel .result-header');
+    const progress = document.getElementById('ocr-progress-container');
+    const resultsPanel = document.getElementById('ocr-results-panel');
+    
+    // NEW: Target the main modal header
+    const mainHeader = document.getElementById('ocr-header');
+
+    // Check current state (if workbench is visible, we go to Focus Mode)
+    if (workbench.style.display !== 'none') {
+        // --- ENTER FOCUS MODE ---
+        workbench.style.display = 'none';
+        if (chips) chips.style.display = 'none';
+        if (resHeader) resHeader.style.display = 'none';
+        if (progress) progress.style.display = 'none';
+        if (mainHeader) mainHeader.style.display = 'none'; // Hide Header
+
+        // Remove padding/border for clean full-window look
+        if (resultsPanel) {
+            resultsPanel.style.padding = '0';
+            resultsPanel.style.borderLeft = 'none';
+        }
+        
+        const btn = document.querySelector('button[onclick="toggleOCRWorkbench()"]');
+        if(btn) btn.innerHTML = '<span class="material-icons">vertical_split</span> Split View';
+
+    } else {
+        // --- ENTER NORMAL MODE ---
+        workbench.style.display = 'flex';
+        if (chips) chips.style.display = 'flex';
+        if (resHeader) resHeader.style.display = 'flex';
+        if (progress) progress.style.display = ''; 
+        if (mainHeader) mainHeader.style.display = 'flex'; // Show Header
+
+        // Restore padding/border
+        if (resultsPanel) {
+            resultsPanel.style.padding = '15px';
+            resultsPanel.style.borderLeft = '1px solid #ddd';
+        }
+        
+        const btn = document.querySelector('button[onclick="toggleOCRWorkbench()"]');
+        if(btn) btn.innerHTML = '<span class="material-icons">view_sidebar</span> Focus View';
+    }
+}
+
+function toggleOCRReplaceMode() {
+    ocrState.isReplaceMode = !ocrState.isReplaceMode;
+    const btn = document.getElementById('btn-ocr-replace-mode');
+
+    if (ocrState.isReplaceMode) {
+        btn.innerHTML = '<span class="material-icons">find_replace</span> Replace: ON';
+        btn.style.backgroundColor = '#e8f5e9'; // Light Green bg
+        btn.style.color = '#27ae60'; // Green text
+        btn.style.borderColor = '#27ae60';
+    } else {
+        btn.innerHTML = '<span class="material-icons">playlist_add</span> Replace: OFF';
+        btn.style.backgroundColor = ''; // Default gray
+        btn.style.color = '';
+        btn.style.borderColor = '';
+    }
+
+    // NEW: Save to Local Storage immediately
+    saveOCRSettings();
+}
+
+function saveOCRSettings() {
+    const modal = document.getElementById('ocr-modal');
+    if (!modal) return;
+
+    const settings = {
+        isReplaceMode: ocrState.isReplaceMode,
+        width: modal.offsetWidth,
+        height: modal.offsetHeight,
+        left: modal.offsetLeft,
+        top: modal.offsetTop
+    };
+
+    localStorage.setItem('billApp_ocrSettings', JSON.stringify(settings));
+}
+
+function loadOCRSettings() {
+    const saved = localStorage.getItem('billApp_ocrSettings');
+    if (saved) {
+        const data = JSON.parse(saved);
+
+        // Restore Logic State
+        if (data.isReplaceMode !== undefined) {
+            ocrState.isReplaceMode = data.isReplaceMode;
+        }
+
+        // Restore Visual State (Apply directly to Modal)
+        const modal = document.getElementById('ocr-modal');
+        if (modal) {
+            if (data.width) modal.style.width = data.width + 'px';
+            if (data.height) modal.style.height = data.height + 'px';
+
+            // Only apply position if valid coordinates exist
+            if (data.left && data.top) {
+                modal.style.left = data.left + 'px';
+                modal.style.top = data.top + 'px';
+                modal.style.transform = 'none'; // Remove default centering
+            }
+        }
+
+        // Update the Toggle Button UI immediately
+        updateReplaceModeUI();
+    }
+}
+
+// Helper to sync the button UI with the state
+function updateReplaceModeUI() {
+    const btn = document.getElementById('btn-ocr-replace-mode');
+    if (!btn) return;
+
+    if (ocrState.isReplaceMode) {
+        btn.innerHTML = '<span class="material-icons">find_replace</span> Replace: ON';
+        btn.style.backgroundColor = '#e8f5e9';
+        btn.style.color = '#27ae60';
+        btn.style.borderColor = '#27ae60';
+    } else {
+        btn.innerHTML = '<span class="material-icons">playlist_add</span> Replace: OFF';
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+    }
+}
+
+function openOCRPopOut() {
+    // 1. Create New Window
+    const newWin = window.open('', 'OCR_PopOut', 'width=1000,height=700,menubar=no,toolbar=no,location=no,status=no');
+    
+    if (!newWin) {
+        showNotification("Pop-up blocked! Please allow pop-ups.", "error");
+        return;
+    }
+
+    newWin.document.open();
+
+    // 2. Gather Styles
+    let cssHtml = '';
+    document.querySelectorAll('link[rel="stylesheet"], style').forEach(node => {
+        cssHtml += node.outerHTML;
+    });
+    
+    cssHtml += `
+        <style>
+            body { margin: 0; padding: 0; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
+            #ocr-body { flex: 1; height: 100%; border: none; }
+            .window-controls, .resize-handle { display: none !important; } 
+            #ocr-header { border-radius: 0; cursor: default; }
+            .magic-menu { position: fixed; z-index: 99999; }
+        </style>
+    `;
+
+    // 3. Gather Content
+    const headerContent = document.getElementById('ocr-header').innerHTML;
+    const bodyContent = document.getElementById('ocr-body').innerHTML;
+    const contextMenu = document.getElementById('ocr-context-menu').outerHTML;
+    const magicMenu = document.getElementById('magic-menu').outerHTML; 
+
+    // 4. Construct Document
+    newWin.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>OCR Assistant - Bill App</title>
+            ${cssHtml}
+            <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"><\/script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"><\/script>
+            <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';<\/script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"><\/script>
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"><\/script>
+            <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+        </head>
+        <body>
+            <div id="ocr-header">${headerContent}</div>
+            <div id="ocr-body">${bodyContent}</div>
+            ${contextMenu}
+            ${magicMenu}
+            
+            <script>
+                window.ocrState = {
+                    cropper: null, currentFile: null, worker: null,
+                    extractedValue: '', originalImageSrc: null,
+                    isReplaceMode: ${ocrState.isReplaceMode}
+                };
+                window.magicSelectedText = ""; 
+
+                // Clone generic functions
+                ${toggleOCRReplaceMode.toString()}
+                ${handleOCRFile.toString()}
+                ${ocrProcess.toString()}
+                ${processDocumentFile.toString()}
+                ${initCropper.toString()}
+                ${updateOCRProgress.toString()}
+                ${toggleFilterMenu.toString()}   
+                ${updateImageFilters.toString()}
+                ${resetFilters.toString()}
+                ${applyImageFilter.toString()}
+                ${parseSmartData.toString()}
+                ${createSmartChip.toString()}
+                ${openMagicFillMenu.toString()}
+                ${copyOCRText.toString()}
+                ${showMagicMenu.toString()}
+                
+                // Inject Toggle Logic
+                ${toggleOCRWorkbench.toString()}
+
+                // 3. SPECIAL: Proxy 'magicSelect' to Parent Window
+                function magicSelect(targetFieldId, val) {
+                    if (window.opener && !window.opener.closed) {
+                        // Directly call the parent function
+                        window.opener.magicSelect(targetFieldId, val);
+                    } else {
+                        alert("Main window is closed.");
+                    }
+                    document.getElementById('magic-menu').style.display = 'none';
+                }
+
+                async function magicOperation(action) {
+                    const selection = window.magicSelectedText;
+                    try {
+                        if (action === 'copy') {
+                            if (selection) {
+                                await navigator.clipboard.writeText(selection);
+                                showNotification('Copied to clipboard', 'success');
+                            } else {
+                                showNotification('No text selected', 'warning');
+                            }
+                        } 
+                        document.getElementById('magic-menu').style.display = 'none';
+                    } catch (err) {
+                        console.error(err);
+                        showNotification('Clipboard action failed', 'error');
+                    }
+                }
+
+                function magicFillField(targetFieldId) {
+                    fillParentField(targetFieldId, window.magicSelectedText);
+                    document.getElementById('magic-menu').style.display = 'none';
+                }
+
+                function magicFill(targetFieldId) {
+                    fillParentField(targetFieldId, window.ocrState.extractedValue);
+                    document.getElementById('ocr-context-menu').style.display = 'none';
+                }
+
+                function fillParentField(targetFieldId, val) {
+                    if (!window.opener || window.opener.closed) {
+                        alert("Main Bill App window is closed.");
+                        return;
+                    }
+                    if (targetFieldId === 'copy') {
+                        navigator.clipboard.writeText(val);
+                        return;
+                    }
+
+                    const parentDoc = window.opener.document;
+                    const isGSTMode = window.opener.isGSTMode;
+                    let finalId = targetFieldId;
+                    
+                    if (isGSTMode) {
+                        if (targetFieldId === 'custName') finalId = 'billToName';
+                        if (targetFieldId === 'custGSTIN') finalId = 'billToGstin';
+                        if (targetFieldId === 'billDate') finalId = 'bill-date-gst';
+                        if (targetFieldId === 'billNo') finalId = 'bill-invoice-no';
+                        if (targetFieldId === 'custPhone') finalId = 'billToContact';
+                        
+                        const el = parentDoc.getElementById(finalId);
+                        if (el) {
+                            el.textContent = val;
+                            if(finalId === 'billToName') {
+                                const input = parentDoc.getElementById('consignee-name');
+                                if(input) input.value = val;
+                            }
+                        } else {
+                            const inputEl = parentDoc.getElementById(targetFieldId);
+                            if(inputEl) updateInput(inputEl, val);
+                        }
+                    } else {
+                        const el = parentDoc.getElementById(targetFieldId);
+                        if (el) updateInput(el, val);
+                    }
+                }
+
+                function updateInput(el, val) {
+                    if (window.ocrState.isReplaceMode) {
+                        el.value = val;
+                    } else {
+                        el.value = el.value ? el.value + ' ' + val : val;
+                    }
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                    
+                    if (el.id === 'itemNameManual' && window.opener.handleItemNameInput) {
+                        window.opener.handleItemNameInput();
+                    }
+                }
+
+                document.addEventListener('DOMContentLoaded', () => {
+                    const workbench = document.getElementById('ocr-workbench');
+                    workbench.addEventListener('dragover', (e) => { e.preventDefault(); workbench.style.background='#444'; });
+                    workbench.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        if (e.dataTransfer.files.length) {
+                            document.getElementById('ocr-file-input').files = e.dataTransfer.files;
+                            handleOCRFile(document.getElementById('ocr-file-input'));
+                        }
+                    });
+
+                    document.addEventListener('contextmenu', (e) => {
+                        const selection = window.getSelection().toString().trim();
+                        if (selection.length > 0) {
+                            e.preventDefault();
+                            window.magicSelectedText = selection; 
+                            showMagicMenu(e.clientX, e.clientY);
+                        }
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!e.target.closest('#ocr-context-menu')) {
+                            document.getElementById('ocr-context-menu').style.display = 'none';
+                        }
+                        if (!e.target.closest('#magic-menu')) {
+                            document.getElementById('magic-menu').style.display = 'none';
+                        }
+                        
+                        const filterMenu = document.getElementById('filter-menu');
+                        const filterBtn = document.getElementById('btn-filter');
+                        if (filterMenu && filterMenu.style.display === 'block') {
+                            if (!filterMenu.contains(e.target) && (!filterBtn || !filterBtn.contains(e.target))) {
+                                filterMenu.style.display = 'none';
+                            }
+                        }
+                    });
+                    
+                    const savedText = localStorage.getItem('billApp_ocrText');
+                    const textArea = document.getElementById('ocr-result');
+                    if(savedText && textArea) {
+                        textArea.value = savedText;
+                        window.ocrState.extractedValue = savedText; 
+                        if(typeof parseSmartData === 'function') parseSmartData(savedText);
+                    }
+                    if(textArea) {
+                        textArea.addEventListener('input', () => {
+                            localStorage.setItem('billApp_ocrText', textArea.value);
+                            window.ocrState.extractedValue = textArea.value;
+                        });
+                    }
+                    
+                    const btn = document.getElementById('btn-ocr-replace-mode');
+                    if (window.ocrState.isReplaceMode) {
+                        btn.style.backgroundColor = '#e8f5e9'; 
+                        btn.style.color = '#27ae60';
+                        btn.innerHTML = '<span class="material-icons">find_replace</span> Replace: ON';
+                    } else {
+                        btn.innerHTML = '<span class="material-icons">playlist_add</span> Replace: OFF';
+                    }
+
+                    // Nested Flip Logic
+                    const magicItems = document.querySelectorAll('.magic-item');
+                    magicItems.forEach(item => {
+                        item.addEventListener('mouseenter', function() {
+                            const subMenu = this.querySelector('.magic-sub-menu');
+                            if (subMenu) {
+                                const rect = this.getBoundingClientRect();
+                                const winWidth = window.innerWidth;
+                                const winHeight = window.innerHeight;
+                                const subMenuWidth = 160; 
+                                const subMenuHeight = subMenu.scrollHeight || 300; 
+
+                                const parentMenu = this.closest('.magic-sub-menu');
+                                const isParentFlippedLeft = parentMenu && parentMenu.classList.contains('flip-left');
+                                let shouldFlipLeft = isParentFlippedLeft || (rect.right + subMenuWidth > winWidth);
+                                
+                                if (shouldFlipLeft && (rect.left - subMenuWidth < 0)) {
+                                    shouldFlipLeft = false;
+                                }
+
+                                if (shouldFlipLeft) {
+                                    subMenu.classList.add('flip-left');
+                                } else {
+                                    subMenu.classList.remove('flip-left');
+                                }
+
+                                if (rect.top + subMenuHeight > winHeight) {
+                                    subMenu.classList.add('flip-up');
+                                } else {
+                                    subMenu.classList.remove('flip-up');
+                                }
+                            }
+                        });
+                    });
+                });
+                
+                function showNotification(msg) { console.log(msg); }
+            <\/script>
+        </body>
+        </html>
+    `);
+    
+    newWin.document.close();
+    newWin.focus();
+    closeOCRModal(); 
 }
