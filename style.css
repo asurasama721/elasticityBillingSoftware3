@@ -3546,7 +3546,7 @@ terms modal
 
 #toggle-more-options-btn .material-icons {
     margin-left: 5px;
-    font-size:20px;
+    font-size: 20px;
 }
 
 /* Scanner Mode Toggle Buttons */
@@ -3572,7 +3572,7 @@ terms modal
     background-color: var(--primary-color);
     color: white;
     border-color: var(--primary-color);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .btn-share {
@@ -3590,8 +3590,567 @@ terms modal
     box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
     text-decoration: none;
 }
-.btn-share:hover{
+
+.btn-share:hover {
     background: white;
     color: var(--primary-color);
-  box-shadow: 0 3px 9px rgba(148, 148, 148, 0.897);
+    box-shadow: 0 3px 9px rgba(148, 148, 148, 0.897);
 }
+
+/*  */
+
+/* --- OCR MODAL STYLES --- */
+#ocr-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 900px;
+    height: 600px;
+    background-color: white;
+    /* border: 1px solid #ccc; */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    z-index: 5000;
+    /* High z-index */
+    display: flex;
+    flex-direction: column;
+    min-width: 600px;
+    min-height: 400px;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+#ocr-header {
+    padding: 12px 15px;
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    color: white;
+    cursor: move;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    user-select: none;
+}
+
+.window-controls span {
+    cursor: pointer;
+    margin-left: 10px;
+    opacity: 0.8;
+}
+
+.window-controls span:hover {
+    opacity: 1;
+}
+
+#ocr-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+/* Toolbar */
+.ocr-toolbar {
+    padding: 8px 15px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.ocr-toolbar button,
+.ocr-btn-upload {
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    background: #fff;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #444;
+    transition: all 0.2s;
+}
+
+.ocr-toolbar button:hover:not(:disabled),
+.ocr-btn-upload:hover {
+    background: #f0f0f0;
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.ocr-toolbar button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.divider-v {
+    width: 1px;
+    height: 20px;
+    background: #ddd;
+    margin: 0 5px;
+}
+
+/* Progress Bar */
+#ocr-progress-container {
+    height: 4px;
+    background: #e0e0e0;
+    width: 100%;
+    position: relative;
+    display: none;
+    /* Hidden by default */
+}
+
+#ocr-progress-bar {
+    height: 100%;
+    background: #27ae60;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+#ocr-status-text {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    font-size: 11px;
+    color: #666;
+}
+
+/* Workspace Split View */
+.ocr-workspace {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+/* Left: Workbench */
+#ocr-workbench {
+    flex: 1.5;
+    /* 60% width */
+    background: #333;
+    /* Dark background for contrast */
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 2px solid white;
+}
+
+#ocr-empty-state {
+    text-align: center;
+    color: #888;
+}
+
+#ocr-canvas-container {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+#ocr-source-image {
+    max-width: 100%;
+    display: block;
+}
+
+/* Right: Results */
+#ocr-results-panel {
+    flex: 1;
+    /* 40% width */
+    background: white;
+    border-left: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    padding: 15px;
+    min-width: 250px;
+}
+
+/* Smart Chips */
+#ocr-smart-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 15px;
+    /* min-height: 40px; */
+}
+
+.smart-chip {
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+.smart-chip:hover {
+    background: #2196f3;
+    color: white;
+    border-color: #2196f3;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+}
+
+#ocr-result {
+    flex: 1;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #eee;
+    border-radius: 4px;
+    resize: none;
+    font-family: monospace;
+    font-size: 13px;
+    background: #fafafa;
+}
+
+/* Magic Fill Context Menu */
+.context-menu {
+    display: none;
+    position: absolute;
+    z-index: 6000;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    min-width: 150px;
+}
+
+.menu-header {
+    padding: 8px 12px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #888;
+    background: #f9f9f9;
+    border-bottom: 1px solid #eee;
+}
+
+.menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #333;
+}
+
+.menu-item:hover {
+    background: var(--primary-color);
+    color: white;
+}
+
+.menu-divider {
+    height: 1px;
+    background: #eee;
+    margin: 2px 0;
+}
+
+/* Resize Handles (Invisible but functional) */
+.resize-handle {
+    position: absolute;
+    background: transparent;
+}
+
+.n-resize {
+    top: -5px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    cursor: n-resize;
+}
+
+.e-resize {
+    top: 0;
+    right: -5px;
+    width: 10px;
+    height: 100%;
+    cursor: e-resize;
+}
+
+.s-resize {
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 10px;
+    cursor: s-resize;
+}
+
+.w-resize {
+    top: 0;
+    left: -5px;
+    width: 10px;
+    height: 100%;
+    cursor: w-resize;
+}
+
+.ne-resize {
+    top: -5px;
+    right: -5px;
+    width: 15px;
+    height: 15px;
+    cursor: ne-resize;
+    z-index: 10;
+}
+
+.se-resize {
+    bottom: -5px;
+    right: -5px;
+    width: 15px;
+    height: 15px;
+    cursor: se-resize;
+    z-index: 10;
+}
+
+.sw-resize {
+    bottom: -5px;
+    left: -5px;
+    width: 15px;
+    height: 15px;
+    cursor: sw-resize;
+    z-index: 10;
+}
+
+.nw-resize {
+    top: -5px;
+    left: -5px;
+    width: 15px;
+    height: 15px;
+    cursor: nw-resize;
+    z-index: 10;
+}
+
+/* --- MAGIC FILL MENU STYLES --- */
+.magic-menu {
+    position: fixed;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 5px 0;
+    min-width: 180px;
+    z-index: 10000;
+    /* Highest Z-index */
+    font-size: 13px;
+    color: #333;
+}
+
+.magic-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    transition: background 0.1s;
+}
+
+.magic-item:hover {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.magic-item i {
+    font-size: 16px;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+.magic-item .arrow {
+    font-size: 16px;
+}
+
+.magic-divider {
+    height: 1px;
+    background-color: #eee;
+    margin: 4px 0;
+}
+
+/* Submenu Logic */
+.magic-sub-menu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    top: -5px;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    padding: 5px 0;
+    min-width: 160px;
+    color: #333;
+}
+
+/* Show Submenu on Hover */
+.magic-item:hover>.magic-sub-menu {
+    display: block;
+}
+
+/* Fix submenu text color on parent hover */
+.magic-item:hover>.magic-sub-menu .magic-item {
+    color: #333;
+    /* Reset color for submenu items */
+    background-color: white;
+}
+
+.magic-item:hover>.magic-sub-menu .magic-item:hover {
+    color: white;
+    /* Active submenu item */
+    background-color: var(--secondary-color);
+}
+
+/* Add this to your Context Menu section */
+.magic-sub-menu.flip-left {
+    left: auto;
+    right: 100%;
+    box-shadow: -2px 2px 10px rgba(0, 0, 0, 0.2);
+    /* Shadow direction adjustment */
+}
+
+/* Vertical Flip for Sub-menus */
+.magic-sub-menu.flip-up {
+    top: auto;
+    bottom: 0;
+    box-shadow: 2px -2px 10px rgba(0,0,0,0.2); /* Shadow upwards */
+}
+
+/* --- HORIZONTAL SCROLL UPDATES --- */
+
+/* 1. OCR Toolbar */
+.ocr-toolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 8px 15px;
+    background: white;
+    border-bottom: 1px solid #ddd;
+
+    /* Horizontal Scroll Logic */
+    flex-wrap: nowrap !important;
+    /* Prevent buttons from dropping down */
+    overflow-x: auto;
+    /* Show scrollbar if needed */
+    white-space: nowrap;
+    /* Keep text on one line */
+
+    /* Scrollbar Styling */
+    scrollbar-width: thin;
+    /* Firefox */
+    scrollbar-color: #ccc transparent;
+}
+
+/* 2. Smart Chips Container */
+#ocr-smart-chips {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 5px;
+    /* min-height: 40px; */
+    align-items: center;
+
+    /* Horizontal Scroll Logic */
+    flex-wrap: nowrap !important;
+    /* Force single line */
+    overflow-x: auto;
+    /* Enable scroll */
+    padding-bottom: 5px;
+    /* Space for scrollbar */
+
+    /* Scrollbar Styling */
+    scrollbar-width: thin;
+    scrollbar-color: #ccc transparent;
+}
+
+/* 3. Chip Styling Fix */
+.smart-chip {
+    flex-shrink: 0;
+    /* Prevent chips from being squished */
+    white-space: nowrap;
+    /* Keep chip text on one line */
+    /* Keep existing styling below */
+    background: #e3f2fd;
+    color: #1565c0;
+    border: 1px solid #bbdefb;
+    border-radius: 16px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s;
+}
+
+/* Custom Scrollbar Webkit (Chrome/Safari/Edge) */
+.ocr-toolbar::-webkit-scrollbar,
+#ocr-smart-chips::-webkit-scrollbar {
+    height: 6px;
+}
+
+.ocr-toolbar::-webkit-scrollbar-thumb,
+#ocr-smart-chips::-webkit-scrollbar-thumb {
+    background-color: #ccc;
+    border-radius: 3px;
+}
+
+.ocr-toolbar::-webkit-scrollbar-track,
+#ocr-smart-chips::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Filter Menu (Dropdown) */
+/* Filter Menu (Dropdown) */
+.filter-menu {
+    display: none;
+    position: fixed; /* Changed from absolute */
+    width: 220px;
+    background: white;
+    border: 1px solid #ccc;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    border-radius: 4px;
+    padding: 12px;
+    z-index: 10000; /* Very high Z-index */
+}
+
+.filter-group {
+    margin-bottom: 12px;
+}
+
+.filter-group label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    color: #555;
+    margin-bottom: 4px;
+}
+
+.filter-group input[type=range] {
+    width: 100%;
+    cursor: pointer;
+}
+
+/* Tiny buttons for the menu */
+.btn-tiny {
+    padding: 4px 8px;
+    font-size: 11px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+    border-radius: 3px;
+    cursor: pointer;
+}
+.btn-tiny:hover { background: #eee; }
+.btn-tiny.primary { border-color: var(--primary-color); color: var(--primary-color); }
