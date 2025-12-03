@@ -667,13 +667,26 @@
 
                 <div class="form-row" style="display: flex; gap: 15px;">
                     <div class="form-group" style="flex: 2;">
-                        <label>Default Rate/MRP:</label>
-                        <input type="number" id="saved-default-rate" placeholder="Enter default rate" step="0.01"
-                            min="0">
+                        <label>Sale Price:</label>
+                        <input type="number" id="saved-sale-price" placeholder="Enter sale price" step="0.01" min="0">
                     </div>
                     <div class="form-group" style="flex: 1;">
                         <label>Tax Type:</label>
-                        <select id="saved-tax-type">
+                        <select id="saved-sale-tax-type">
+                            <option value="exclusive" selected>Exclusive</option>
+                            <option value="inclusive">Inclusive</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 2;">
+                        <label>MRP:</label>
+                        <input type="number" id="saved-mrp" placeholder="Enter MRP" step="0.01" min="0">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Tax Type:</label>
+                        <select id="saved-mrp-tax-type">
                             <option value="exclusive" selected>Exclusive</option>
                             <option value="inclusive">Inclusive</option>
                         </select>
@@ -705,6 +718,17 @@
                         <label>Minimum Stock:</label>
                         <input type="number" id="saved-min-stock" placeholder="Min Alert Qty" step="1" min="0"
                             value="0">
+                    </div>
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Brand Name:</label>
+                        <input type="text" id="saved-brand-name" placeholder="Enter brand name">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Vendor Name:</label>
+                        <input type="text" id="saved-vendor-name" placeholder="Enter vendor name">
                     </div>
                 </div>
 
@@ -1075,6 +1099,8 @@
                     class="material-icons">folder_open</span>SAVED BILLS</button>
             <button onclick="saveCurrentBill()" class="settings-btn"><span class="material-icons">save</span>SAVE
                 BILL</button>
+            <button onclick="openOCRModal()" class="settings-btn"><span class="material-icons">text_snippet</span>OCR
+                ASSISTANT</button>
             <button onclick="backupData()" class="settings-btn"><span
                     class="material-icons">backup</span>BACKUP</button>
             <button onclick="restoreData()" class="settings-btn"><span
@@ -1887,7 +1913,7 @@
                     </button>
                 </div>
                 <div id="scanner-container"
-                    style="border-radius: 20px;position: relative; width: 300px; height: 300px; margin: 0 auto; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+                    style="position: relative; width: 300px; height: 300px; margin: 0 auto; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center;">
                     <video id="scanner-video" style="width: 100%; height: 100%; object-fit: cover;"></video>
                     <div class="scan-overlay"></div>
                 </div>
@@ -1976,6 +2002,289 @@
             </div>
         </div>
     </div>
+
+    <div id="ocr-modal" style="display: none;">
+        <div id="ocr-header">
+            <div style="display:flex; align-items:center; gap:10px;">
+                <span class="material-icons">document_scanner</span>
+                <span>Smart Data Extractor</span>
+            </div>
+            <div class="window-controls">
+                <span class="material-icons" onclick="openOCRPopOut()" title="Open in New Window">open_in_new</span>
+                <span class="material-icons" onclick="closeOCRModal()" title="close">close</span>
+            </div>
+        </div>
+
+        <div id="ocr-body">
+            <div class="ocr-toolbar">
+                <label class="ocr-btn-upload" title="Upload File">
+                    <span class="material-icons">upload_file</span> Open
+                    <input type="file" id="ocr-file-input" hidden accept="image/*,.pdf,.docx,.xlsx,.xls,.csv"
+                        onchange="handleOCRFile(this)">
+                </label>
+                <div class="divider-v"></div>
+                <button onclick="ocrProcess('full')" title="Scan Full Document"><span
+                        class="material-icons">fullscreen</span> Full Scan</button>
+                <button onclick="ocrProcess('crop')" id="btn-crop-scan" disabled title="Scan Selected Area"><span
+                        class="material-icons">crop</span> Scan Crop</button>
+                <div class="divider-v"></div>
+                <div style="position: relative;">
+                    <button onclick="toggleFilterMenu()" id="btn-filter" disabled title="Image Filters">
+                        <span class="material-icons">tune</span> Enhance
+                    </button>
+
+                    <div id="filter-menu" class="filter-menu">
+                        <div class="filter-group">
+                            <label>Binarize (Threshold) <span id="val-threshold">128</span></label>
+                            <input type="range" id="slider-threshold" min="0" max="255" value="128"
+                                oninput="updateImageFilters()">
+                        </div>
+                        <div class="filter-group">
+                            <label>Contrast <span id="val-contrast">0</span></label>
+                            <input type="range" id="slider-contrast" min="-100" max="100" value="0"
+                                oninput="updateImageFilters()">
+                        </div>
+                        <div style="display:flex; justify-content: space-between; margin-top:5px;">
+                            <button onclick="resetFilters()" class="btn-tiny">Reset</button>
+                            <button onclick="toggleFilterMenu()" class="btn-tiny primary">Done</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider-v"></div>
+                <button onclick="toggleOCRWorkbench()" title="Toggle Workbench View"><span
+                        class="material-icons">view_sidebar</span> View</button>
+                <div class="divider-v"></div>
+                <button id="btn-ocr-replace-mode" onclick="toggleOCRReplaceMode()" title="Toggle Replace/Append Mode"
+                    style="background-color: #e8f5e9; color: #27ae60; border-color: #27ae60;">
+                    <span class="material-icons">find_replace</span> Replace: ON
+                </button>
+            </div>
+
+            <div id="ocr-progress-container">
+                <div id="ocr-progress-bar"></div>
+                <span id="ocr-status-text">Ready</span>
+            </div>
+
+            <div class="ocr-workspace">
+                <div id="ocr-workbench">
+                    <div id="ocr-empty-state">
+                        <span class="material-icons" style="font-size: 48px; color: #ccc;">cloud_upload</span>
+                        <p>Drag & Drop Bill Here</p>
+                        <small>Supports: IMG, PDF, DOCX, XLS</small>
+                    </div>
+                    <div id="ocr-canvas-container" style="display:none;">
+                        <img id="ocr-source-image" src="" alt="Source">
+                    </div>
+                </div>
+
+                <div id="ocr-results-panel">
+                    <div id="ocr-smart-chips"></div>
+
+                    <div class="result-header">
+                        <span>Extracted Text</span>
+                        <button onclick="copyOCRText()" class="icon-btn-tiny" title="Copy All"><span
+                                class="material-icons" style="font-size:14px">content_copy</span></button>
+                    </div>
+                    <textarea id="ocr-result" placeholder="Text will appear here..."></textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="resize-handle n-resize"></div>
+        <div class="resize-handle e-resize"></div>
+        <div class="resize-handle s-resize"></div>
+        <div class="resize-handle w-resize"></div>
+        <div class="resize-handle ne-resize"></div>
+        <div class="resize-handle se-resize"></div>
+        <div class="resize-handle sw-resize"></div>
+        <div class="resize-handle nw-resize"></div>
+    </div>
+
+    <div id="ocr-context-menu" class="context-menu">
+        <div class="menu-header">Fill Field:</div>
+        <div class="menu-item" onclick="magicFill('custName')">Customer Name</div>
+        <div class="menu-item" onclick="magicFill('billNo')">Bill / Invoice No</div>
+        <div class="menu-item" onclick="magicFill('billDate')">Bill Date</div>
+        <div class="menu-item" onclick="magicFill('custGSTIN')">GSTIN</div>
+        <div class="menu-item" onclick="magicFill('custPhone')">Phone</div>
+        <div class="menu-divider"></div>
+        <div class="menu-item" onclick="magicFill('copy')">Copy to Clipboard</div>
+    </div>
+
+    <div id="magic-menu" class="magic-menu" style="display: none;">
+        <div class="magic-item">
+            <span><i class="material-icons">person</i> Customer</span>
+            <span class="material-icons arrow">chevron_right</span>
+            <div class="magic-sub-menu">
+                <div class="magic-item">
+                    <span>Regular Bill</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item" onclick="magicFillField('custName')">Name</div>
+                        <div class="magic-item" onclick="magicFillField('custAddr')">Address</div>
+                        <div class="magic-item" onclick="magicFillField('custPhone')">Phone</div>
+                        <div class="magic-item" onclick="magicFillField('custGSTIN')">GSTIN</div>
+                        <div class="magic-item" onclick="magicFillField('billNo')">Bill No</div>
+                        <div class="magic-item" onclick="magicFillField('billDate')">Date</div>
+                    </div>
+                </div>
+                <div class="magic-item">
+                    <span>GST: Bill To</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item" onclick="magicFillField('consignee-name')">Name</div>
+                        <div class="magic-item" onclick="magicFillField('consignee-address')">Address</div>
+                        <div class="magic-item" onclick="magicFillField('consignee-gst')">GSTIN</div>
+                        <div class="magic-item" onclick="magicFillField('consignee-state')">State</div>
+                        <div class="magic-item" onclick="magicFillField('consignee-code')">State Code</div>
+                        <div class="magic-item" onclick="magicFillField('consignee-contact')">Contact</div>
+                    </div>
+                </div>
+                <div class="magic-item">
+                    <span>GST: Ship To</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item" onclick="magicFillField('buyer-name')">Name</div>
+                        <div class="magic-item" onclick="magicFillField('buyer-address')">Address</div>
+                        <div class="magic-item" onclick="magicFillField('buyer-gst')">GSTIN</div>
+                        <div class="magic-item" onclick="magicFillField('buyer-state')">State</div>
+                        <div class="magic-item" onclick="magicFillField('buyer-code')">State Code</div>
+                        <div class="magic-item" onclick="magicFillField('buyer-contact')">Contact</div>
+                        <div class="magic-item" onclick="magicFillField('place-of-supply')">POS</div>
+                    </div>
+                </div>
+                <div class="magic-item">
+                    <span>GST Invoice Details</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item" onclick="magicFillField('invoice-no')">Invoice No</div>
+                        <div class="magic-item" onclick="magicFillField('invoice-date')">Invoice Date</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="magic-divider"></div>
+
+        <div class="magic-item">
+            <span><i class="material-icons">edit</i> Input Mode</span>
+            <span class="material-icons arrow">chevron_right</span>
+            <div class="magic-sub-menu">
+                <div class="magic-item" onclick="magicFillField('itemNameManual')">Item Name</div>
+                <div class="magic-item" onclick="magicFillField('quantityManual')">Quantity</div>
+                <div class="magic-item" onclick="magicFillField('selectUnit')">Unit</div>
+                <div class="magic-item" onclick="magicFillField('rateManual')">Rate</div>
+                <div class="magic-item" onclick="magicFillField('itemNotesManual')">Notes</div>
+                <div class="magic-item" onclick="magicFillField('hsnCodeManual')">HSN/SAC</div>
+                <div class="magic-item" onclick="magicFillField('productCodeManual')">Product Code</div>
+                
+                <div class="magic-divider"></div>
+                
+                <div class="magic-item">
+                    <span>Dimensions</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item">
+                            <span>Type</span>
+                            <span class="material-icons arrow">chevron_right</span>
+                            <div class="magic-sub-menu">
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'none')">None</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'length')">Length</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheight')">W x H</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheightXdepth')">W x H x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'dozen')">Dozen</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXheight')">L x W x H</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXdepth')">W x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheightXdepth')">L x H x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXdepth')">L x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheight')">L x H</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidth')">L x W</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXdepth')">L x W x D</div>
+                            </div>
+                        </div>
+                        
+                        <div class="magic-item">
+                            <span>Convert</span>
+                            <span class="material-icons arrow">chevron_right</span>
+                            <div class="magic-sub-menu">
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'none')">None</div>
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'ft')">ft</div>
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'inch')">inch</div>
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'mtr')">mtr</div>
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'cm')">cm</div>
+                                <div class="magic-item" onclick="magicSelect('convertUnit', 'mm')">mm</div>
+                            </div>
+                        </div>
+
+                        <div class="magic-divider"></div>
+                        <div class="magic-item" onclick="magicFillField('dimension1')">Value 1 (L/W)</div>
+                        <div class="magic-item" onclick="magicFillField('dimension2')">Value 2 (W/H)</div>
+                        <div class="magic-item" onclick="magicFillField('dimension3')">Value 3 (H/D)</div>
+                    </div>
+                </div>
+
+                <div class="magic-item">
+                    <span>Discount</span>
+                    <span class="material-icons arrow">chevron_right</span>
+                    <div class="magic-sub-menu">
+                        <div class="magic-item">
+                            <span>Type</span>
+                            <span class="material-icons arrow">chevron_right</span>
+                            <div class="magic-sub-menu">
+                                <div class="magic-item" onclick="magicSelect('discountType', 'none')">None</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_per_unit')">% / Unit</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_per_unit')">Amt / Unit</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_on_amount')">% on Total</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_on_amount')">Amt on Total</div>
+                            </div>
+                        </div>
+                        <div class="magic-item" onclick="magicFillField('discountValue')">Discount Value</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="magic-divider"></div>
+
+        <div class="magic-item">
+            <span><i class="material-icons">inventory_2</i> Add Item Modal</span>
+            <span class="material-icons arrow">chevron_right</span>
+            <div class="magic-sub-menu">
+                <div class="magic-item" onclick="magicFillField('saved-item-name')">Item Name</div>
+                <div class="magic-item" onclick="magicFillField('saved-category')">Category</div>
+                <div class="magic-item" onclick="magicFillField('saved-brand-name')">Brand Name</div>
+                <div class="magic-item" onclick="magicFillField('saved-vendor-name')">Vendor Name</div>
+                <div class="magic-divider"></div>
+                <div class="magic-item" onclick="magicFillField('saved-sale-price')">Sale Price</div>
+                <div class="magic-item" onclick="magicFillField('saved-mrp')">MRP</div>
+                <div class="magic-item" onclick="magicFillField('saved-purchase-rate')">Purchase Rate</div>
+                <div class="magic-item" onclick="magicFillField('saved-stock-quantity')">Stock Qty</div>
+                <div class="magic-item" onclick="magicFillField('saved-min-stock')">Min Stock</div>
+                <div class="magic-divider"></div>
+                <div class="magic-item" onclick="magicFillField('saved-hsn-code')">HSN Code</div>
+                <div class="magic-item" onclick="magicFillField('saved-barcode')">Barcode</div>
+                <div class="magic-item" onclick="magicFillField('saved-product-code')">Product Code</div>
+                <div class="magic-item" onclick="magicFillField('saved-section-code')">Section Code</div>
+            </div>
+        </div>
+
+        <div class="magic-divider"></div>
+
+        <div class="magic-item" onclick="magicOperation('copy')">
+            <span><i class="material-icons">content_copy</i> Copy Selection</span>
+        </div>
+    </div>
+
+    <!-- OCR SCRIPTS -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';</script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <!--  -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -1985,4 +2294,3 @@
 </body>
 
 </html>
-
