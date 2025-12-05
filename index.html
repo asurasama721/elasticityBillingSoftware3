@@ -1083,6 +1083,10 @@
     <div id="settings-sidebar">
         <h2>Settings <button class="settings-close-btn" onclick="toggleSettingsSidebar()">×</button></h2>
         <div class="settings-content">
+            <button onclick="openBusinessDashboard()" class="settings-btn"
+                style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white;">
+                <span class="material-icons">dashboard</span>BUSINESS DASHBOARD
+            </button>
             <button onclick="openGSTModeModal()" class="settings-btn gst-mode-btn"><span
                     class="material-icons">receipt_long</span></button>
             <button onclick="openCompanyInfoModal()" class="settings-btn company-info-btn"><span
@@ -1099,6 +1103,15 @@
                     class="material-icons">folder_open</span>SAVED BILLS</button>
             <button onclick="saveCurrentBill()" class="settings-btn"><span class="material-icons">save</span>SAVE
                 BILL</button>
+            <button onclick="toggleVendorMode()" class="settings-btn vendor-mode-btn">
+                <span class="material-icons">store</span>VENDOR MODE
+            </button>
+            <button onclick="openManageVendorsModal()" class="settings-btn">
+                <span class="material-icons">people_alt</span>MANAGE VENDORS
+            </button>
+            <button onclick="openVendorSavedBillsModal()" class="settings-btn">
+                <span class="material-icons">snippet_folder</span>VENDOR BILLS
+            </button>
             <button onclick="openOCRModal()" class="settings-btn"><span class="material-icons">text_snippet</span>OCR
                 ASSISTANT</button>
             <button onclick="backupData()" class="settings-btn"><span
@@ -1210,6 +1223,56 @@
 
                         <td class="label" id="custGSINTd">
                             GSTIN: <input type="text" id="custGSTIN" oninput="saveGSTIN()">
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            <div id="vendor-details-container" style="display: none; margin-bottom: 20px;">
+                <h4
+                    style="text-align: center; margin-bottom: 15px; text-transform: uppercase; color: var(--primary-color);">
+                    Purchase Entry</h4>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td class="label">Vendor Name:
+                            <div
+                                style="position: relative; display: inline-block; width: calc(100% - 110px); vertical-align: top;">
+                                <input type="text" id="vendorName" placeholder="Enter Vendor Name"
+                                    oninput="handleVendorSearch()" autocomplete="off"
+                                    style="width: 100%; margin-left: 5px;">
+                                <div class="customer-suggestions" id="vendor-suggestions" style="display: none;"></div>
+                            </div>
+                        </td>
+                        <td class="label">Invoice No: <input type="text" id="vendorInvoiceNo"
+                                placeholder="Vendor Bill No" /></td>
+                    </tr>
+                    <tr>
+                        <td class="label">Address: <input type="text" id="vendorAddr" placeholder="Vendor Address" />
+                        </td>
+                        <td class="label">Date: <input type="text" id="vendorDate" placeholder="DD-MM-YYYY" /></td>
+                    </tr>
+                    <tr>
+                        <td class="label">Contact: <input type="text" id="vendorPhone" placeholder="Contact No" /></td>
+                        <td class="label">GSTIN: <input type="text" id="vendorGSTIN" placeholder="Vendor GSTIN" /></td>
+                    </tr>
+                    <tr>
+                        <td class="label">Email: <input type="email" id="vendorEmail" placeholder="vendor@email.com" />
+                        </td>
+                        <td class="label">
+                            Type:
+                            <select id="vendorType"
+                                style="border: none; border-bottom: 1px solid var(--border-color); width: 100px; background: transparent;">
+                                <option value="Regular">Regular</option>
+                                <option value="GST">GST</option>
+                            </select>
+                            <label for="vendorFile"
+                                style="cursor: pointer; margin-left: 10px; color: var(--primary-color);">
+                                <span class="material-icons"
+                                    style="font-size: 18px; vertical-align: middle;">attach_file</span> Upload Bill
+                            </label>
+                            <input type="file" id="vendorFile" accept="image/*,application/pdf" style="display: none;"
+                                onchange="handleVendorFileSelect(this)">
+                            <span id="vendorFileName" style="font-size: 0.8em; color: green; display: none;">File
+                                Selected</span>
                         </td>
                     </tr>
                 </table>
@@ -2178,9 +2241,9 @@
                 <div class="magic-item" onclick="magicFillField('itemNotesManual')">Notes</div>
                 <div class="magic-item" onclick="magicFillField('hsnCodeManual')">HSN/SAC</div>
                 <div class="magic-item" onclick="magicFillField('productCodeManual')">Product Code</div>
-                
+
                 <div class="magic-divider"></div>
-                
+
                 <div class="magic-item">
                     <span>Dimensions</span>
                     <span class="material-icons arrow">chevron_right</span>
@@ -2191,19 +2254,28 @@
                             <div class="magic-sub-menu">
                                 <div class="magic-item" onclick="magicSelect('dimensionType', 'none')">None</div>
                                 <div class="magic-item" onclick="magicSelect('dimensionType', 'length')">Length</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheight')">W x H</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheightXdepth')">W x H x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheight')">W x H
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXheightXdepth')">W x
+                                    H x D</div>
                                 <div class="magic-item" onclick="magicSelect('dimensionType', 'dozen')">Dozen</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXheight')">L x W x H</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXdepth')">W x D</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheightXdepth')">L x H x D</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXdepth')">L x D</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheight')">L x H</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidth')">L x W</div>
-                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXdepth')">L x W x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXheight')">L
+                                    x W x H</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'widthXdepth')">W x D
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheightXdepth')">L
+                                    x H x D</div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXdepth')">L x D
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXheight')">L x H
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidth')">L x W
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('dimensionType', 'lengthXwidthXdepth')">L x
+                                    W x D</div>
                             </div>
                         </div>
-                        
+
                         <div class="magic-item">
                             <span>Convert</span>
                             <span class="material-icons arrow">chevron_right</span>
@@ -2233,10 +2305,14 @@
                             <span class="material-icons arrow">chevron_right</span>
                             <div class="magic-sub-menu">
                                 <div class="magic-item" onclick="magicSelect('discountType', 'none')">None</div>
-                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_per_unit')">% / Unit</div>
-                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_per_unit')">Amt / Unit</div>
-                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_on_amount')">% on Total</div>
-                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_on_amount')">Amt on Total</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_per_unit')">% /
+                                    Unit</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_per_unit')">Amt / Unit
+                                </div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'percent_on_amount')">% on
+                                    Total</div>
+                                <div class="magic-item" onclick="magicSelect('discountType', 'amt_on_amount')">Amt on
+                                    Total</div>
                             </div>
                         </div>
                         <div class="magic-item" onclick="magicFillField('discountValue')">Discount Value</div>
@@ -2275,6 +2351,191 @@
             <span><i class="material-icons">content_copy</i> Copy Selection</span>
         </div>
     </div>
+
+    <div id="manage-vendors-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Manage Vendors</h3>
+                <span class="close" onclick="closeManageVendorsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="vendor-search" placeholder="Search vendors..." oninput="searchVendors()">
+                    <button onclick="openAddVendorModal()" class="btn-apply">Add New Vendor</button>
+                </div>
+                <div id="vendors-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="vendor-bills-modal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Vendor Bills (Purchase History)</h3>
+                <span class="close" onclick="closeVendorSavedBillsModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="search-add-bar">
+                    <input type="text" id="vendor-bills-search" placeholder="Search purchase bills..."
+                        oninput="searchVendorBills()">
+                </div>
+
+                <div class="mode-toggle" style="margin: 15px 0; display: flex; align-items: center; gap: 10px;">
+                    <span>Regular Bills</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="vendor-bills-mode-toggle" onchange="toggleVendorBillsMode()">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span>GST Bills</span>
+                </div>
+
+                <div id="vendor-bills-list" class="items-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-vendor-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="add-vendor-modal-title">Add New Vendor</h3>
+                <span class="close" onclick="closeAddVendorModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Vendor Name:</label>
+                    <input type="text" id="saved-vendor-name" placeholder="Enter Vendor Name">
+                </div>
+                <div class="form-group">
+                    <label>Address:</label>
+                    <textarea id="saved-vendor-address" rows="2" placeholder="Enter Address"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Phone:</label>
+                    <input type="text" id="saved-vendor-phone" placeholder="Contact No">
+                </div>
+                <div class="form-group">
+                    <label>GSTIN:</label>
+                    <input type="text" id="saved-vendor-gstin" placeholder="GSTIN">
+                </div>
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="text" id="saved-vendor-email" placeholder="Email Address">
+                </div>
+                <div class="form-actions">
+                    <button onclick="closeAddVendorModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="saveVendor()" class="btn-apply" id="save-vendor-btn">Save Vendor</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="file-viewer-modal" class="modal">
+        <div class="modal-content" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3>Bill Attachment</h3>
+                <span class="close" onclick="closeFileViewerModal()">&times;</span>
+            </div>
+            <div class="modal-body"
+                style="flex: 1; padding: 0; background: #333; display: flex; justify-content: center; align-items: center; overflow: hidden;">
+                <img id="file-viewer-img" style="max-width: 100%; max-height: 100%; display: none;">
+                <iframe id="file-viewer-pdf" style="width: 100%; height: 100%; border: none; display: none;"></iframe>
+                <div id="file-viewer-msg" style="color: white; display: none;">No preview available</div>
+            </div>
+        </div>
+    </div>
+    <!-- DASHBOARD -->
+    <div id="dashboard-overlay" class="dashboard-overlay" style="display: none;">
+        <div class="dashboard-header">
+            <div class="header-left">
+                <h2>Business Overview</h2>
+                <p id="dashboard-date-range">Last 30 Days</p>
+            </div>
+            <div class="header-right">
+                <select id="dashboard-filter" onchange="refreshDashboard()">
+                    <option value="7">Last 7 Days</option>
+                    <option value="30" selected>Last 30 Days</option>
+                    <option value="90">Last Quarter</option>
+                    <option value="365">Last Year</option>
+                </select>
+                <button onclick="closeBusinessDashboard()" class="icon-btn-close"><span
+                        class="material-icons">close</span></button>
+            </div>
+        </div>
+
+        <div class="dashboard-content">
+            <div class="kpi-grid">
+                <div class="kpi-card green">
+                    <div class="kpi-icon"><span class="material-icons">trending_up</span></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Total Sales</span>
+                        <h3 id="kpi-total-sales">₹0.00</h3>
+                        <small class="kpi-trend" id="trend-sales">+0% vs prev</small>
+                    </div>
+                </div>
+                <div class="kpi-card blue">
+                    <div class="kpi-icon"><span class="material-icons">account_balance_wallet</span></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Est. Profit</span>
+                        <h3 id="kpi-profit">₹0.00</h3>
+                        <small class="kpi-trend" id="trend-profit">Margin: 0%</small>
+                    </div>
+                </div>
+                <div class="kpi-card red">
+                    <div class="kpi-icon"><span class="material-icons">pending_actions</span></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Outstanding</span>
+                        <h3 id="kpi-outstanding">₹0.00</h3>
+                        <small class="kpi-trend">Receivables</small>
+                    </div>
+                </div>
+                <div class="kpi-card orange">
+                    <div class="kpi-icon"><span class="material-icons">shopping_cart</span></div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Purchases</span>
+                        <h3 id="kpi-expenses">₹0.00</h3>
+                        <small class="kpi-trend" id="trend-expenses">Expense</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="main-analytics-grid">
+                <div class="chart-section">
+                    <div class="section-header">
+                        <h4>Business Analytics</h4>
+                        <div class="chart-toggles">
+                            <button class="chart-btn active" onclick="toggleChartType('sales')">Sales</button>
+                            <button class="chart-btn" onclick="toggleChartType('profit')">Profit</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="mainBusinessChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="lists-section">
+                    <div class="action-list-card">
+                        <div class="list-header">
+                            <span class="material-icons" style="color: #e74c3c;">warning</span>
+                            <h4>Low Stock Alert</h4>
+                        </div>
+                        <div id="dash-low-stock-list" class="scrollable-list">
+                        </div>
+                    </div>
+
+                    <div class="action-list-card">
+                        <div class="list-header">
+                            <span class="material-icons" style="color: #3498db;">history</span>
+                            <h4>Recent Activity</h4>
+                        </div>
+                        <div id="dash-recent-list" class="scrollable-list">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- OCR SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
