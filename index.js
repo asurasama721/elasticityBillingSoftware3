@@ -2,7 +2,7 @@
 let db = null;
 const DB_NAME = 'BillAppDB';
 
-const DB_VERSION = 6; // Changed from 5 to 6 to trigger upgrade
+const DB_VERSION = 7; // Changed from 5 to 6 to trigger upgrade
 let dbInitialized = false;
 let dbInitPromise = null;
 let isGSTMode = false;
@@ -46,6 +46,11 @@ let scannerMode = 'manual'; // 'manual' or 'auto'
 let lastScannedCode = null;
 let lastScanTime = 0;
 const SCAN_DELAY = 1500;
+
+let isVendorMode = false;
+let currentVendorFile = null; // Stores Base64 string of uploaded bill
+let currentlyEditingVendorId = null;
+let currentVendorBillsMode = 'regular'; // 'regular' or 'gst'
 
 // Add this with other global variables
 let sectionModalState = {
@@ -96,6 +101,12 @@ function initDB() {
             }
             if (!database.objectStoreNames.contains('billHistoryManual')) {
                 database.createObjectStore('billHistoryManual', { keyPath: 'id' });
+            }
+            if (!database.objectStoreNames.contains('vendorList')) {
+                database.createObjectStore('vendorList', { keyPath: 'id' });
+            }
+            if (!database.objectStoreNames.contains('vendorSavedBills')) {
+                database.createObjectStore('vendorSavedBills', { keyPath: 'id' });
             }
             if (!database.objectStoreNames.contains('taxSettings')) {
                 database.createObjectStore('taxSettings', { keyPath: 'id' });
@@ -1168,6 +1179,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         // Load customer dialog state
         await loadCustomerDialogState();
         setupCustomerDialogAutoSave();
+
+        await loadVendorState();   // Restore mode and inputs
+        setupVendorAutoSave();     // Attach listeners for future typing
 
     } catch (error) {
         console.error('Error during initialization:', error);
@@ -2371,7 +2385,7 @@ async function saveItem() {
     const measurementUnit = document.getElementById('saved-measurement-unit').value;
     const defaultQuantity = parseFloat(document.getElementById('saved-default-quantity').value) || 1;
     const defaultUnit = document.getElementById('saved-select-unit').value.trim();
-    const defaultRate = parseFloat(document.getElementById('saved-default-rate').value) || 0;
+    // const defaultRate = parseFloat(document.getElementById('saved-default-rate').value) || 0;
 
     const discountType = document.getElementById('saved-discount-type').value;
     const discountValue = parseFloat(document.getElementById('saved-discount-value').value) || 0;
@@ -3487,7 +3501,17 @@ async function deleteSavedBill(billId, billType, event) {
     }
 }
 
+
+
+// REPLACE ENTIRE saveCurrentBill FUNCTION WITH THIS:
 async function saveCurrentBill() {
+    // 1. CHECK VENDOR MODE FIRST
+    if (isVendorMode) {
+        await saveVendorPurchaseBill();
+        return;
+    }
+
+    // 2. EXISTING SALES LOGIC
     if (isGSTMode) {
         await saveGSTCurrentBill();
     } else {
@@ -3554,6 +3578,943 @@ async function saveCurrentBill() {
         }
     }
 }
+/* ==========================================
+   VENDOR STATE PERSISTENCE (AUTO-SAVE)
+   ========================================== */
+
+async function saveVendorState() {
+    // 1. Get Table Items using the helper
+    const items = getVendorItemsData();
+
+    const state = {
+        isVendorMode: isVendorMode,
+        // Inputs
+        vendorName: document.getElementById('vendorName').value,
+        vendorInvoiceNo: document.getElementById('vendorInvoiceNo').value,
+        vendorAddr: document.getElementById('vendorAddr').value,
+        vendorDate: document.getElementById('vendorDate').value,
+        vendorPhone: document.getElementById('vendorPhone').value,
+        vendorGSTIN: document.getElementById('vendorGSTIN').value,
+        vendorEmail: document.getElementById('vendorEmail').value,
+        vendorType: document.getElementById('vendorType').value,
+        // Table Data
+        items: items
+    };
+
+    try {
+        await setInDB('settings', 'vendorState', state);
+    } catch (e) {
+        console.error("Error saving vendor state", e);
+    }
+}
+
+async function loadVendorState() {
+    try {
+        const state = await getFromDB('settings', 'vendorState');
+        if (state) {
+            // 1. Restore Mode
+            if (state.isVendorMode && !isVendorMode) {
+                toggleVendorMode();
+            }
+
+            // 2. Restore Inputs
+            document.getElementById('vendorName').value = state.vendorName || '';
+            document.getElementById('vendorInvoiceNo').value = state.vendorInvoiceNo || '';
+            document.getElementById('vendorAddr').value = state.vendorAddr || '';
+            document.getElementById('vendorDate').value = state.vendorDate || '';
+            document.getElementById('vendorPhone').value = state.vendorPhone || '';
+            document.getElementById('vendorGSTIN').value = state.vendorGSTIN || '';
+            document.getElementById('vendorEmail').value = state.vendorEmail || '';
+            document.getElementById('vendorType').value = state.vendorType || 'Regular';
+
+            // 3. Restore Table Items
+            if (state.items && state.items.length > 0) {
+                const createListTbody = document.querySelector("#createListManual tbody");
+                const copyListTbody = document.querySelector("#copyListManual tbody");
+
+                // Clear existing
+                createListTbody.innerHTML = "";
+                copyListTbody.innerHTML = "";
+
+                let maxId = 0;
+
+                state.items.forEach(item => {
+                    const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
+                    const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
+
+                    // Input Table Row
+                    const row1 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', true, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
+                        item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
+                    );
+                    if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
+                    createListTbody.appendChild(row1);
+
+                    // Preview Table Row
+                    const row2 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', false, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
+                    );
+                    if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
+                    copyListTbody.appendChild(row2);
+
+                    // Track Max ID for row counter
+                    if (rowId.includes('row-manual-')) {
+                        const num = parseInt(rowId.split('-')[2]);
+                        if (!isNaN(num) && num > maxId) maxId = num;
+                    }
+                });
+
+                if (maxId > 0) rowCounterManual = maxId + 1;
+
+                updateSerialNumbers();
+                updateTotal();
+            }
+        }
+    } catch (e) {
+        console.error("Error loading vendor state", e);
+    }
+}
+
+function setupVendorAutoSave() {
+    const inputs = [
+        'vendorName', 'vendorInvoiceNo', 'vendorAddr', 'vendorDate',
+        'vendorPhone', 'vendorGSTIN', 'vendorEmail', 'vendorType'
+    ];
+
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            // Save state whenever user types or changes value
+            el.addEventListener('input', () => {
+                // Use existing debounce logic or direct save
+                saveVendorState();
+            });
+            el.addEventListener('change', saveVendorState);
+        }
+    });
+}
+
+/* ==========================================
+   VENDOR MODE & PURCHASE ENTRY LOGIC
+   ========================================== */
+
+function toggleVendorMode() {
+    isVendorMode = !isVendorMode;
+    const body = document.body;
+    const btn = document.querySelector('.vendor-mode-btn');
+
+    // Toggle UI Elements
+    const regHeading = document.getElementById('regular-bill-heading');
+    const companyDetails = document.getElementById('regular-company-details');
+    // Important: The selector below targets the sales customer details block
+    const customerDetails = document.querySelector('#bill-container .customer-details');
+    const vendorDetails = document.getElementById('vendor-details-container');
+    const regFooter = document.getElementById('regular-bill-footer');
+    const saveBtn = document.querySelector('.settings-btn[onclick="saveCurrentBill()"]');
+
+    if (isVendorMode) {
+        // --- SWITCH TO VENDOR MODE ---
+        body.classList.add('vendor-mode');
+
+        // Hide Sales Elements
+        if (regHeading) regHeading.style.display = 'none';
+        if (companyDetails) companyDetails.style.display = 'none';
+        if (customerDetails) customerDetails.style.display = 'none';
+        if (regFooter) regFooter.style.display = 'none';
+
+        // Show Vendor Elements
+        if (vendorDetails) vendorDetails.style.display = 'block';
+
+        // Update Sidebar Button
+        if (btn) {
+            btn.style.backgroundColor = '#e67e22';
+            btn.innerHTML = '<span class="material-icons">domain</span>SALES MODE';
+        }
+
+        // Update Save Button Text
+        if (saveBtn) {
+            saveBtn.style.backgroundColor = '#d35400';
+            saveBtn.innerHTML = '<span class="material-icons">save_alt</span>SAVE PURCHASE';
+        }
+
+        // Set Default Date
+        const today = new Date();
+        const dateStr = `${String(today.getDate()).padStart(2, '0')}-${String(today.getMonth() + 1).padStart(2, '0')}-${today.getFullYear()}`;
+        const dateInput = document.getElementById('vendorDate');
+        if (dateInput && !dateInput.value) dateInput.value = dateStr;
+
+        // showNotification("Switched to Vendor (Purchase) Mode", "info");
+
+    } else {
+        // --- SWITCH BACK TO SALES MODE ---
+        body.classList.remove('vendor-mode');
+
+        // Show Sales Elements
+        if (regHeading) regHeading.style.display = 'block';
+        if (companyDetails) companyDetails.style.display = 'flex';
+        if (customerDetails) customerDetails.style.display = 'block'; // customer details is a table
+        if (regFooter) regFooter.style.display = 'none'; // Footer hidden by default until toggled
+
+        // Hide Vendor Elements
+        if (vendorDetails) vendorDetails.style.display = 'none';
+
+        // Reset Buttons
+        if (btn) {
+            btn.style.backgroundColor = '';
+            btn.innerHTML = '<span class="material-icons">store</span>VENDOR MODE';
+        }
+
+        if (saveBtn) {
+            saveBtn.style.backgroundColor = '';
+            saveBtn.innerHTML = '<span class="material-icons">save</span>SAVE BILL';
+        }
+    }
+    saveVendorState();
+}
+
+function toggleVendorBillsMode() {
+    const toggle = document.getElementById('vendor-bills-mode-toggle');
+    currentVendorBillsMode = toggle.checked ? 'gst' : 'regular';
+    loadVendorSavedBillsList();
+}
+
+async function editVendorSavedBill(billId, event) {
+    if (event) event.stopPropagation();
+
+    try {
+        const bill = await getFromDB('vendorSavedBills', billId);
+        if (!bill) {
+            showNotification("Bill not found", "error");
+            return;
+        }
+
+        // 1. Clear current workspace
+        await clearAllData(true);
+
+        // 2. Ensure we are in Vendor Mode
+        if (!isVendorMode) {
+            toggleVendorMode();
+        }
+
+        const data = bill.value || bill;
+
+        // 3. Set Edit Mode Globals
+        editMode = true;
+        currentEditingBillId = billId;
+
+        const saveBtn = document.querySelector('.settings-btn[onclick="saveCurrentBill()"]');
+        if (saveBtn) {
+            saveBtn.innerHTML = '<span class="material-icons">update</span>UPDATE PURCHASE';
+            saveBtn.style.backgroundColor = '#27ae60';
+        }
+
+        // 4. Populate Inputs
+        document.getElementById('vendorName').value = data.vendor.name;
+        document.getElementById('vendorAddr').value = data.vendor.address || '';
+        document.getElementById('vendorPhone').value = data.vendor.phone || '';
+        document.getElementById('vendorGSTIN').value = data.vendor.gstin || '';
+        document.getElementById('vendorEmail').value = data.vendor.email || '';
+        document.getElementById('vendorInvoiceNo').value = data.billDetails.invoiceNo;
+        document.getElementById('vendorDate').value = data.billDetails.date;
+        document.getElementById('vendorType').value = data.billDetails.type || 'Regular';
+
+        if (data.billDetails.file) {
+            currentVendorFile = data.billDetails.file;
+            const label = document.getElementById('vendorFileName');
+            label.style.display = 'inline';
+            label.textContent = data.billDetails.file.name;
+        } else {
+            currentVendorFile = null;
+            document.getElementById('vendorFileName').style.display = 'none';
+        }
+
+        // 5. Populate Items
+        if (data.items && data.items.length > 0) {
+            const createListTbody = document.querySelector("#createListManual tbody");
+            const copyListTbody = document.querySelector("#copyListManual tbody");
+
+            data.items.forEach(item => {
+                const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
+                const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
+
+                const row1 = createTableRowManual(
+                    rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                    '', true, item.quantity, item.dimensionType || 'none', item.quantity,
+                    { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
+                    item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
+                );
+                if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
+                createListTbody.appendChild(row1);
+
+                const row2 = createTableRowManual(
+                    rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                    '', false, item.quantity, item.dimensionType || 'none', item.quantity,
+                    { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
+                );
+                if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
+                copyListTbody.appendChild(row2);
+            });
+        }
+
+        // 6. UI Updates
+        updateSerialNumbers();
+        updateTotal();
+        closeVendorSavedBillsModal();
+        showNotification("Purchase bill loaded for editing", "info");
+
+        // 7. CRITICAL: Save State Immediately so Refresh works
+        await saveVendorState();
+
+    } catch (e) {
+        console.error("Error loading vendor bill", e);
+        showNotification("Error loading bill", "error");
+    }
+}
+
+// Handle File Upload (Convert to Base64)
+function handleVendorFileSelect(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        // 5MB Limit
+        if (file.size > 5 * 1024 * 1024) {
+            showNotification("File too large (Max 5MB)", "error");
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            currentVendorFile = {
+                name: file.name,
+                type: file.type,
+                data: e.target.result // Base64 string
+            };
+            const label = document.getElementById('vendorFileName');
+            if (label) {
+                label.style.display = 'inline';
+                label.textContent = file.name.substring(0, 15) + '...';
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+// === SAVE PURCHASE LOGIC ===
+
+// Helper to scrape items specifically from the Input Table (createListManual)
+function getVendorItemsData() {
+    const items = [];
+    // Select rows from the INPUT table, not the GST view table
+    document.querySelectorAll('#createListManual tbody tr[data-id]').forEach(row => {
+        const cells = row.children;
+        const particularsDiv = cells[1];
+        const itemName = particularsDiv.querySelector('.itemNameClass')?.textContent.trim() || '';
+        const notes = particularsDiv.querySelector('.notes')?.textContent || '';
+
+        // Safely extract values
+        const quantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent) || 0;
+        const rate = parseFloat(cells[4].textContent) || 0;
+        const amount = parseFloat(cells[5].textContent) || 0;
+
+        items.push({
+            id: row.getAttribute('data-id'),
+            itemName: itemName,
+            quantity: quantity,
+            unit: cells[3].textContent,
+            rate: rate,
+            amount: amount,
+            notes: notes,
+            // Capture all hidden attributes needed to recreate the row exactly
+            hsn: row.getAttribute('data-hsn') || '',
+            dimensionType: row.getAttribute('data-dimension-type') || 'none',
+            dimensionValues: JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]'),
+            dimensionUnit: row.getAttribute('data-dimension-unit') || 'ft',
+            dimensionToggles: JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}'),
+            discountType: row.getAttribute('data-discount-type') || 'none',
+            discountValue: row.getAttribute('data-discount-value') || 0,
+            particularsHtml: particularsDiv.innerHTML
+        });
+    });
+    return items;
+}
+
+async function saveVendorPurchaseBill() {
+    const vendorName = document.getElementById('vendorName').value.trim();
+    const invoiceNo = document.getElementById('vendorInvoiceNo').value.trim();
+
+    if (!vendorName || !invoiceNo) {
+        showNotification("Vendor Name and Invoice No are required", "error");
+        return;
+    }
+
+    // 1. Determine ID (New or Existing)
+    let billId;
+    if (editMode && currentEditingBillId) {
+        billId = currentEditingBillId; // Keep existing ID
+    } else {
+        billId = `vendor-bill-${Date.now()}`; // Generate New ID
+    }
+
+    // 2. Gather Data (Using the new helper)
+    const itemsData = getVendorItemsData(); // SCRAPE FROM INPUT TABLE
+
+    const purchaseData = {
+        id: billId,
+        vendor: {
+            name: vendorName,
+            address: document.getElementById('vendorAddr').value,
+            phone: document.getElementById('vendorPhone').value,
+            gstin: document.getElementById('vendorGSTIN').value,
+            email: document.getElementById('vendorEmail').value
+        },
+        billDetails: {
+            invoiceNo: invoiceNo,
+            date: document.getElementById('vendorDate').value,
+            type: document.getElementById('vendorType').value,
+            file: currentVendorFile // Base64 string
+        },
+        items: itemsData,
+        totalAmount: document.getElementById('createTotalAmountManual').textContent,
+        timestamp: Date.now()
+    };
+
+    try {
+        // 3. Save Bill
+        await setInDB('vendorSavedBills', billId, purchaseData);
+
+        // 4. Auto-Save Vendor (if new)
+        await autoSaveVendor(purchaseData.vendor);
+
+        // 5. Handle Stock (Only increase if NEW bill, to avoid double counting on edits for now)
+        if (!editMode) {
+            await processPurchaseItems(purchaseData.items);
+            showNotification("Purchase Saved & Stock Updated!", "success");
+        } else {
+            showNotification("Purchase Updated Successfully!", "success");
+        }
+
+        // 6. RESET UI & EXIT EDIT MODE
+        // Clear Form
+        document.getElementById('vendorName').value = '';
+        document.getElementById('vendorInvoiceNo').value = '';
+        document.getElementById('vendorAddr').value = '';
+        document.getElementById('vendorPhone').value = '';
+        document.getElementById('vendorGSTIN').value = '';
+        document.getElementById('vendorEmail').value = '';
+
+        // Clear Tables
+        await clearAllData(true);
+
+        // Reset File
+        currentVendorFile = null;
+        document.getElementById('vendorFileName').style.display = 'none';
+        document.getElementById('vendorFile').value = '';
+
+        // Reset Edit Mode State
+        editMode = false;
+        currentEditingBillId = null;
+
+        // Reset Button Text
+        const saveBtn = document.querySelector('.settings-btn[onclick="saveCurrentBill()"]');
+        if (saveBtn) {
+            saveBtn.innerHTML = '<span class="material-icons">save_alt</span>SAVE PURCHASE';
+            saveBtn.style.backgroundColor = '#d35400';
+        }
+
+    } catch (e) {
+        console.error("Purchase save error", e);
+        showNotification("Error saving purchase bill", "error");
+    }
+}
+
+async function autoSaveVendor(vendorData) {
+    const vendors = await getAllFromDB('vendorList');
+    const exists = vendors.find(v => v.value.name.toLowerCase() === vendorData.name.toLowerCase());
+
+    if (!exists) {
+        await setInDB('vendorList', `vendor-${Date.now()}`, vendorData);
+        console.log("New vendor added automatically");
+    }
+}
+
+async function processPurchaseItems(items) {
+    for (const item of items) {
+        const qty = parseFloat(item.quantity) || 0;
+        if (qty <= 0) continue;
+
+        // Check if item exists in savedItems
+        let savedItemObj = await getFromDB('savedItems', item.itemName);
+
+        if (savedItemObj) {
+            // EXISTS: Increase Stock
+            const currentStock = parseFloat(savedItemObj.stockQuantity) || 0;
+            savedItemObj.stockQuantity = currentStock + qty;
+
+            // Update purchase rate to the rate in this bill
+            savedItemObj.purchaseRate = parseFloat(item.rate);
+
+            savedItemObj.lastStockUpdate = Date.now();
+
+            await setInDB('savedItems', item.itemName, savedItemObj);
+        } else {
+            // NEW ITEM: Create it automatically
+            const newItem = {
+                name: item.itemName,
+                stockQuantity: qty,
+                purchaseRate: parseFloat(item.rate),
+                salePrice: 0, // Default 0, user sets later
+                defaultUnit: item.unit,
+                category: 'Uncategorized',
+                timestamp: Date.now()
+            };
+            await setInDB('savedItems', item.itemName, newItem);
+        }
+    }
+}
+
+// === VENDOR MANAGEMENT UI ===
+
+function openManageVendorsModal() {
+    toggleSettingsSidebar();
+    document.getElementById('manage-vendors-modal').style.display = 'block';
+    loadVendorList();
+}
+
+function closeManageVendorsModal() {
+    document.getElementById('manage-vendors-modal').style.display = 'none';
+}
+
+async function loadVendorList() {
+    const list = document.getElementById('vendors-list');
+    list.innerHTML = '';
+    const vendors = await getAllFromDB('vendorList');
+
+    if (vendors.length === 0) { list.innerHTML = '<div class="item-card">No vendors found</div>'; return; }
+
+    vendors.forEach(v => {
+        const val = v.value;
+        const menuId = `menu-vendor-${v.id}-${Date.now()}`;
+
+        const card = document.createElement('div');
+        card.className = 'customer-card';
+        card.innerHTML = `
+            <div class="card-header-row">
+                <div class="card-info">${val.name} <span class="card-sub-info">${val.phone || ''}</span></div>
+                
+                <div class="card-controls">
+                    <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
+                        <span class="material-icons">keyboard_arrow_down</span>
+                    </button>
+                    
+                    <div class="action-menu-container">
+                        <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
+                            <span class="material-icons">more_vert</span>
+                        </button>
+                        <div id="${menuId}" class="action-dropdown">
+                            <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}')">
+                                <span class="material-icons">payments</span> Payment & CN
+                            </button>
+                            <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}')">
+                                <span class="material-icons">book</span> Ledger
+                            </button>
+                            <button class="dropdown-item" onclick="editVendor('${v.id}')">
+                                <span class="material-icons">edit</span> Edit
+                            </button>
+                            <button class="dropdown-item delete-item" onclick="deleteVendor('${v.id}')">
+                                <span class="material-icons">delete</span> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="details-section hidden">
+                <div>${val.address || 'No Address'}</div>
+                <div>GSTIN: ${val.gstin || '-'}</div>
+                <div>Email: ${val.email || '-'}</div>
+            </div>
+        `;
+        list.appendChild(card);
+    });
+}
+
+function openAddVendorModal() {
+    document.getElementById('saved-vendor-name').value = '';
+    document.getElementById('saved-vendor-address').value = '';
+    document.getElementById('saved-vendor-phone').value = '';
+    document.getElementById('saved-vendor-gstin').value = '';
+    document.getElementById('saved-vendor-email').value = '';
+    document.getElementById('add-vendor-modal').style.display = 'block';
+}
+
+function closeAddVendorModal() {
+    document.getElementById('add-vendor-modal').style.display = 'none';
+    currentlyEditingVendorId = null;
+}
+
+async function saveVendor() {
+    // 1. Target the specific modal to avoid ID conflicts
+    const modalContext = document.getElementById('add-vendor-modal');
+    if (!modalContext) {
+        console.error("Vendor modal not found in DOM");
+        return;
+    }
+
+    // 2. Query inputs strictly within this modal
+    const nameInput = modalContext.querySelector('#saved-vendor-name');
+    const name = nameInput ? nameInput.value.trim() : '';
+    
+    if (!name) {
+        console.warn("Vendor Name is empty. Checking input element:", nameInput);
+        showNotification("Vendor Name is required", "error");
+        return;
+    }
+
+    const vendorData = {
+        name: name,
+        address: modalContext.querySelector('#saved-vendor-address').value || '',
+        phone: modalContext.querySelector('#saved-vendor-phone').value || '',
+        gstin: modalContext.querySelector('#saved-vendor-gstin').value || '',
+        email: modalContext.querySelector('#saved-vendor-email').value || '',
+        timestamp: Date.now()
+    };
+
+    try {
+        if (currentlyEditingVendorId) {
+            // Update Existing Vendor
+            console.log("Updating vendor:", currentlyEditingVendorId);
+            await setInDB('vendorList', currentlyEditingVendorId, vendorData);
+            
+            // Optional: Update global vendor state inputs if this vendor is currently loaded in the main view
+            const currentVendorName = document.getElementById('vendorName');
+            if(currentVendorName && currentVendorName.value === name) {
+                document.getElementById('vendorAddr').value = vendorData.address;
+                document.getElementById('vendorPhone').value = vendorData.phone;
+                document.getElementById('vendorGSTIN').value = vendorData.gstin;
+                document.getElementById('vendorEmail').value = vendorData.email;
+                if(typeof saveVendorState === 'function') saveVendorState();
+            }
+            
+            showNotification("Vendor updated successfully", "success");
+        } else {
+            // Create New Vendor
+            const newId = `vendor-${Date.now()}`;
+            console.log("Creating new vendor:", newId);
+            await setInDB('vendorList', newId, vendorData);
+            showNotification("Vendor added successfully", "success");
+        }
+
+        closeAddVendorModal(); // Use the correct close function name
+        await loadVendorList();   // Refresh list
+        
+        // Reset editing ID
+        currentlyEditingVendorId = null;
+
+    } catch(e) {
+        console.error("Save vendor error:", e);
+        showNotification("Error saving vendor", "error");
+    }
+}
+
+async function deleteVendor(id) {
+    if (confirm("Are you sure you want to delete this vendor?")) {
+        await removeFromDB('vendorList', id);
+        loadVendorList();
+    }
+}
+
+// Vendor Autocomplete
+async function handleVendorSearch() {
+    const input = document.getElementById('vendorName');
+    const suggestions = document.getElementById('vendor-suggestions');
+    const val = input.value.trim().toLowerCase();
+    
+    if(val.length < 1) { 
+        suggestions.style.display = 'none'; 
+        return; 
+    }
+
+    try {
+        const all = await getAllFromDB('vendorList');
+        
+        // Search by Name or GSTIN
+        const filtered = all.filter(v => 
+            v.value.name.toLowerCase().includes(val) || 
+            (v.value.gstin && v.value.gstin.toLowerCase().includes(val))
+        ).slice(0, 5);
+
+        suggestions.innerHTML = '';
+        
+        if(filtered.length > 0) {
+            filtered.forEach(v => {
+                const div = document.createElement('div');
+                div.className = 'customer-suggestion-item';
+                
+                // CHANGED: Show ONLY the name, removed GSTIN appending
+                div.textContent = v.value.name;
+                
+                div.onclick = () => selectVendorSuggestion(v.value);
+                suggestions.appendChild(div);
+            });
+            suggestions.style.display = 'block';
+        } else {
+            suggestions.style.display = 'none';
+        }
+    } catch(e) {
+        console.error("Vendor search error", e);
+    }
+}
+function selectVendorSuggestion(vendorData) {
+    // 1. Auto-Fill Details
+    document.getElementById('vendorName').value = vendorData.name;
+    document.getElementById('vendorAddr').value = vendorData.address || '';
+    document.getElementById('vendorPhone').value = vendorData.phone || '';
+    document.getElementById('vendorGSTIN').value = vendorData.gstin || '';
+    document.getElementById('vendorEmail').value = vendorData.email || '';
+
+    // 2. Hide Suggestions
+    document.getElementById('vendor-suggestions').style.display = 'none';
+
+    // 3. CRITICAL: Persist State Immediately
+    // This ensures data is saved if page is refreshed right after clicking
+    saveVendorState(); 
+}
+
+function openAddVendorModal() {
+    currentlyEditingVendorId = null;
+    document.getElementById('add-vendor-modal-title').textContent = 'Add New Vendor';
+    document.getElementById('save-vendor-btn').textContent = 'Save Vendor';
+
+    // Clear inputs
+    document.getElementById('saved-vendor-name').value = '';
+    document.getElementById('saved-vendor-address').value = '';
+    document.getElementById('saved-vendor-phone').value = '';
+    document.getElementById('saved-vendor-gstin').value = '';
+    document.getElementById('saved-vendor-email').value = '';
+
+    document.getElementById('add-vendor-modal').style.display = 'block';
+}
+
+async function editVendor(vendorId) {
+    try {
+        console.log("Attempting to edit vendor ID:", vendorId);
+
+        // 1. Fetch from DB
+        const result = await getFromDB('vendorList', vendorId);
+        
+        if (!result) {
+            console.error("Vendor not found in database.");
+            return;
+        }
+
+        // 2. Unwrap Data
+        // Handle both wrapped {id, value: {..}} and direct {id, name: ..} structures
+        const val = result.value || result;
+        console.log("Vendor Data Loaded:", val);
+
+        currentlyEditingVendorId = vendorId;
+        
+        // 3. Update Modal UI
+        document.getElementById('add-vendor-modal-title').textContent = 'Edit Vendor';
+        const saveBtn = document.getElementById('save-vendor-btn');
+        if (saveBtn) saveBtn.textContent = 'Update Vendor';
+        
+        // 4. Populate Fields (Targeting specifically within the modal to avoid ambiguity)
+        const modal = document.getElementById('add-vendor-modal');
+        if (modal) {
+            const nameInput = modal.querySelector('#saved-vendor-name');
+            const addrInput = modal.querySelector('#saved-vendor-address');
+            const phoneInput = modal.querySelector('#saved-vendor-phone');
+            const gstinInput = modal.querySelector('#saved-vendor-gstin');
+            const emailInput = modal.querySelector('#saved-vendor-email');
+
+            if (nameInput) {
+                // Ensure we handle null/undefined names gracefully
+                nameInput.value = (val.name !== undefined && val.name !== null) ? val.name : '';
+            }
+            if (addrInput) addrInput.value = val.address || '';
+            if (phoneInput) phoneInput.value = val.phone || '';
+            if (gstinInput) gstinInput.value = val.gstin || '';
+            if (emailInput) emailInput.value = val.email || '';
+            
+            // Show Modal
+            modal.style.display = 'block';
+        } else {
+            console.error("Modal element 'add-vendor-modal' not found in DOM");
+        }
+
+    } catch(e) {
+        console.error("Error in editVendor:", e);
+    }
+}
+
+// === VENDOR BILLS HISTORY ===
+
+function openVendorSavedBillsModal() {
+    toggleSettingsSidebar();
+    document.getElementById('vendor-bills-modal').style.display = 'block';
+
+    // Reset toggle to Regular by default
+    document.getElementById('vendor-bills-mode-toggle').checked = false;
+    currentVendorBillsMode = 'regular';
+
+    loadVendorSavedBillsList();
+}
+
+function closeVendorSavedBillsModal() {
+    document.getElementById('vendor-bills-modal').style.display = 'none';
+}
+
+async function loadVendorSavedBillsList() {
+    const list = document.getElementById('vendor-bills-list');
+    list.innerHTML = '';
+
+    let bills = await getAllFromDB('vendorSavedBills');
+
+    if (bills.length === 0) {
+        list.innerHTML = '<div class="item-card">No purchase bills found</div>';
+        return;
+    }
+
+    // Filter based on toggle mode
+    // Note: Older bills might not have 'type', so we assume 'Regular' if missing
+    bills = bills.filter(b => {
+        const type = (b.value.billDetails.type || 'Regular').toLowerCase();
+        return type === currentVendorBillsMode;
+    });
+
+    if (bills.length === 0) {
+        list.innerHTML = `<div class="item-card">No ${currentVendorBillsMode.toUpperCase()} bills found</div>`;
+        return;
+    }
+
+    // Sort newest first
+    bills.sort((a, b) => b.value.timestamp - a.value.timestamp);
+
+    bills.forEach(b => {
+        const val = b.value;
+        const menuId = `menu-vbill-${b.id}-${Date.now()}`;
+        const hasFile = !!val.billDetails.file;
+
+        const card = document.createElement('div');
+        card.className = 'saved-bill-card';
+        card.innerHTML = `
+            <div class="card-header-row">
+                <div class="card-info">
+                    <span>${val.vendor.name} - ${val.billDetails.invoiceNo}</span>
+                    <span class="card-sub-info" style="color:var(--primary-color)">₹${val.totalAmount}</span>
+                </div>
+                
+                <div class="card-controls">
+                    <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
+                        <span class="material-icons">keyboard_arrow_down</span>
+                    </button>
+                    
+                    <div class="action-menu-container">
+                        <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
+                            <span class="material-icons">more_vert</span>
+                        </button>
+                        <div id="${menuId}" class="action-dropdown">
+                            ${hasFile ? `
+                            <button class="dropdown-item" onclick="viewBillFile('${b.id}')">
+                                <span class="material-icons">description</span> View File
+                            </button>` : ''}
+                            
+                            <button class="dropdown-item" onclick="editVendorSavedBill('${b.id}', event)">
+                                <span class="material-icons">edit</span> Edit
+                            </button>
+                            
+                            <button class="dropdown-item delete-item" onclick="deleteVendorBill('${b.id}')">
+                                <span class="material-icons">delete</span> Delete
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="details-section hidden saved-bill-details">
+                <div>Date: ${val.billDetails.date}</div>
+                <div>GSTIN: ${val.vendor.gstin || '-'}</div>
+                <div>Items: ${val.items ? val.items.length : 0}</div>
+            </div>
+        `;
+
+        // Click on card body to load/edit (ignoring buttons)
+        card.addEventListener('click', (e) => {
+            if (!e.target.closest('button')) {
+                editVendorSavedBill(b.id, e);
+            }
+        });
+
+        list.appendChild(card);
+    });
+}
+
+// View Uploaded File
+async function viewBillFile(id) {
+    const bill = await getFromDB('vendorSavedBills', id);
+    if (bill && bill.billDetails.file) {
+        const file = bill.billDetails.file;
+        const modal = document.getElementById('file-viewer-modal');
+        const img = document.getElementById('file-viewer-img');
+        const iframe = document.getElementById('file-viewer-pdf');
+        const msg = document.getElementById('file-viewer-msg');
+
+        modal.style.display = 'flex';
+        img.style.display = 'none';
+        iframe.style.display = 'none';
+        msg.style.display = 'none';
+
+        if (file.type.includes('image')) {
+            img.src = file.data;
+            img.style.display = 'block';
+        } else if (file.type.includes('pdf')) {
+            iframe.src = file.data;
+            iframe.style.display = 'block';
+        } else {
+            msg.style.display = 'block';
+            msg.textContent = "File format not supported for preview";
+        }
+    }
+}
+
+function closeFileViewerModal() {
+    document.getElementById('file-viewer-modal').style.display = 'none';
+    document.getElementById('file-viewer-img').src = '';
+    document.getElementById('file-viewer-pdf').src = '';
+}
+
+async function deleteVendorBill(id) {
+    if (confirm("Delete this purchase record? (Note: Stock added by this bill will NOT be reverted automatically)")) {
+        await removeFromDB('vendorSavedBills', id);
+        loadVendorSavedBillsList();
+    }
+}
+
+function searchVendorBills() {
+    const term = document.getElementById('vendor-bills-search').value.toLowerCase();
+    const cards = document.querySelectorAll('#vendor-bills-list .saved-bill-card');
+
+    cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(term) ? 'block' : 'none';
+    });
+}
+
+function searchVendors() {
+    const term = document.getElementById('vendor-search').value.toLowerCase();
+    const cards = document.querySelectorAll('#vendors-list .customer-card');
+
+    cards.forEach(card => {
+        const text = card.textContent.toLowerCase();
+        card.style.display = text.includes(term) ? 'block' : 'none';
+    });
+}
+
+// VENDOR FUNCTIONS END
 
 async function restoreStockFromOriginalBill(billId) {
     try {
@@ -4950,6 +5911,10 @@ function updateTotal() {
     // 2. Run Sequential Adjustment Calculation
     calculateAdjustments(subtotal);
     updateSectionTotals();
+
+    if (isVendorMode) {
+        saveVendorState();
+    }
 }
 
 
@@ -15236,8 +16201,8 @@ async function handleOCRFile(input) {
         canvas.height = viewport.height;
         canvas.width = viewport.width;
 
-       await page.render({ canvasContext: context, viewport: viewport }).promise;
-        
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+
         const pdfUrl = canvas.toDataURL('image/png');
         imgElement.src = pdfUrl;
         // NEW: Store original source
@@ -15373,19 +16338,19 @@ function toggleFilterMenu() {
     const menu = document.getElementById('filter-menu');
     const btn = document.getElementById('btn-filter');
     if (!menu || !btn) return;
-    
+
     // Toggle Display
     if (menu.style.display === 'none' || menu.style.display === '') {
         // Calculate Position relative to Viewport
         const rect = btn.getBoundingClientRect();
-        
+
         menu.style.display = 'block';
         menu.style.top = (rect.bottom + 5) + 'px';
         menu.style.left = rect.left + 'px';
-        
+
         // Initialize sliders if first run
         if (!ocrState.originalImageSrc && ocrState.cropper) {
-             ocrState.originalImageSrc = ocrState.cropper.url; 
+            ocrState.originalImageSrc = ocrState.cropper.url;
         }
     } else {
         menu.style.display = 'none';
@@ -15424,7 +16389,7 @@ function updateImageFilters() {
 
         for (let i = 0; i < data.length; i += 4) {
             // 1. Grayscale
-            let gray = 0.2126 * data[i] + 0.7152 * data[i+1] + 0.0722 * data[i+2];
+            let gray = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
 
             // 2. Apply Contrast
             gray = factor * (gray - 128) + 128;
@@ -15441,8 +16406,8 @@ function updateImageFilters() {
             finalVal = Math.max(0, Math.min(255, finalVal));
 
             data[i] = finalVal;     // R
-            data[i+1] = finalVal;   // G
-            data[i+2] = finalVal;   // B
+            data[i + 1] = finalVal;   // G
+            data[i + 2] = finalVal;   // B
             // Alpha (data[i+3]) remains unchanged
         }
 
@@ -15460,7 +16425,7 @@ function updateImageFilters() {
 function resetFilters() {
     document.getElementById('slider-threshold').value = 128;
     document.getElementById('slider-contrast').value = 0;
-    
+
     // Trigger update
     updateImageFilters();
 }
@@ -15497,7 +16462,7 @@ function applyImageFilter() {
         // If the gray value is lighter than 160, make it PURE WHITE (background).
         // If it's darker, make it PURE BLACK (text).
         // This removes the "pink" paper noise effectively.
-        const threshold = 160; 
+        const threshold = 160;
         const val = gray > threshold ? 255 : 0;
 
         data[i] = val;     // Red
@@ -15511,10 +16476,10 @@ function applyImageFilter() {
     // 4. Update the Cropper with the new "Clean" image
     canvas.toBlob((blob) => {
         const newUrl = URL.createObjectURL(blob);
-        
+
         // This updates the visual in the workbench
         ocrState.cropper.replace(newUrl);
-        
+
         showNotification("Enhancement Complete! Try scanning now.", "success");
     });
 }
@@ -15578,14 +16543,14 @@ function openMagicFillMenu(e, text) {
 // Function to handle SELECT dropdowns (Executed in Main Window)
 function magicSelect(elementId, value) {
     const el = document.getElementById(elementId);
-    
+
     if (el) {
         // 1. Set Value
         el.value = value;
-        
+
         // 2. Trigger Change Event (Important for listeners)
         el.dispatchEvent(new Event('change', { bubbles: true }));
-        
+
         // 3. Smart Toggling: Show container if currently hidden
         if (elementId === 'dimensionType') {
             const container = document.getElementById('dimension-inputs-container');
@@ -15593,26 +16558,26 @@ function magicSelect(elementId, value) {
                 if (typeof toggleDimensionInputs === 'function') toggleDimensionInputs();
             }
         }
-        
+
         if (elementId === 'convertUnit') {
-             const convertSelect = document.getElementById('convertUnit');
-             // Convert options might be hidden even if dimensions are shown
-             if (convertSelect && convertSelect.style.display === 'none') {
+            const convertSelect = document.getElementById('convertUnit');
+            // Convert options might be hidden even if dimensions are shown
+            if (convertSelect && convertSelect.style.display === 'none') {
                 if (typeof toggleConvertOptions === 'function') toggleConvertOptions();
-             }
+            }
         }
-        
+
         if (elementId === 'discountType') {
             const container = document.getElementById('discount-inputs-container');
             if (container && container.style.display === 'none') {
                 if (typeof toggleDiscountInputs === 'function') toggleDiscountInputs();
             }
         }
-        
+
         // 4. Hide Menu (if triggered from main window)
         const menu = document.getElementById('magic-menu');
         if (menu) menu.style.display = 'none';
-        
+
         showNotification(`Selected: ${value}`, 'success');
     } else {
         console.error(`Element #${elementId} not found in Main Window.`);
@@ -15632,9 +16597,9 @@ async function magicOperation(action) {
             } else {
                 showNotification('No text selected', 'warning');
             }
-        } 
+        }
         // Removed Paste/Cut handling logic as requested
-        
+
         document.getElementById('magic-menu').style.display = 'none';
     } catch (err) {
         console.error('Clipboard error:', err);
@@ -15698,13 +16663,13 @@ let magicSelectedText = "";
 document.addEventListener('DOMContentLoaded', () => {
     initOCRWindowManagement();
     initOCRDragAndDrop();
-    loadOCRSettings(); 
+    loadOCRSettings();
 
     // 1. Context Menu Trigger
     document.addEventListener('contextmenu', (e) => {
         const selection = window.getSelection().toString().trim();
         const target = e.target;
-        
+
         // Allow if text selected OR right-clicking an input/textarea inside OCR
         if ((selection.length > 0 || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') && target.closest('#ocr-modal')) {
             e.preventDefault();
@@ -15718,7 +16683,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.addEventListener('click', (e) => {
         if (!e.target.closest('#ocr-context-menu')) document.getElementById('ocr-context-menu').style.display = 'none';
         if (!e.target.closest('#magic-menu')) document.getElementById('magic-menu').style.display = 'none';
-        
+
         const filterMenu = document.getElementById('filter-menu');
         const filterBtn = document.getElementById('btn-filter');
         if (filterMenu && filterMenu.style.display === 'block') {
@@ -15731,19 +16696,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Smart Nested Submenu Positioning
     const magicItems = document.querySelectorAll('.magic-item');
     magicItems.forEach(item => {
-        item.addEventListener('mouseenter', function() {
+        item.addEventListener('mouseenter', function () {
             const subMenu = this.querySelector('.magic-sub-menu');
             if (subMenu) {
                 const rect = this.getBoundingClientRect();
                 const winWidth = window.innerWidth;
                 const winHeight = window.innerHeight;
-                const subMenuWidth = 160; 
-                const subMenuHeight = subMenu.scrollHeight || 300; 
+                const subMenuWidth = 160;
+                const subMenuHeight = subMenu.scrollHeight || 300;
 
                 // --- A. Horizontal Logic (Cascading Flip) ---
                 const parentMenu = this.closest('.magic-sub-menu');
                 const isParentFlippedLeft = parentMenu && parentMenu.classList.contains('flip-left');
-                
+
                 // Default: Flip if hitting right edge OR if parent is already flipped left
                 let shouldFlipLeft = isParentFlippedLeft || (rect.right + subMenuWidth > winWidth);
 
@@ -15771,12 +16736,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Restore/Save Text
     const savedText = localStorage.getItem('billApp_ocrText');
     const textArea = document.getElementById('ocr-result');
-    if(savedText && textArea) {
+    if (savedText && textArea) {
         textArea.value = savedText;
-        if(window.ocrState) window.ocrState.extractedValue = savedText;
+        if (window.ocrState) window.ocrState.extractedValue = savedText;
     }
-    
-    if(textArea) {
+
+    if (textArea) {
         textArea.addEventListener('input', () => {
             localStorage.setItem('billApp_ocrText', textArea.value);
         });
@@ -15862,7 +16827,7 @@ function toggleOCRWorkbench() {
     const resHeader = document.querySelector('#ocr-results-panel .result-header');
     const progress = document.getElementById('ocr-progress-container');
     const resultsPanel = document.getElementById('ocr-results-panel');
-    
+
     // NEW: Target the main modal header
     const mainHeader = document.getElementById('ocr-header');
 
@@ -15880,16 +16845,16 @@ function toggleOCRWorkbench() {
             resultsPanel.style.padding = '0';
             resultsPanel.style.borderLeft = 'none';
         }
-        
+
         const btn = document.querySelector('button[onclick="toggleOCRWorkbench()"]');
-        if(btn) btn.innerHTML = '<span class="material-icons">vertical_split</span> Split View';
+        if (btn) btn.innerHTML = '<span class="material-icons">vertical_split</span> Split View';
 
     } else {
         // --- ENTER NORMAL MODE ---
         workbench.style.display = 'flex';
         if (chips) chips.style.display = 'flex';
         if (resHeader) resHeader.style.display = 'flex';
-        if (progress) progress.style.display = ''; 
+        if (progress) progress.style.display = '';
         if (mainHeader) mainHeader.style.display = 'flex'; // Show Header
 
         // Restore padding/border
@@ -15897,9 +16862,9 @@ function toggleOCRWorkbench() {
             resultsPanel.style.padding = '15px';
             resultsPanel.style.borderLeft = '1px solid #ddd';
         }
-        
+
         const btn = document.querySelector('button[onclick="toggleOCRWorkbench()"]');
-        if(btn) btn.innerHTML = '<span class="material-icons">view_sidebar</span> Focus View';
+        if (btn) btn.innerHTML = '<span class="material-icons">view_sidebar</span> Focus View';
     }
 }
 
@@ -15988,7 +16953,7 @@ function updateReplaceModeUI() {
 function openOCRPopOut() {
     // 1. Create New Window
     const newWin = window.open('', 'OCR_PopOut', 'width=1000,height=700,menubar=no,toolbar=no,location=no,status=no');
-    
+
     if (!newWin) {
         showNotification("Pop-up blocked! Please allow pop-ups.", "error");
         return;
@@ -16001,7 +16966,7 @@ function openOCRPopOut() {
     document.querySelectorAll('link[rel="stylesheet"], style').forEach(node => {
         cssHtml += node.outerHTML;
     });
-    
+
     cssHtml += `
         <style>
             body { margin: 0; padding: 0; background: #f5f5f5; height: 100vh; display: flex; flex-direction: column; }
@@ -16016,7 +16981,7 @@ function openOCRPopOut() {
     const headerContent = document.getElementById('ocr-header').innerHTML;
     const bodyContent = document.getElementById('ocr-body').innerHTML;
     const contextMenu = document.getElementById('ocr-context-menu').outerHTML;
-    const magicMenu = document.getElementById('magic-menu').outerHTML; 
+    const magicMenu = document.getElementById('magic-menu').outerHTML;
 
     // 4. Construct Document
     newWin.document.write(`
@@ -16260,8 +17225,262 @@ function openOCRPopOut() {
         </body>
         </html>
     `);
-    
+
     newWin.document.close();
     newWin.focus();
-    closeOCRModal(); 
+    closeOCRModal();
+}
+
+
+
+/* ==========================================
+   BUSINESS DASHBOARD LOGIC
+   ========================================== */
+
+let dashboardChartInstance = null;
+let currentChartMode = 'sales'; // 'sales' or 'profit'
+
+function openBusinessDashboard() {
+    toggleSettingsSidebar(); // Close sidebar
+    document.getElementById('dashboard-overlay').style.display = 'flex';
+    refreshDashboard(); // Load data
+}
+
+function closeBusinessDashboard() {
+    document.getElementById('dashboard-overlay').style.display = 'none';
+}
+
+function toggleChartType(mode) {
+    currentChartMode = mode;
+    // Update button states
+    const buttons = document.querySelectorAll('.chart-btn');
+    buttons.forEach(btn => {
+        if(btn.textContent.toLowerCase() === mode) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+    refreshDashboard();
+}
+
+async function refreshDashboard() {
+    const days = parseInt(document.getElementById('dashboard-filter').value) || 30;
+    const today = new Date();
+    const startDate = new Date();
+    startDate.setDate(today.getDate() - days);
+
+    // 1. Fetch All Data
+    const [salesBills, gstBills, purchaseBills, payments, stockItems] = await Promise.all([
+        getAllFromDB('savedBills'),
+        getAllFromDB('gstSavedBills'),
+        getAllFromDB('vendorSavedBills'),
+        getAllFromDB('customerPayments'),
+        getAllFromDB('savedItems')
+    ]);
+
+    // 2. Filter by Date Range
+    const filterDate = (itemDate) => {
+        if (!itemDate) return false;
+        // Parse dd-mm-yyyy or yyyy-mm-dd
+        let d;
+        if(itemDate.includes('-')) {
+            const parts = itemDate.split('-');
+            if(parts[0].length === 4) d = new Date(itemDate); // yyyy-mm-dd
+            else d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // dd-mm-yyyy
+        } else return false;
+        return d >= startDate && d <= today;
+    };
+
+    // 3. Process Sales (Regular + GST)
+    let totalSales = 0;
+    let totalCost = 0; // For profit calc
+    const dailySales = {};
+    const dailyProfit = {};
+
+    const processBill = (bill) => {
+        const val = bill.value;
+        const dateStr = val.date || val.invoiceDetails?.date;
+        
+        if (filterDate(dateStr)) {
+            const amount = parseFloat(val.totalAmount || val.totals?.grandTotal || 0);
+            totalSales += amount;
+
+            // Group by Date for Chart
+            if (!dailySales[dateStr]) dailySales[dateStr] = 0;
+            dailySales[dateStr] += amount;
+
+            // Estimate Cost (Profit Calc)
+            let billCost = 0;
+            const items = val.items || val.tableStructure || [];
+            items.forEach(item => {
+                // If we have item details, look up purchase rate
+                if(item.type === 'item') {
+                    // Try to find purchase rate in saved items or use a stored 'purchaseRate' if we saved it in bill
+                    // Simple approximation: assuming 20% margin if cost unknown
+                    const rate = parseFloat(item.rate);
+                    const qty = parseFloat(item.quantity);
+                    billCost += (rate * qty) * 0.8; // Fallback estimate
+                }
+            });
+            totalCost += billCost;
+            
+            if (!dailyProfit[dateStr]) dailyProfit[dateStr] = 0;
+            dailyProfit[dateStr] += (amount - billCost);
+        }
+    };
+
+    salesBills.forEach(processBill);
+    gstBills.forEach(processBill);
+
+    // 4. Process Purchases (Expenses)
+    let totalExpenses = 0;
+    purchaseBills.forEach(bill => {
+        const val = bill.value;
+        if (filterDate(val.billDetails.date)) {
+            totalExpenses += parseFloat(val.totalAmount || 0);
+        }
+    });
+
+    // 5. Process Outstanding (Simplified: Total Sales - Total Payments)
+    let totalPayments = 0;
+    payments.forEach(p => totalPayments += parseFloat(p.value.amount || 0));
+    // Note: Outstanding is cumulative (all time), not just selected period, usually. 
+    // But for this view, let's keep it simple or calculate global outstanding.
+    // Let's calculate GLOBAL outstanding for the card:
+    let globalSales = 0;
+    [...salesBills, ...gstBills].forEach(b => {
+        globalSales += parseFloat(b.value.totalAmount || b.value.totals?.grandTotal || 0);
+    });
+    const outstanding = Math.max(0, globalSales - totalPayments);
+
+    // 6. Update UI Cards
+    document.getElementById('kpi-total-sales').textContent = `₹${totalSales.toLocaleString('en-IN')}`;
+    document.getElementById('kpi-expenses').textContent = `₹${totalExpenses.toLocaleString('en-IN')}`;
+    document.getElementById('kpi-outstanding').textContent = `₹${outstanding.toLocaleString('en-IN')}`;
+    
+    const profit = totalSales - totalCost; // Simplified profit
+    document.getElementById('kpi-profit').textContent = `₹${profit.toLocaleString('en-IN')}`;
+    const margin = totalSales > 0 ? ((profit / totalSales) * 100).toFixed(1) : 0;
+    document.getElementById('trend-profit').textContent = `Margin: ${margin}%`;
+
+    // 7. Render Chart
+    renderChart(dailySales, dailyProfit);
+
+    // 8. Render Lists
+    renderLowStockList(stockItems);
+    renderRecentActivity(salesBills, gstBills, purchaseBills);
+}
+
+function renderChart(salesData, profitData) {
+    const ctx = document.getElementById('mainBusinessChart').getContext('2d');
+    
+    // Sort dates
+    const labels = Object.keys(salesData).sort((a,b) => {
+        const da = new Date(a.split('-').reverse().join('-'));
+        const db = new Date(b.split('-').reverse().join('-'));
+        return da - db;
+    });
+
+    const dataPoints = labels.map(date => currentChartMode === 'sales' ? salesData[date] : profitData[date]);
+
+    if (dashboardChartInstance) dashboardChartInstance.destroy();
+
+    const color = currentChartMode === 'sales' ? '#3498db' : '#2ecc71';
+    const bg = currentChartMode === 'sales' ? 'rgba(52, 152, 219, 0.1)' : 'rgba(46, 204, 113, 0.1)';
+
+    dashboardChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: currentChartMode === 'sales' ? 'Daily Sales (₹)' : 'Daily Profit (₹)',
+                data: dataPoints,
+                borderColor: color,
+                backgroundColor: bg,
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+}
+
+function renderLowStockList(items) {
+    const list = document.getElementById('dash-low-stock-list');
+    list.innerHTML = '';
+    
+    // Filter items where stock <= minStock
+    const lowStock = items.filter(i => {
+        const stock = parseFloat(i.value.stockQuantity || 0);
+        const min = parseFloat(i.value.minStock || 0);
+        return stock <= min && min > 0;
+    });
+
+    if(lowStock.length === 0) {
+        list.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">All items well stocked</div>';
+        return;
+    }
+
+    lowStock.forEach(i => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+            <div>
+                <strong>${i.value.name}</strong><br>
+                <small style="color:#777">Min: ${i.value.minStock}</small>
+            </div>
+            <span class="stock-badge">${i.value.stockQuantity} Left</span>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function renderRecentActivity(sales, gst, purchases) {
+    const list = document.getElementById('dash-recent-list');
+    list.innerHTML = '';
+
+    // Combine and Sort
+    const allTxn = [
+        ...sales.map(s => ({...s.value, type: 'sale', dateStr: s.value.date})),
+        ...gst.map(g => ({...g.value, type: 'sale', dateStr: g.value.invoiceDetails?.date})),
+        ...purchases.map(p => ({...p.value, type: 'purchase', dateStr: p.value.billDetails?.date}))
+    ];
+
+    // Helper to parse date for sorting
+    const parseD = (d) => {
+        if(!d) return 0;
+        const parts = d.split('-');
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+    };
+
+    allTxn.sort((a,b) => parseD(b.dateStr) - parseD(a.dateStr));
+
+    // Take top 10
+    allTxn.slice(0, 10).forEach(t => {
+        const isSale = t.type === 'sale';
+        const name = isSale ? (t.customer?.name || t.customer?.billTo?.name) : t.vendor?.name;
+        const amount = t.totalAmount || t.totals?.grandTotal;
+        
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+            <div>
+                <strong>${name}</strong><br>
+                <small style="color:#999">${t.dateStr}</small>
+            </div>
+            <span class="txn-amount ${isSale ? 'in' : 'out'}">
+                ${isSale ? '+' : '-'}₹${parseFloat(amount).toLocaleString('en-IN')}
+            </span>
+        `;
+        list.appendChild(div);
+    });
 }
