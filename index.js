@@ -2,7 +2,7 @@
 let db = null;
 const DB_NAME = 'BillAppDB';
 
-const DB_VERSION = 7; // Changed from 5 to 6 to trigger upgrade
+const DB_VERSION = 8; // Changed from 5 to 6 to trigger upgrade
 let dbInitialized = false;
 let dbInitPromise = null;
 let isGSTMode = false;
@@ -134,6 +134,12 @@ function initDB() {
             }
             if (!database.objectStoreNames.contains('gstMode')) {
                 database.createObjectStore('gstMode', { keyPath: 'id' });
+            }
+
+            if (!database.objectStoreNames.contains('expenses')) {
+                const expenseStore = database.createObjectStore('expenses', { keyPath: 'id' });
+                expenseStore.createIndex('date', 'date', { unique: false });
+                expenseStore.createIndex('category', 'category', { unique: false });
             }
 
             // NEW: Add payment and credit note object stores
@@ -3583,12 +3589,12 @@ async function saveCurrentBill() {
    ========================================== */
 
 async function saveVendorState() {
-    // 1. Get Table Items using the helper
-    const items = getVendorItemsData();
+    // We do NOT save items here anymore. 
+    // The unified table is handled by the main saveToLocalStorage() function.
 
     const state = {
         isVendorMode: isVendorMode,
-        // Inputs
+        // Inputs Only
         vendorName: document.getElementById('vendorName').value,
         vendorInvoiceNo: document.getElementById('vendorInvoiceNo').value,
         vendorAddr: document.getElementById('vendorAddr').value,
@@ -3596,9 +3602,7 @@ async function saveVendorState() {
         vendorPhone: document.getElementById('vendorPhone').value,
         vendorGSTIN: document.getElementById('vendorGSTIN').value,
         vendorEmail: document.getElementById('vendorEmail').value,
-        vendorType: document.getElementById('vendorType').value,
-        // Table Data
-        items: items
+        vendorType: document.getElementById('vendorType').value
     };
 
     try {
@@ -3613,6 +3617,7 @@ async function loadVendorState() {
         const state = await getFromDB('settings', 'vendorState');
         if (state) {
             // 1. Restore Mode
+            // This switches the visible container (hides Sales, shows Vendor)
             if (state.isVendorMode && !isVendorMode) {
                 toggleVendorMode();
             }
@@ -3627,52 +3632,9 @@ async function loadVendorState() {
             document.getElementById('vendorEmail').value = state.vendorEmail || '';
             document.getElementById('vendorType').value = state.vendorType || 'Regular';
 
-            // 3. Restore Table Items
-            if (state.items && state.items.length > 0) {
-                const createListTbody = document.querySelector("#createListManual tbody");
-                const copyListTbody = document.querySelector("#copyListManual tbody");
-
-                // Clear existing
-                createListTbody.innerHTML = "";
-                copyListTbody.innerHTML = "";
-
-                let maxId = 0;
-
-                state.items.forEach(item => {
-                    const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
-                    const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
-
-                    // Input Table Row
-                    const row1 = createTableRowManual(
-                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
-                        '', true, item.quantity, item.dimensionType || 'none', item.quantity,
-                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
-                        item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
-                    );
-                    if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
-                    createListTbody.appendChild(row1);
-
-                    // Preview Table Row
-                    const row2 = createTableRowManual(
-                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
-                        '', false, item.quantity, item.dimensionType || 'none', item.quantity,
-                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
-                    );
-                    if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
-                    copyListTbody.appendChild(row2);
-
-                    // Track Max ID for row counter
-                    if (rowId.includes('row-manual-')) {
-                        const num = parseInt(rowId.split('-')[2]);
-                        if (!isNaN(num) && num > maxId) maxId = num;
-                    }
-                });
-
-                if (maxId > 0) rowCounterManual = maxId + 1;
-
-                updateSerialNumbers();
-                updateTotal();
-            }
+            // 3. REMOVED: Table restoration logic. 
+            // The table (including sections) is now preserved because loadFromLocalStorage() 
+            // runs before this and handles the unified table structure.
         }
     } catch (e) {
         console.error("Error loading vendor state", e);
@@ -3832,7 +3794,7 @@ async function editVendorSavedBill(billId, event) {
             document.getElementById('vendorFileName').style.display = 'none';
         }
 
-        // 5. Populate Items
+        // 5. Populate Items (This manipulates the DOM directly)
         if (data.items && data.items.length > 0) {
             const createListTbody = document.querySelector("#createListManual tbody");
             const copyListTbody = document.querySelector("#copyListManual tbody");
@@ -3866,7 +3828,10 @@ async function editVendorSavedBill(billId, event) {
         closeVendorSavedBillsModal();
         showNotification("Purchase bill loaded for editing", "info");
 
-        // 7. CRITICAL: Save State Immediately so Refresh works
+        // 7. CRITICAL: Save to BOTH storages immediately
+        // This persists the Table Items to billDataManual
+        await saveToLocalStorage();
+        // This persists the Vendor Mode & Inputs to vendorState
         await saveVendorState();
 
     } catch (e) {
@@ -4166,7 +4131,7 @@ async function saveVendor() {
     // 2. Query inputs strictly within this modal
     const nameInput = modalContext.querySelector('#saved-vendor-name');
     const name = nameInput ? nameInput.value.trim() : '';
-    
+
     if (!name) {
         console.warn("Vendor Name is empty. Checking input element:", nameInput);
         showNotification("Vendor Name is required", "error");
@@ -4187,17 +4152,17 @@ async function saveVendor() {
             // Update Existing Vendor
             console.log("Updating vendor:", currentlyEditingVendorId);
             await setInDB('vendorList', currentlyEditingVendorId, vendorData);
-            
+
             // Optional: Update global vendor state inputs if this vendor is currently loaded in the main view
             const currentVendorName = document.getElementById('vendorName');
-            if(currentVendorName && currentVendorName.value === name) {
+            if (currentVendorName && currentVendorName.value === name) {
                 document.getElementById('vendorAddr').value = vendorData.address;
                 document.getElementById('vendorPhone').value = vendorData.phone;
                 document.getElementById('vendorGSTIN').value = vendorData.gstin;
                 document.getElementById('vendorEmail').value = vendorData.email;
-                if(typeof saveVendorState === 'function') saveVendorState();
+                if (typeof saveVendorState === 'function') saveVendorState();
             }
-            
+
             showNotification("Vendor updated successfully", "success");
         } else {
             // Create New Vendor
@@ -4209,11 +4174,11 @@ async function saveVendor() {
 
         closeAddVendorModal(); // Use the correct close function name
         await loadVendorList();   // Refresh list
-        
+
         // Reset editing ID
         currentlyEditingVendorId = null;
 
-    } catch(e) {
+    } catch (e) {
         console.error("Save vendor error:", e);
         showNotification("Error saving vendor", "error");
     }
@@ -4231,31 +4196,31 @@ async function handleVendorSearch() {
     const input = document.getElementById('vendorName');
     const suggestions = document.getElementById('vendor-suggestions');
     const val = input.value.trim().toLowerCase();
-    
-    if(val.length < 1) { 
-        suggestions.style.display = 'none'; 
-        return; 
+
+    if (val.length < 1) {
+        suggestions.style.display = 'none';
+        return;
     }
 
     try {
         const all = await getAllFromDB('vendorList');
-        
+
         // Search by Name or GSTIN
-        const filtered = all.filter(v => 
-            v.value.name.toLowerCase().includes(val) || 
+        const filtered = all.filter(v =>
+            v.value.name.toLowerCase().includes(val) ||
             (v.value.gstin && v.value.gstin.toLowerCase().includes(val))
         ).slice(0, 5);
 
         suggestions.innerHTML = '';
-        
-        if(filtered.length > 0) {
+
+        if (filtered.length > 0) {
             filtered.forEach(v => {
                 const div = document.createElement('div');
                 div.className = 'customer-suggestion-item';
-                
+
                 // CHANGED: Show ONLY the name, removed GSTIN appending
                 div.textContent = v.value.name;
-                
+
                 div.onclick = () => selectVendorSuggestion(v.value);
                 suggestions.appendChild(div);
             });
@@ -4263,7 +4228,7 @@ async function handleVendorSearch() {
         } else {
             suggestions.style.display = 'none';
         }
-    } catch(e) {
+    } catch (e) {
         console.error("Vendor search error", e);
     }
 }
@@ -4280,7 +4245,7 @@ function selectVendorSuggestion(vendorData) {
 
     // 3. CRITICAL: Persist State Immediately
     // This ensures data is saved if page is refreshed right after clicking
-    saveVendorState(); 
+    saveVendorState();
 }
 
 function openAddVendorModal() {
@@ -4304,7 +4269,7 @@ async function editVendor(vendorId) {
 
         // 1. Fetch from DB
         const result = await getFromDB('vendorList', vendorId);
-        
+
         if (!result) {
             console.error("Vendor not found in database.");
             return;
@@ -4316,12 +4281,12 @@ async function editVendor(vendorId) {
         console.log("Vendor Data Loaded:", val);
 
         currentlyEditingVendorId = vendorId;
-        
+
         // 3. Update Modal UI
         document.getElementById('add-vendor-modal-title').textContent = 'Edit Vendor';
         const saveBtn = document.getElementById('save-vendor-btn');
         if (saveBtn) saveBtn.textContent = 'Update Vendor';
-        
+
         // 4. Populate Fields (Targeting specifically within the modal to avoid ambiguity)
         const modal = document.getElementById('add-vendor-modal');
         if (modal) {
@@ -4339,14 +4304,14 @@ async function editVendor(vendorId) {
             if (phoneInput) phoneInput.value = val.phone || '';
             if (gstinInput) gstinInput.value = val.gstin || '';
             if (emailInput) emailInput.value = val.email || '';
-            
+
             // Show Modal
             modal.style.display = 'block';
         } else {
             console.error("Modal element 'add-vendor-modal' not found in DOM");
         }
 
-    } catch(e) {
+    } catch (e) {
         console.error("Error in editVendor:", e);
     }
 }
@@ -4453,7 +4418,179 @@ async function loadVendorSavedBillsList() {
     });
 }
 
+/* ==========================================
+   IMAGE VIEWER ZOOM & PAN LOGIC
+   ========================================== */
+
+let imgState = {
+    scale: 1,
+    panning: false,
+    pointX: 0,
+    pointY: 0,
+    startX: 0,
+    startY: 0,
+    // Touch specifics
+    lastTouchDist: 0
+};
+
+function initImageZoom() {
+    const img = document.getElementById('file-viewer-img');
+    const container = document.querySelector('#file-viewer-modal .modal-body');
+
+    if (!img || !container) return;
+
+    // Reset State
+    imgState = { scale: 1, panning: false, pointX: 0, pointY: 0, startX: 0, startY: 0, lastTouchDist: 0 };
+    updateImageTransform();
+
+    // --- MOUSE EVENTS (PC) ---
+
+    // 1. Zoom (Scroll)
+    container.onwheel = function (e) {
+        e.preventDefault();
+        const xs = (e.clientX - imgState.pointX) / imgState.scale;
+        const ys = (e.clientY - imgState.pointY) / imgState.scale;
+
+        const delta = -e.deltaY;
+
+        // Zoom Factor
+        (delta > 0) ? (imgState.scale *= 1.1) : (imgState.scale /= 1.1);
+
+        // Limits (0.5x to 10x)
+        if (imgState.scale < 0.5) imgState.scale = 0.5;
+        if (imgState.scale > 10) imgState.scale = 10;
+
+        updateImageTransform();
+    };
+
+    // 2. Pan Start (MouseDown)
+    img.onmousedown = function (e) {
+        e.preventDefault();
+        imgState.startX = e.clientX - imgState.pointX;
+        imgState.startY = e.clientY - imgState.pointY;
+        imgState.panning = true;
+        img.style.cursor = 'grabbing'; // Visual feedback during drag
+    };
+
+    // 3. Pan Move (MouseMove)
+    container.onmousemove = function (e) {
+        e.preventDefault();
+        if (!imgState.panning) return;
+        imgState.pointX = e.clientX - imgState.startX;
+        imgState.pointY = e.clientY - imgState.startY;
+        updateImageTransform();
+    };
+
+    // 4. Pan End (MouseUp)
+    container.onmouseup = function (e) {
+        imgState.panning = false;
+        img.style.cursor = 'move'; // Revert to requested cursor
+    };
+
+    container.onmouseleave = function (e) {
+        imgState.panning = false;
+        img.style.cursor = 'move';
+    }
+
+    // --- TOUCH EVENTS (MOBILE) ---
+
+    // 1. Touch Start
+    container.ontouchstart = function (e) {
+        if (e.touches.length === 1) {
+            // Single finger = Pan
+            const touch = e.touches[0];
+            imgState.startX = touch.clientX - imgState.pointX;
+            imgState.startY = touch.clientY - imgState.pointY;
+            imgState.panning = true;
+        } else if (e.touches.length === 2) {
+            // Two fingers = Zoom Init
+            imgState.panning = false;
+            imgState.lastTouchDist = getTouchDistance(e.touches);
+        }
+    };
+
+    // 2. Touch Move
+    container.ontouchmove = function (e) {
+        e.preventDefault(); // Prevent page scroll
+
+        if (e.touches.length === 1 && imgState.panning) {
+            // Pan Logic
+            const touch = e.touches[0];
+            imgState.pointX = touch.clientX - imgState.startX;
+            imgState.pointY = touch.clientY - imgState.startY;
+            updateImageTransform();
+        } else if (e.touches.length === 2) {
+            // Pinch Zoom Logic
+            const currentDist = getTouchDistance(e.touches);
+            if (imgState.lastTouchDist > 0) {
+                const ratio = currentDist / imgState.lastTouchDist;
+                imgState.scale *= ratio;
+
+                // Limits
+                if (imgState.scale < 0.5) imgState.scale = 0.5;
+                if (imgState.scale > 10) imgState.scale = 10;
+
+                updateImageTransform();
+            }
+            imgState.lastTouchDist = currentDist;
+        }
+    };
+
+    // 3. Touch End
+    container.ontouchend = function (e) {
+        imgState.panning = false;
+        imgState.lastTouchDist = 0;
+    };
+}
+
+// Helper: Calculate distance between two fingers
+function getTouchDistance(touches) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+// Helper: Apply CSS
+function updateImageTransform() {
+    const img = document.getElementById('file-viewer-img');
+    if (img) {
+        img.style.transform = `translate(${imgState.pointX}px, ${imgState.pointY}px) scale(${imgState.scale})`;
+    }
+}
+
+// --- KEYBOARD EVENTS ---
+document.addEventListener('keydown', function (e) {
+    // Only active if modal is open
+    const modal = document.getElementById('file-viewer-modal');
+    if (modal.style.display !== 'block' && modal.style.display !== 'flex') return;
+
+    if (e.ctrlKey) {
+        // Numpad + or standard + (keycode 107 or 187)
+        if (e.key === '+' || e.code === 'NumpadAdd' || e.key === '=') {
+            e.preventDefault();
+            imgState.scale *= 1.1;
+            updateImageTransform();
+        }
+        // Numpad - or standard - (keycode 109 or 189)
+        if (e.key === '-' || e.code === 'NumpadSubtract') {
+            e.preventDefault();
+            imgState.scale /= 1.1;
+            if (imgState.scale < 0.5) imgState.scale = 0.5;
+            updateImageTransform();
+        }
+        // Reset (Ctrl + 0)
+        if (e.key === '0' || e.code === 'Numpad0') {
+            e.preventDefault();
+            imgState.scale = 1;
+            imgState.pointX = 0;
+            imgState.pointY = 0;
+            updateImageTransform();
+        }
+    }
+});
+
 // View Uploaded File
+// UPDATE THIS FUNCTION
 async function viewBillFile(id) {
     const bill = await getFromDB('vendorSavedBills', id);
     if (bill && bill.billDetails.file) {
@@ -4468,12 +4605,24 @@ async function viewBillFile(id) {
         iframe.style.display = 'none';
         msg.style.display = 'none';
 
+        // Reset Transform style immediately
+        img.style.transform = 'translate(0px, 0px) scale(1)';
+
         if (file.type.includes('image')) {
             img.src = file.data;
             img.style.display = 'block';
+
+            // INITIALIZE ZOOM CONTROLS HERE
+            initImageZoom();
+
         } else if (file.type.includes('pdf')) {
             iframe.src = file.data;
             iframe.style.display = 'block';
+            // Remove zoom listeners for PDF to allow native PDF controls
+            const container = document.querySelector('#file-viewer-modal .modal-body');
+            container.onwheel = null;
+            container.onmousedown = null;
+            container.ontouchstart = null;
         } else {
             msg.style.display = 'block';
             msg.textContent = "File format not supported for preview";
@@ -4481,10 +4630,31 @@ async function viewBillFile(id) {
     }
 }
 
+// UPDATE THIS FUNCTION
 function closeFileViewerModal() {
     document.getElementById('file-viewer-modal').style.display = 'none';
-    document.getElementById('file-viewer-img').src = '';
+    const img = document.getElementById('file-viewer-img');
+    img.src = '';
     document.getElementById('file-viewer-pdf').src = '';
+
+    // Clean up Event Listeners to prevent errors when modal is closed
+    const container = document.querySelector('#file-viewer-modal .modal-body');
+    if (container) {
+        container.onwheel = null;
+        container.onmousedown = null;
+        container.onmousemove = null;
+        container.onmouseup = null;
+        container.onmouseleave = null;
+        container.ontouchstart = null;
+        container.ontouchmove = null;
+        container.ontouchend = null;
+    }
+
+    // Reset Image State
+    if (img) {
+        img.style.transform = 'none';
+        img.style.cursor = 'move';
+    }
 }
 
 async function deleteVendorBill(id) {
@@ -17255,7 +17425,7 @@ function toggleChartType(mode) {
     // Update button states
     const buttons = document.querySelectorAll('.chart-btn');
     buttons.forEach(btn => {
-        if(btn.textContent.toLowerCase() === mode) btn.classList.add('active');
+        if (btn.textContent.toLowerCase() === mode) btn.classList.add('active');
         else btn.classList.remove('active');
     });
     refreshDashboard();
@@ -17281,9 +17451,9 @@ async function refreshDashboard() {
         if (!itemDate) return false;
         // Parse dd-mm-yyyy or yyyy-mm-dd
         let d;
-        if(itemDate.includes('-')) {
+        if (itemDate.includes('-')) {
             const parts = itemDate.split('-');
-            if(parts[0].length === 4) d = new Date(itemDate); // yyyy-mm-dd
+            if (parts[0].length === 4) d = new Date(itemDate); // yyyy-mm-dd
             else d = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`); // dd-mm-yyyy
         } else return false;
         return d >= startDate && d <= today;
@@ -17298,7 +17468,7 @@ async function refreshDashboard() {
     const processBill = (bill) => {
         const val = bill.value;
         const dateStr = val.date || val.invoiceDetails?.date;
-        
+
         if (filterDate(dateStr)) {
             const amount = parseFloat(val.totalAmount || val.totals?.grandTotal || 0);
             totalSales += amount;
@@ -17312,7 +17482,7 @@ async function refreshDashboard() {
             const items = val.items || val.tableStructure || [];
             items.forEach(item => {
                 // If we have item details, look up purchase rate
-                if(item.type === 'item') {
+                if (item.type === 'item') {
                     // Try to find purchase rate in saved items or use a stored 'purchaseRate' if we saved it in bill
                     // Simple approximation: assuming 20% margin if cost unknown
                     const rate = parseFloat(item.rate);
@@ -17321,7 +17491,7 @@ async function refreshDashboard() {
                 }
             });
             totalCost += billCost;
-            
+
             if (!dailyProfit[dateStr]) dailyProfit[dateStr] = 0;
             dailyProfit[dateStr] += (amount - billCost);
         }
@@ -17355,7 +17525,7 @@ async function refreshDashboard() {
     document.getElementById('kpi-total-sales').textContent = `₹${totalSales.toLocaleString('en-IN')}`;
     document.getElementById('kpi-expenses').textContent = `₹${totalExpenses.toLocaleString('en-IN')}`;
     document.getElementById('kpi-outstanding').textContent = `₹${outstanding.toLocaleString('en-IN')}`;
-    
+
     const profit = totalSales - totalCost; // Simplified profit
     document.getElementById('kpi-profit').textContent = `₹${profit.toLocaleString('en-IN')}`;
     const margin = totalSales > 0 ? ((profit / totalSales) * 100).toFixed(1) : 0;
@@ -17371,9 +17541,9 @@ async function refreshDashboard() {
 
 function renderChart(salesData, profitData) {
     const ctx = document.getElementById('mainBusinessChart').getContext('2d');
-    
+
     // Sort dates
-    const labels = Object.keys(salesData).sort((a,b) => {
+    const labels = Object.keys(salesData).sort((a, b) => {
         const da = new Date(a.split('-').reverse().join('-'));
         const db = new Date(b.split('-').reverse().join('-'));
         return da - db;
@@ -17417,7 +17587,7 @@ function renderChart(salesData, profitData) {
 function renderLowStockList(items) {
     const list = document.getElementById('dash-low-stock-list');
     list.innerHTML = '';
-    
+
     // Filter items where stock <= minStock
     const lowStock = items.filter(i => {
         const stock = parseFloat(i.value.stockQuantity || 0);
@@ -17425,7 +17595,7 @@ function renderLowStockList(items) {
         return stock <= min && min > 0;
     });
 
-    if(lowStock.length === 0) {
+    if (lowStock.length === 0) {
         list.innerHTML = '<div style="padding:10px; color:#999; text-align:center;">All items well stocked</div>';
         return;
     }
@@ -17450,26 +17620,26 @@ function renderRecentActivity(sales, gst, purchases) {
 
     // Combine and Sort
     const allTxn = [
-        ...sales.map(s => ({...s.value, type: 'sale', dateStr: s.value.date})),
-        ...gst.map(g => ({...g.value, type: 'sale', dateStr: g.value.invoiceDetails?.date})),
-        ...purchases.map(p => ({...p.value, type: 'purchase', dateStr: p.value.billDetails?.date}))
+        ...sales.map(s => ({ ...s.value, type: 'sale', dateStr: s.value.date })),
+        ...gst.map(g => ({ ...g.value, type: 'sale', dateStr: g.value.invoiceDetails?.date })),
+        ...purchases.map(p => ({ ...p.value, type: 'purchase', dateStr: p.value.billDetails?.date }))
     ];
 
     // Helper to parse date for sorting
     const parseD = (d) => {
-        if(!d) return 0;
+        if (!d) return 0;
         const parts = d.split('-');
         return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
     };
 
-    allTxn.sort((a,b) => parseD(b.dateStr) - parseD(a.dateStr));
+    allTxn.sort((a, b) => parseD(b.dateStr) - parseD(a.dateStr));
 
     // Take top 10
     allTxn.slice(0, 10).forEach(t => {
         const isSale = t.type === 'sale';
         const name = isSale ? (t.customer?.name || t.customer?.billTo?.name) : t.vendor?.name;
         const amount = t.totalAmount || t.totals?.grandTotal;
-        
+
         const div = document.createElement('div');
         div.className = 'list-item';
         div.innerHTML = `
@@ -17484,3 +17654,595 @@ function renderRecentActivity(sales, gst, purchases) {
         list.appendChild(div);
     });
 }
+
+/* ==========================================================================
+   EXPENSE MANAGEMENT MODULE
+   ========================================================================== */
+const defaultExpenseCategories = [
+    'Rent', 'Electricity', 'Salary', 'Transport', 'Food', 
+    'Marketing', 'Maintenance', 'Office Supplies', 'Other'
+];
+
+let expenseState = {
+    expenses: [],
+    currentFilter: {
+        search: '',
+        category: 'all',
+        mode: 'all',
+        startDate: '',
+        endDate: '',
+        sort: 'date-desc'
+    },
+    editingId: null,
+    currentImage: null
+};
+
+// --- MODAL CONTROL ---
+
+// [ADD THIS NEW FUNCTION]
+/* --- UPDATED: Load Categories (Fixes Duplicates) --- */
+async function loadExpenseCategories(selectedPayload = null) {
+    const select = document.getElementById('exp-category');
+    
+    // [FIX] Clear existing options first to prevent duplicates
+    select.innerHTML = '<option value="">Select Category</option>';
+
+    try {
+        let customCats = await getFromDB('settings', 'expenseCategories');
+        if (!customCats) customCats = [];
+
+        const allCats = [...new Set([...defaultExpenseCategories, ...customCats])];
+        allCats.sort(); 
+
+        allCats.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            select.appendChild(option);
+        });
+
+        if (selectedPayload) {
+            select.value = selectedPayload;
+        }
+
+    } catch (e) {
+        console.error("Error loading categories", e);
+        defaultExpenseCategories.forEach(cat => {
+            const option = document.createElement('option');
+            option.value = cat;
+            option.textContent = cat;
+            select.appendChild(option);
+        });
+    }
+}
+
+// [ADD THIS NEW FUNCTION]
+function addNewExpenseCategory() {
+    const modal = document.getElementById('add-category-modal');
+    const input = document.getElementById('new-category-name');
+    
+    // Reset input
+    input.value = '';
+    
+    // Show modal
+    modal.style.display = 'block';
+    
+    // Auto-focus input
+    setTimeout(() => {
+        input.focus();
+    }, 100);
+}
+function closeAddCategoryModal() {
+    document.getElementById('add-category-modal').style.display = 'none';
+}
+
+function openExpenseModal() {
+    toggleSettingsSidebar(); 
+    document.getElementById('expense-management-modal').style.display = 'block';
+    
+    // Set default date range (First to Last day of current month)
+    const date = new Date();
+    const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+    
+    // [FIX] Use helper to ensure inputs accept the value
+    document.getElementById('exp-date-from').value = formatDateForInput(firstDay);
+    document.getElementById('exp-date-to').value = formatDateForInput(lastDay);
+
+    loadExpenses(); 
+}
+
+
+function closeExpenseModal() {
+    document.getElementById('expense-management-modal').style.display = 'none';
+}
+
+function formatDateForInput(dateSource) {
+    if (!dateSource) return '';
+    const d = new Date(dateSource);
+    if (isNaN(d.getTime())) return ''; // Invalid date
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${month}-${day}`;
+}
+
+/* --- UPDATED: Add Modal (Fixes Today's Date) --- */
+function openAddExpenseModal() {
+    expenseState.editingId = null;
+    expenseState.currentImage = null;
+    
+    document.getElementById('expense-modal-title').textContent = 'Add New Expense';
+    document.getElementById('btn-save-expense').textContent = 'Save Expense';
+    
+    document.getElementById('exp-title').value = '';
+    document.getElementById('exp-amount').value = '';
+    
+    // [FIX] Set Today's date correctly
+    document.getElementById('exp-date').value = formatDateForInput(new Date());
+    
+    loadExpenseCategories(); 
+    
+    document.getElementById('exp-payment-mode').value = 'Cash';
+    document.getElementById('exp-reference').value = '';
+    document.getElementById('exp-notes').value = '';
+    document.getElementById('exp-image').value = '';
+    
+    document.getElementById('exp-image-preview').innerHTML = '';
+    document.getElementById('exp-image-preview').style.display = 'none';
+    document.getElementById('btn-remove-exp-img').style.display = 'none';
+
+    document.getElementById('add-expense-modal').style.display = 'block';
+}
+
+function closeAddExpenseModal() {
+    document.getElementById('add-expense-modal').style.display = 'none';
+}
+
+async function saveNewCategory() {
+    const input = document.getElementById('new-category-name');
+    const categoryName = input.value.trim();
+    
+    if (!categoryName) {
+        showNotification("Please enter a category name", "error");
+        input.focus();
+        return;
+    }
+
+    try {
+        // Fetch existing custom categories
+        let customCats = await getFromDB('settings', 'expenseCategories');
+        if (!customCats) customCats = [];
+
+        // Check duplicates (case insensitive)
+        const exists = [...defaultExpenseCategories, ...customCats].some(
+            c => c.toLowerCase() === categoryName.toLowerCase()
+        );
+
+        if (exists) {
+            showNotification("Category already exists!", "warning");
+            
+            // Select it in the dropdown anyway
+            const select = document.getElementById('exp-category');
+            if(select) select.value = categoryName; 
+            
+            closeAddCategoryModal();
+            return;
+        }
+
+        // Save to DB
+        customCats.push(categoryName);
+        await setInDB('settings', 'expenseCategories', customCats);
+
+        // Reload Dropdown & Select New Value
+        await loadExpenseCategories(categoryName);
+        
+        showNotification(`Category "${categoryName}" added!`, "success");
+        closeAddCategoryModal();
+
+    } catch (e) {
+        console.error("Error adding category", e);
+        showNotification("Failed to save category", "error");
+    }
+}
+
+function handleCategoryEnter(event) {
+    if (event.key === 'Enter') {
+        saveNewCategory();
+    }
+}
+
+// --- IMAGE HANDLING ---
+
+function handleExpenseImage(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        
+        // Size Check (Max 3MB)
+        if (file.size > 3 * 1024 * 1024) {
+            showNotification('Image too large (Max 3MB)', 'error');
+            input.value = '';
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            expenseState.currentImage = e.target.result; // Base64
+            
+            // Show Preview
+            const previewBox = document.getElementById('exp-image-preview');
+            previewBox.style.display = 'flex';
+            previewBox.innerHTML = `<img src="${e.target.result}" style="max-height:100px;">`;
+            document.getElementById('btn-remove-exp-img').style.display = 'inline-block';
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function removeExpenseImage() {
+    expenseState.currentImage = null;
+    document.getElementById('exp-image').value = '';
+    document.getElementById('exp-image-preview').innerHTML = '';
+    document.getElementById('exp-image-preview').style.display = 'none';
+    document.getElementById('btn-remove-exp-img').style.display = 'none';
+}
+
+// --- CRUD OPERATIONS ---
+
+async function saveExpense() {
+    const title = document.getElementById('exp-title').value.trim();
+    const amount = parseFloat(document.getElementById('exp-amount').value);
+    const date = document.getElementById('exp-date').value;
+    const category = document.getElementById('exp-category').value;
+    const mode = document.getElementById('exp-payment-mode').value;
+    const ref = document.getElementById('exp-reference').value.trim();
+    const notes = document.getElementById('exp-notes').value.trim();
+
+    // Validation
+    if (!title || isNaN(amount) || amount <= 0 || !date || !category || !mode) {
+        showNotification('Please fill all required fields correctly', 'error');
+        return;
+    }
+
+    const expenseObj = {
+        id: expenseState.editingId || `exp-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+        title: title,
+        amount: amount,
+        category: category,
+        paymentMode: mode,
+        date: date,
+        reference: ref,
+        notes: notes,
+        billImage: expenseState.currentImage,
+        createdAt: Date.now()
+    };
+
+    try {
+        await setInDB('expenses', expenseObj.id, expenseObj);
+        showNotification(expenseState.editingId ? 'Expense Updated' : 'Expense Added', 'success');
+        closeAddExpenseModal();
+        loadExpenses(); // Refresh List
+    } catch (e) {
+        console.error("Save Expense Error:", e);
+        showNotification('Failed to save expense', 'error');
+    }
+}
+
+async function loadExpenses() {
+    try {
+        const allExpenses = await getAllFromDB('expenses');
+        expenseState.expenses = allExpenses.map(e => e.value);
+        filterExpenses(); // This triggers rendering
+    } catch (e) {
+        console.error("Load Expenses Error:", e);
+    }
+}
+
+async function deleteExpense(id) {
+    if (await showConfirm("Are you sure you want to delete this expense?")) {
+        try {
+            await removeFromDB('expenses', id);
+            showNotification('Expense Deleted', 'success');
+            loadExpenses();
+        } catch (e) {
+            showNotification('Deletion Failed', 'error');
+        }
+    }
+}
+
+/* --- UPDATED: Edit Modal (Fixes Date Loading) --- */
+async function editExpense(id) {
+    const exp = expenseState.expenses.find(e => e.id === id);
+    if (!exp) return;
+
+    openAddExpenseModal(); 
+    
+    expenseState.editingId = id;
+    
+    document.getElementById('expense-modal-title').textContent = 'Edit Expense';
+    document.getElementById('btn-save-expense').textContent = 'Update Expense';
+
+    document.getElementById('exp-title').value = exp.title;
+    document.getElementById('exp-amount').value = exp.amount;
+    
+    // [FIX] Convert saved date string to Input format
+    document.getElementById('exp-date').value = formatDateForInput(exp.date);
+    
+    await loadExpenseCategories(exp.category); 
+    
+    document.getElementById('exp-payment-mode').value = exp.paymentMode;
+    document.getElementById('exp-reference').value = exp.reference || '';
+    document.getElementById('exp-notes').value = exp.notes || '';
+
+    if (exp.billImage) {
+        expenseState.currentImage = exp.billImage;
+        const previewBox = document.getElementById('exp-image-preview');
+        previewBox.style.display = 'flex';
+        previewBox.innerHTML = `<img src="${exp.billImage}" style="max-height:100px;">`;
+        document.getElementById('btn-remove-exp-img').style.display = 'inline-block';
+    }
+}
+
+// --- FILTERING & RENDERING ---
+
+function filterExpenses() {
+    // 1. Get Filter Values
+    const search = document.getElementById('exp-search').value.toLowerCase();
+    const cat = document.getElementById('exp-filter-category').value;
+    const mode = document.getElementById('exp-filter-mode').value;
+    const fromDate = document.getElementById('exp-date-from').value;
+    const toDate = document.getElementById('exp-date-to').value;
+    const sortVal = document.getElementById('exp-sort').value;
+
+    // 2. Filter Array
+    let filtered = expenseState.expenses.filter(e => {
+        // Search (Title, Ref, Notes)
+        const matchSearch = e.title.toLowerCase().includes(search) || 
+                            (e.reference && e.reference.toLowerCase().includes(search)) ||
+                            (e.notes && e.notes.toLowerCase().includes(search));
+        
+        // Category
+        const matchCat = cat === 'all' || e.category === cat;
+        
+        // Mode
+        const matchMode = mode === 'all' || e.paymentMode === mode;
+        
+        // Date Range
+        let matchDate = true;
+        if (fromDate && toDate) {
+            matchDate = e.date >= fromDate && e.date <= toDate;
+        }
+
+        return matchSearch && matchCat && matchMode && matchDate;
+    });
+
+    // 3. Sort Array
+    filtered.sort((a, b) => {
+        if (sortVal === 'date-desc') return new Date(b.date) - new Date(a.date);
+        if (sortVal === 'date-asc') return new Date(a.date) - new Date(b.date);
+        if (sortVal === 'amount-desc') return b.amount - a.amount;
+        if (sortVal === 'amount-asc') return a.amount - b.amount;
+        return 0;
+    });
+
+    // 4. Render
+    renderExpenseTable(filtered);
+    renderExpenseAnalytics(filtered);
+}
+
+function renderExpenseTable(data) {
+    const tbody = document.getElementById('expense-list-body');
+    tbody.innerHTML = '';
+
+    if (data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">No expenses found</td></tr>';
+        return;
+    }
+
+    data.forEach(exp => {
+        const tr = document.createElement('tr');
+        
+        // Format Date (DD-MM-YYYY)
+        const dateObj = new Date(exp.date);
+        const displayDate = `${String(dateObj.getDate()).padStart(2,'0')}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${dateObj.getFullYear()}`;
+
+        // View Bill Button if image exists
+        let imgBtn = '';
+        if (exp.billImage) {
+            imgBtn = `<button class="action-btn" onclick="viewExpenseImage('${exp.id}')" title="View Bill"><span class="material-icons" style="font-size:16px; color:#3498db;">receipt</span></button>`;
+        }
+
+        tr.innerHTML = `
+            <td>${displayDate}</td>
+            <td>
+                <div style="font-weight:600;">${exp.title}</div>
+                ${exp.reference ? `<div style="font-size:0.85em; color:#666;">Ref: ${exp.reference}</div>` : ''}
+            </td>
+            <td><span class="stock-badge" style="background:#f0f0f0; color:#333;">${exp.category}</span></td>
+            <td>${exp.paymentMode}</td>
+            <td style="font-weight:bold; color:#e74c3c;">₹${exp.amount.toFixed(2)}</td>
+            <td>
+                <div class="action-buttons">
+                    ${imgBtn}
+                    <button class="action-btn" onclick="editExpense('${exp.id}')" title="Edit"><span class="material-icons" style="font-size:16px;">edit</span></button>
+                    <button class="action-btn remove-btn" onclick="deleteExpense('${exp.id}')" title="Delete"><span class="material-icons" style="font-size:16px;">delete</span></button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(tr);
+    });
+}
+
+function viewExpenseImage(id) {
+    const exp = expenseState.expenses.find(e => e.id === id);
+    if(exp && exp.billImage) {
+        // Reuse existing file viewer modal logic
+        const modal = document.getElementById('file-viewer-modal');
+        const img = document.getElementById('file-viewer-img');
+        const iframe = document.getElementById('file-viewer-pdf');
+        
+        modal.style.display = 'flex';
+        img.style.display = 'block';
+        iframe.style.display = 'none';
+        
+        img.src = exp.billImage;
+        initImageZoom(); // Reuse zoom logic
+    }
+}
+
+// --- ANALYTICS ---
+
+function renderExpenseAnalytics(data) {
+    // 1. Calculate Summary Cards
+    const totalAmount = data.reduce((sum, e) => sum + e.amount, 0);
+    
+    // Today's Expense
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayAmount = data.filter(e => e.date === todayStr).reduce((sum, e) => sum + e.amount, 0);
+
+    // Last Expense
+    const lastExp = data.length > 0 ? data[0] : null; // Data is already sorted if desc
+    
+    // Category Breakdown
+    const catMap = {};
+    data.forEach(e => {
+        catMap[e.category] = (catMap[e.category] || 0) + e.amount;
+    });
+
+    // Find Top Category
+    let topCat = '-';
+    let topCatAmount = 0;
+    Object.entries(catMap).forEach(([cat, amt]) => {
+        if (amt > topCatAmount) {
+            topCatAmount = amt;
+            topCat = cat;
+        }
+    });
+
+    // Update Cards
+    document.getElementById('exp-summary-total').textContent = `₹${totalAmount.toLocaleString('en-IN')}`;
+    document.getElementById('exp-summary-today').textContent = `₹${todayAmount.toLocaleString('en-IN')}`;
+    document.getElementById('exp-summary-category').textContent = topCat;
+    document.getElementById('exp-summary-last').textContent = lastExp ? `₹${lastExp.amount}` : '-';
+
+    // 2. Render Bar Chart
+    const chartContainer = document.getElementById('expense-chart-container');
+    chartContainer.innerHTML = '';
+
+    // Sort categories by amount desc
+    const sortedCats = Object.entries(catMap).sort((a,b) => b[1] - a[1]);
+
+    sortedCats.forEach(([cat, amt]) => {
+        const percent = totalAmount > 0 ? ((amt / totalAmount) * 100).toFixed(1) : 0;
+        
+        // Define color based on category (Simple hash or fixed list)
+        const colors = {
+            'Rent': '#e74c3c', 'Electricity': '#f1c40f', 'Salary': '#2ecc71',
+            'Food': '#3498db', 'Transport': '#9b59b6', 'Other': '#95a5a6'
+        };
+        const color = colors[cat] || '#34495e';
+
+        const barHtml = `
+            <div class="chart-bar-row">
+                <div class="chart-bar-label">
+                    <span>${cat}</span>
+                    <span>₹${amt.toLocaleString('en-IN')} (${percent}%)</span>
+                </div>
+                <div class="chart-bar-bg">
+                    <div class="chart-bar-fill" style="width: ${percent}%; background-color: ${color};"></div>
+                </div>
+            </div>
+        `;
+        chartContainer.innerHTML += barHtml;
+    });
+}
+
+function exportExpensesPDF() {
+    const element = document.querySelector('.expense-main-panel'); // Export the table view
+    const opt = {
+        margin: [10, 10, 10, 10],
+        filename: `Expense_Report_${new Date().toISOString().split('T')[0]}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    
+    // Temporarily adjust styling for print
+    const originalOverflow = element.querySelector('.expense-table-wrapper').style.overflow;
+    element.querySelector('.expense-table-wrapper').style.overflow = 'visible';
+    
+    html2pdf().set(opt).from(element).save().then(() => {
+        // Revert style
+        element.querySelector('.expense-table-wrapper').style.overflow = originalOverflow;
+    });
+}
+
+
+// ==========================================
+// NEW SIDEBAR LOGIC
+// ==========================================
+
+function toggleSettingsSidebar() {
+    const sidebar = document.getElementById('app-sidebar');
+    const overlay = document.getElementById('settings-overlay');
+    
+    // Check if currently open
+    const isOpen = sidebar.classList.contains('open');
+    
+    if (isOpen) {
+        // Close
+        sidebar.classList.remove('open');
+        overlay.classList.remove('open');
+        closeSubMenu(); // Reset sub-menus
+    } else {
+        // Open
+        sidebar.classList.add('open');
+        overlay.classList.add('open');
+    }
+}
+
+function toggleSubMenu(categoryId, btnElement) {
+    const submenuContainer = document.getElementById('sidebar-submenus');
+    const allGroups = document.querySelectorAll('.sub-menu-group');
+    const allBtns = document.querySelectorAll('.sidebar-cat-btn');
+    
+    // 1. Reset all buttons
+    allBtns.forEach(b => b.classList.remove('active'));
+    
+    // 2. Identify target group
+    const targetGroup = document.getElementById('sub-' + categoryId);
+    
+    // 3. Logic: If clicking active category -> Close. If new -> Open.
+    const isAlreadyOpen = submenuContainer.classList.contains('open') && targetGroup.classList.contains('active');
+    
+    if (isAlreadyOpen) {
+        closeSubMenu();
+    } else {
+        // Open Submenu
+        submenuContainer.classList.add('open');
+        
+        // Hide all groups
+        allGroups.forEach(g => g.classList.remove('active'));
+        
+        // Show target group
+        if (targetGroup) targetGroup.classList.add('active');
+        
+        // Highlight button
+        if (btnElement) btnElement.classList.add('active');
+    }
+}
+
+function closeSubMenu() {
+    const submenuContainer = document.getElementById('sidebar-submenus');
+    const allBtns = document.querySelectorAll('.sidebar-cat-btn');
+    
+    submenuContainer.classList.remove('open');
+    allBtns.forEach(b => b.classList.remove('active'));
+}
+
+// Close sidebar when clicking overlay
+document.addEventListener('DOMContentLoaded', () => {
+    const overlay = document.getElementById('settings-overlay');
+    if (overlay) {
+        overlay.onclick = toggleSettingsSidebar;
+    }
+});
