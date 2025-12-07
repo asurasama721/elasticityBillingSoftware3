@@ -4869,3 +4869,19 @@ body.gst-mode #tools {
     font-size: 14px;
     font-weight: 500;
 }
+
+/* =========================================
+   RESPONSIVE: HIDE TOOLTIPS ON SMALL SCREENS
+   ========================================= */
+
+@media (max-width: 800px) {
+    /* Hide Horizontal Toolbar Tooltips */
+    #tools button span:not(.material-icons) {
+        display: none !important;
+    }
+
+    /* Hide Sidebar Category Tooltips */
+    .sidebar-tooltip {
+        display: none !important;
+    }
+}
