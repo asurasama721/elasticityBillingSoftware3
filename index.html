@@ -1080,97 +1080,236 @@
 
     <!-- Settings Sidebar -->
     <div id="settings-overlay" onclick="toggleSettingsSidebar()"></div>
-    <div id="settings-sidebar">
-        <h2>Settings <button class="settings-close-btn" onclick="toggleSettingsSidebar()">×</button></h2>
-        <div class="settings-content">
-            <button onclick="openBusinessDashboard()" class="settings-btn"
-                style="background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: white;">
-                <span class="material-icons">dashboard</span>BUSINESS DASHBOARD
-            </button>
-            <button onclick="openGSTModeModal()" class="settings-btn gst-mode-btn"><span
-                    class="material-icons">receipt_long</span></button>
-            <button onclick="openCompanyInfoModal()" class="settings-btn company-info-btn"><span
-                    class="material-icons">business</span>COMPANY INFO</button>
-            <button onclick="openCustomerDetailsModal()" class="settings-btn customer-details-btn"
-                style="display: none;"><span class="material-icons">person</span>CUSTOMER DETAILS</button>
-            <button onclick="openHistoryModal()" class="settings-btn"><span
-                    class="material-icons">history</span>HISTORY</button>
-            <button onclick="openManageItemsModal()" class="settings-btn"><span
-                    class="material-icons">inventory_2</span>MANAGE ITEMS</button>
-            <button onclick="openManageCustomersModal()" class="settings-btn"><span
-                    class="material-icons">groups</span>MANAGE CUSTOMERS</button>
-            <button onclick="openSavedBillsModal()" class="settings-btn"><span
-                    class="material-icons">folder_open</span>SAVED BILLS</button>
-            <button onclick="saveCurrentBill()" class="settings-btn"><span class="material-icons">save</span>SAVE
-                BILL</button>
-            <button onclick="toggleVendorMode()" class="settings-btn vendor-mode-btn">
-                <span class="material-icons">store</span>VENDOR MODE
-            </button>
-            <button onclick="openManageVendorsModal()" class="settings-btn">
-                <span class="material-icons">people_alt</span>MANAGE VENDORS
-            </button>
-            <button onclick="openVendorSavedBillsModal()" class="settings-btn">
-                <span class="material-icons">snippet_folder</span>VENDOR BILLS
-            </button>
-            <button onclick="openOCRModal()" class="settings-btn"><span class="material-icons">text_snippet</span>OCR
-                ASSISTANT</button>
-            <button onclick="backupData()" class="settings-btn"><span
-                    class="material-icons">backup</span>BACKUP</button>
-            <button onclick="restoreData()" class="settings-btn"><span
-                    class="material-icons">cloud_download</span>RESTORE</button>
-            <button onclick="cycleTheme()" class="settings-btn"><span class="material-icons">palette</span>CHANGE
-                THEME</button>
-            <button onclick="toggleDimensionsDisplay()" class="settings-btn"><span
-                    class="material-icons">layers</span>TOGGLE DIMENSIONS</button>
-            <button onclick="openTaxAdjustmentModal()" class="settings-btn tax-adjustment-btn" style="display: none;">
-                <span class="material-icons">calculate</span>ADJUST TAX RATES
-            </button>
-            <button onclick="toggleProfitView()" class="settings-btn"><span
-                    class="material-icons">calculate</span>PROFIT CALCULATION</button>
-            <!-- Add this button in your settings-sidebar -->
-            <button onclick="openTermsListModal()" class="settings-btn" id="addTermsListSectionBtn">
-                <span class="material-icons">list</span>ADD TERMS
-            </button>
-            <button onclick="toggleAutoApplyRates()" class="settings-btn auto-apply-rates-btn">
-                <span class="material-icons">auto_awesome</span>AUTO RATES: ON
-            </button>
-            <button onclick="openBatchInvoiceModal()" class="settings-btn">
-                <span class="material-icons">receipt</span>BATCH INVOICE
-            </button>
-            <button onclick="openRestoredBillsModal()" class="settings-btn">
-                <span class="material-icons">cloud_download</span>RESTORED BILLS
-            </button>
-            <button onclick="openBillHeadingModal()" class="settings-btn">
-                <span class="material-icons">title</span>BILL HEADING
-            </button>
-            <button onclick="openBrandingModal()" class="settings-btn">
-                <span class="material-icons">branding_watermark</span>LOGO & SIGN
-            </button>
-            <!-- Add this button in the settings sidebar with other buttons -->
-            <button onclick="handlePrint()" class="settings-btn"><span class="material-icons">print</span>PRINT</button>
-        </div>
+    <div id="app-sidebar" class="sidebar-closed">
+    <div id="sidebar-categories">
+        <button class="sidebar-cat-btn" onclick="toggleSubMenu('business', this)" title="Business">
+            <span class="material-icons">business_center</span>
+            <span class="sidebar-tooltip">Business</span>
+        </button>
+        
+        <button class="sidebar-cat-btn" onclick="toggleSubMenu('modes')" title="Modes & Tax">
+            <span class="material-icons">settings_applications</span>
+            <span class="sidebar-tooltip">Modes & Tax</span>
+        </button>
+        
+        <button class="sidebar-cat-btn" onclick="toggleSubMenu('manage')" title="Manage">
+            <span class="material-icons">inventory</span>
+            <span class="sidebar-tooltip">Manage</span>
+        </button>
+        
+        <button class="sidebar-cat-btn" onclick="toggleSubMenu('records')" title="Records">
+            <span class="material-icons">folder_shared</span>
+            <span class="sidebar-tooltip">Records</span>
+        </button>
+        
+        <button class="sidebar-cat-btn" onclick="toggleSubMenu('tools')" title="Tools">
+            <span class="material-icons">build</span>
+            <span class="sidebar-tooltip">Tools</span>
+        </button>
+
+        <div style="flex:1"></div>
+
+        <button class="sidebar-cat-btn" onclick="toggleSettingsSidebar()">
+            <span class="material-icons">close</span>
+            <span class="sidebar-tooltip">Close</span>
+        </button>
     </div>
 
-    <div id="tools">
-        <button onclick="toggleView()" data-view="bill"><span class="material-icons"
-                id="view-icon">description</span><span id="view-text">SHOW BILL</span></button>
-        <button onclick="undoAction()"><span class="material-icons">undo</span>UNDO</button>
-        <button onclick="redoAction()"><span class="material-icons">redo</span>REDO</button>
-        <button onclick="clearAllData()"><span class="material-icons">auto_delete</span>CLEAR ALL</button>
-        <button onclick="downloadPDF()"><span class="material-icons">picture_as_pdf</span>PDF</button>
-        <button onclick="openShareModal()"><span class="material-icons">share</span>SHARE</button>
-        <button id="rate-toggle-btn" onclick="openColumnDialog()" style="display: inline-block;">
-            <span class="material-icons">visibility</span>COLUMNS
-        </button>
-        <button onclick="openDiscountModal()"><span class="material-icons">percent</span>DISCOUNT</button>
-        <button onclick="openAdjustmentModal()"><span class="material-icons">tune</span>ADJUSTMENTS</button>
-        <button onclick="openGSTModal()" id="gst-tool-btn"><span class="material-icons">request_quote</span>GST</button>
-        <button onclick="openSectionModal()"><span class="material-icons">view_day</span>SECTION</button>
-        <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;"><span
-                class="material-icons">vertical_align_bottom</span>FOOTER</button>
-        <!-- Settings Button -->
-        <button onclick="toggleSettingsSidebar()"><span class="material-icons">settings</span>SETTINGS</button>
+    <div id="sidebar-submenus">
+        
+        <div id="sub-business" class="sub-menu-group">
+            <div class="sub-menu-header">Business</div>
+            <button onclick="openBusinessDashboard()" class="sidebar-action-btn">
+                <span class="material-icons">dashboard</span>
+                <span class="sidebar-label">Dashboard</span>
+            </button>
+            <button onclick="openCompanyInfoModal()" class="sidebar-action-btn">
+                <span class="material-icons">business</span>
+                <span class="sidebar-label">Company Info</span>
+            </button>
+            <button onclick="openBillHeadingModal()" class="sidebar-action-btn">
+                <span class="material-icons">title</span>
+                <span class="sidebar-label">Bill Headers</span>
+            </button>
+            <button onclick="openBrandingModal()" class="sidebar-action-btn">
+                <span class="material-icons">branding_watermark</span>
+                <span class="sidebar-label">Logo & Sign</span>
+            </button>
+        </div>
+
+        <div id="sub-modes" class="sub-menu-group">
+            <div class="sub-menu-header">Modes</div>
+            <button onclick="openGSTModeModal()" class="sidebar-action-btn gst-mode-btn">
+                <span class="material-icons">receipt_long</span>
+                <span class="sidebar-label">Switch Mode</span>
+            </button>
+            <button onclick="openCustomerDetailsModal()" class="sidebar-action-btn customer-details-btn">
+                <span class="material-icons">person</span>
+                <span class="sidebar-label">Cust. Details (GST)</span>
+            </button>
+            <button onclick="openTaxAdjustmentModal()" class="sidebar-action-btn tax-adjustment-btn">
+                <span class="material-icons">calculate</span>
+                <span class="sidebar-label">Tax Rates</span>
+            </button>
+            <button onclick="toggleProfitView()" class="sidebar-action-btn">
+                <span class="material-icons">trending_up</span>
+                <span class="sidebar-label">Profit Calc</span>
+            </button>
+            <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn">
+                <span class="material-icons">auto_awesome</span>
+                <span class="sidebar-label">Auto Rates</span>
+            </button>
+        </div>
+
+        <div id="sub-manage" class="sub-menu-group">
+            <div class="sub-menu-header">Manage</div>
+            <button onclick="openManageItemsModal()" class="sidebar-action-btn">
+                <span class="material-icons">inventory_2</span>
+                <span class="sidebar-label">Items</span>
+            </button>
+            <button onclick="openManageCustomersModal()" class="sidebar-action-btn">
+                <span class="material-icons">groups</span>
+                <span class="sidebar-label">Customers</span>
+            </button>
+            <button onclick="openManageVendorsModal()" class="sidebar-action-btn">
+                <span class="material-icons">people_alt</span>
+                <span class="sidebar-label">Vendors</span>
+            </button>
+            <button onclick="toggleVendorMode()" class="sidebar-action-btn vendor-mode-btn">
+                <span class="material-icons">store</span>
+                <span class="sidebar-label">Vendor Mode</span>
+            </button>
+        </div>
+
+        <div id="sub-records" class="sub-menu-group">
+            <div class="sub-menu-header">Records</div>
+            <button onclick="openHistoryModal()" class="sidebar-action-btn">
+                <span class="material-icons">history</span>
+                <span class="sidebar-label">History</span>
+            </button>
+            <button onclick="openSavedBillsModal()" class="sidebar-action-btn">
+                <span class="material-icons">folder_open</span>
+                <span class="sidebar-label">Saved Bills</span>
+            </button>
+            <button onclick="openVendorSavedBillsModal()" class="sidebar-action-btn">
+                <span class="material-icons">snippet_folder</span>
+                <span class="sidebar-label">Vendor Bills</span>
+            </button>
+            <button onclick="openExpenseModal()" class="sidebar-action-btn">
+                <span class="material-icons">account_balance_wallet</span>
+                <span class="sidebar-label">Expenses</span>
+            </button>
+            <button onclick="openRestoredBillsModal()" class="sidebar-action-btn">
+                <span class="material-icons">cloud_download</span>
+                <span class="sidebar-label">Restored</span>
+            </button>
+        </div>
+
+        <div id="sub-tools" class="sub-menu-group">
+            <div class="sub-menu-header">Tools</div>
+            <button onclick="openOCRModal()" class="sidebar-action-btn">
+                <span class="material-icons">text_snippet</span>
+                <span class="sidebar-label">OCR Assistant</span>
+            </button>
+            <button onclick="openBatchInvoiceModal()" class="sidebar-action-btn">
+                <span class="material-icons">receipt</span>
+                <span class="sidebar-label">Batch Invoice</span>
+            </button>
+            <button onclick="openTermsListModal()" class="sidebar-action-btn" id="addTermsListSectionBtn">
+                <span class="material-icons">list</span>
+                <span class="sidebar-label">Add Terms</span>
+            </button>
+            <button onclick="backupData()" class="sidebar-action-btn">
+                <span class="material-icons">backup</span>
+                <span class="sidebar-label">Backup</span>
+            </button>
+            <button onclick="restoreData()" class="sidebar-action-btn">
+                <span class="material-icons">restore</span>
+                <span class="sidebar-label">Restore</span>
+            </button>
+            <button onclick="cycleTheme()" class="sidebar-action-btn">
+                <span class="material-icons">palette</span>
+                <span class="sidebar-label">Theme</span>
+            </button>
+            <button onclick="toggleDimensionsDisplay()" class="sidebar-action-btn">
+                <span class="material-icons">layers</span>
+                <span class="sidebar-label">Dimensions</span>
+            </button>
+            <button onclick="handlePrint()" class="sidebar-action-btn">
+                <span class="material-icons">print</span>
+                <span class="sidebar-label">Print</span>
+            </button>
+            <button onclick="saveCurrentBill()" class="sidebar-action-btn">
+                <span class="material-icons">save</span>
+                <span class="sidebar-label">Save Bill</span>
+            </button>
+        </div>
     </div>
+</div>
+
+    <div id="tools">
+    <button onclick="toggleSettingsSidebar()">
+        <span class="material-icons">menu</span>
+        <span>Sidebar</span>
+    </button>
+
+    <button onclick="toggleView()" data-view="bill">
+        <span class="material-icons" id="view-icon">description</span>
+        <span id="view-text">SHOW BILL</span>
+    </button>
+
+    <button onclick="undoAction()">
+        <span class="material-icons">undo</span>
+        <span>UNDO</span>
+    </button>
+    <button onclick="redoAction()">
+        <span class="material-icons">redo</span>
+        <span>REDO</span>
+    </button>
+
+    <button onclick="clearAllData()">
+        <span class="material-icons">auto_delete</span>
+        <span>CLEAR ALL</span>
+    </button>
+
+    <button onclick="downloadPDF()">
+        <span class="material-icons">picture_as_pdf</span>
+        <span>PDF</span>
+    </button>
+    <button onclick="openShareModal()">
+        <span class="material-icons">share</span>
+        <span>SHARE</span>
+    </button>
+
+    <button id="rate-toggle-btn" onclick="openColumnDialog()" style="display: inline-block;">
+        <span class="material-icons">visibility</span>
+        <span>COLUMNS</span>
+    </button>
+
+    <button onclick="openDiscountModal()">
+        <span class="material-icons">percent</span>
+        <span>DISCOUNT</span>
+    </button>
+    <button onclick="openAdjustmentModal()">
+        <span class="material-icons">tune</span>
+        <span>ADJUSTMENTS</span>
+    </button>
+
+    <button onclick="openGSTModal()" id="gst-tool-btn">
+        <span class="material-icons">request_quote</span>
+        <span>GST</span>
+    </button>
+
+    <button onclick="openSectionModal()">
+        <span class="material-icons">view_day</span>
+        <span>SECTION</span>
+    </button>
+
+    <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;">
+        <span class="material-icons">approval</span>
+        <span>FOOTER</span>
+    </button>
+</div>
 
     <div id="main-container">
         <!-- Regular Bill Container -->
@@ -2534,6 +2673,230 @@
             </div>
         </div>
     </div>
+
+    <div id="expense-management-modal" class="modal">
+        <div class="modal-content"
+            style="width: 100%; height: 100%; max-width: 100%; margin: 0; border-radius: 0; display: flex; flex-direction: column;">
+            <div class="modal-header">
+                <h3>Expense Manager</h3>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="exportExpensesPDF()" class="btn-primary simple" style="background: #e67e22;">
+                        <span class="material-icons">picture_as_pdf</span> Export Report
+                    </button>
+                    <button onclick="openAddExpenseModal()" class="btn-primary">
+                        <span class="material-icons">add</span> Add Expense
+                    </button>
+                    <span class="close" onclick="closeExpenseModal()">&times;</span>
+                </div>
+            </div>
+            <div class="modal-body" style="background: #f4f6f9; padding: 20px; overflow-y: auto;">
+
+                <div class="expense-summary-grid">
+                    <div class="expense-card total">
+                        <div class="card-icon"><span class="material-icons">payments</span></div>
+                        <div class="card-data">
+                            <small>Total (This Month)</small>
+                            <h3 id="exp-summary-total">₹0.00</h3>
+                        </div>
+                    </div>
+                    <div class="expense-card today">
+                        <div class="card-icon"><span class="material-icons">today</span></div>
+                        <div class="card-data">
+                            <small>Today's Expense</small>
+                            <h3 id="exp-summary-today">₹0.00</h3>
+                        </div>
+                    </div>
+                    <div class="expense-card category">
+                        <div class="card-icon"><span class="material-icons">pie_chart</span></div>
+                        <div class="card-data">
+                            <small>Top Category</small>
+                            <h3 id="exp-summary-category">-</h3>
+                        </div>
+                    </div>
+                    <div class="expense-card last">
+                        <div class="card-icon"><span class="material-icons">history</span></div>
+                        <div class="card-data">
+                            <small>Last Added</small>
+                            <h3 id="exp-summary-last">₹0.00</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="expense-dashboard-split">
+                    <div class="expense-main-panel">
+                        <div class="expense-filter-bar">
+                            <div class="filter-row">
+                                <div class="filter-group" style="flex: 2;"> <input type="text" id="exp-search"
+                                        placeholder="Search title, ref..." oninput="filterExpenses()">
+                                </div>
+                                <div class="filter-group" style="flex: 1;">
+                                    <select id="exp-filter-category" onchange="filterExpenses()">
+                                        <option value="all">All Categories</option>
+                                        <option value="Rent">Rent</option>
+                                        <option value="Electricity">Electricity</option>
+                                        <option value="Salary">Salary</option>
+                                        <option value="Transport">Transport</option>
+                                        <option value="Food">Food</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Maintenance">Maintenance</option>
+                                        <option value="Office Supplies">Office Supplies</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="filter-group" style="flex: 1;">
+                                    <select id="exp-filter-mode" onchange="filterExpenses()">
+                                        <option value="all">All Modes</option>
+                                        <option value="Cash">Cash</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="Bank Transfer">Bank Transfer</option>
+                                        <option value="Card">Card</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="filter-row">
+                                <div class="filter-group date-group" style="flex: 2;">
+                                    <input type="date" id="exp-date-from" onchange="filterExpenses()">
+                                    <span>to</span>
+                                    <input type="date" id="exp-date-to" onchange="filterExpenses()">
+                                </div>
+                                <div class="filter-group" style="flex: 1;">
+                                    <select id="exp-sort" onchange="filterExpenses()">
+                                        <option value="date-desc">Date: Newest</option>
+                                        <option value="date-asc">Date: Oldest</option>
+                                        <option value="amount-desc">Amt: High to Low</option>
+                                        <option value="amount-asc">Amt: Low to High</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="expense-table-wrapper">
+                            <table class="unified-ledger-table" id="expense-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Title / Ref</th>
+                                        <th>Category</th>
+                                        <th>Mode</th>
+                                        <th>Amount</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expense-list-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="expense-side-panel">
+                        <h4>Category Analysis</h4>
+                        <div id="expense-chart-container" class="chart-container-div">
+                        </div>
+                        <div id="expense-chart-legend" class="chart-legend"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-expense-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="expense-modal-title">Add New Expense</h3>
+                <span class="close" onclick="closeAddExpenseModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="exp-id">
+                <div class="form-group">
+                    <label>Expense Title <span style="color:red">*</span></label>
+                    <input type="text" id="exp-title" placeholder="e.g. Office Rent Feb">
+                </div>
+
+                <div class="form-row" style="display:flex; gap:15px;">
+                    <div class="form-group" style="flex:1">
+                        <label>Amount (₹) <span style="color:red">*</span></label>
+                        <input type="number" id="exp-amount" placeholder="0.00" min="0" step="0.01">
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Date <span style="color:red">*</span></label>
+                        <input type="date" id="exp-date">
+                    </div>
+                </div>
+
+                <div class="form-row" style="display:flex; gap:15px;">
+                    <div class="form-group" style="flex:1">
+                        <label>Category <span style="color:red">*</span></label>
+                        <div style="display: flex; gap: 5px;">
+                            <select id="exp-category" style="flex: 1;">
+                                <option value="">Select Category</option>
+                            </select>
+                            <button type="button" onclick="addNewExpenseCategory()" class="icon-btn-square"
+                                style="background: var(--primary-color); color: white; border-radius: 4px; border:none; width: 35px; cursor: pointer;"
+                                title="Add New Category">
+                                <span class="material-icons">add</span>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group" style="flex:1">
+                        <label>Payment Mode <span style="color:red">*</span></label>
+                        <select id="exp-payment-mode">
+                            <option value="Cash">Cash</option>
+                            <option value="UPI">UPI</option>
+                            <option value="Bank Transfer">Bank Transfer</option>
+                            <option value="Card">Card</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Reference / Bill No (Optional)</label>
+                    <input type="text" id="exp-reference" placeholder="e.g. BILL-123">
+                </div>
+
+                <div class="form-group">
+                    <label>Notes</label>
+                    <textarea id="exp-notes" rows="2" placeholder="Additional details..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Attach Bill Image (Optional)</label>
+                    <input type="file" id="exp-image" accept="image/*" onchange="handleExpenseImage(this)">
+                    <div id="exp-image-preview" class="img-preview-box" style="margin-top:5px; display:none;">
+                    </div>
+                    <button type="button" id="btn-remove-exp-img" onclick="removeExpenseImage()" class="btn-cancel"
+                        style="display:none; margin-top:5px; padding:4px 8px; font-size:12px;">Remove Image</button>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddExpenseModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveExpense()" class="btn-apply" id="btn-save-expense">Save Expense</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="add-category-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3>Add Category</h3>
+                <span class="close" onclick="closeAddCategoryModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>New Category Name:</label>
+                    <input type="text" id="new-category-name" placeholder="Enter category name"
+                        onkeypress="handleCategoryEnter(event)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeAddCategoryModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveNewCategory()" class="btn-apply">Add</button>
+            </div>
+        </div>
+    </div>
+
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
