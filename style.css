@@ -4370,3 +4370,502 @@ terms modal
     .kpi-grid { grid-template-columns: 1fr 1fr; }
 }
  /*  DASHBOARD END */
+
+ /* File Viewer Zoom & Pan Styles */
+#file-viewer-modal .modal-body {
+    overflow: hidden; /* Hide parts of image that go outside */
+    cursor: default;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #2c3e50;
+}
+
+#file-viewer-img {
+    cursor: move; /* As requested */
+    transform-origin: center center; /* Zoom from center */
+    transition: transform 0.05s linear; /* Smooth updates */
+    max-width: 100%;
+    max-height: 100%;
+    user-select: none; /* Prevent highlighting while dragging */
+    -webkit-user-drag: none; /* Prevent browser default drag */
+}
+
+/* --- EXPENSE MANAGEMENT STYLES --- */
+
+/* Summary Grid */
+.expense-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.expense-card {
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    border-left: 4px solid transparent;
+}
+
+.expense-card.total { border-left-color: #3498db; }
+.expense-card.today { border-left-color: #2ecc71; }
+.expense-card.category { border-left-color: #9b59b6; }
+.expense-card.last { border-left-color: #e67e22; }
+
+.expense-card .card-icon {
+    width: 45px; height: 45px;
+    border-radius: 50%;
+    background: #f8f9fa;
+    display: flex; align-items: center; justify-content: center;
+    color: #555;
+}
+
+.expense-card .card-data h3 { margin: 5px 0 0 0; font-size: 1.4em; color: #333; }
+.expense-card .card-data small { color: #777; font-weight: 500; }
+
+/* Dashboard Split Layout */
+.expense-dashboard-split {
+    display: flex;
+    gap: 20px;
+    height: calc(100% - 100px); /* Adjust based on summary height */
+}
+
+.expense-main-panel {
+    flex: 3;
+    display: flex;
+    flex-direction: column;
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+
+.expense-side-panel {
+    flex: 1;
+    background: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+}
+
+/* --- Updated Filter Bar Styles --- */
+.expense-filter-bar {
+    display: flex;
+    flex-direction: column; /* Stack rows vertically */
+    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.filter-row {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+.expense-filter-bar .filter-group {
+    /* Flex logic handled inline in HTML for specific proportions */
+    min-width: 0; /* Prevents overflow issues */
+}
+
+.expense-filter-bar select, 
+.expense-filter-bar input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 13px;
+    height: 36px; /* Ensure consistent height */
+}
+
+/* Specific styling for the Date Group container */
+.date-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fff; /* Optional: differentiate date area */
+}
+
+.date-group span {
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+}
+/* Table Wrapper */
+.expense-table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+}
+
+#expense-table th { background: #34495e; color: white; position: sticky; top: 0; }
+#expense-table td { font-size: 13px; padding: 8px 10px; }
+
+/* Category Bar Chart (CSS Based) */
+.chart-container-div {
+    flex: 1;
+    overflow-y: auto;
+    margin-top: 10px;
+    padding-right: 5px;
+}
+
+.chart-bar-row {
+    margin-bottom: 12px;
+}
+
+.chart-bar-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    margin-bottom: 4px;
+    color: #555;
+    font-weight: 500;
+}
+
+.chart-bar-bg {
+    height: 12px;
+    background: #f0f0f0;
+    border-radius: 6px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.chart-bar-fill {
+    height: 100%;
+    background: var(--primary-color);
+    border-radius: 6px;
+    transition: width 0.5s ease;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .expense-dashboard-split { flex-direction: column-reverse; }
+    .expense-side-panel { min-height: 300px; }
+    .expense-summary-grid { grid-template-columns: 1fr 1fr; }
+}
+
+/* --- FIX: File Viewer Z-Index --- */
+#file-viewer-modal {
+    z-index: 3000 !important; /* Higher than expense modal (usually 1000-2000) */
+}
+
+/* Ensure the file viewer image is not obscured */
+#file-viewer-modal .modal-content {
+    box-shadow: 0 0 50px rgba(0,0,0,0.5); /* Stronger shadow for depth */
+}
+
+
+/* =========================================
+   FIXED TOOLBAR STYLES (No Scrollbars)
+   ========================================= */
+
+#tools {
+    list-style: none;
+    margin: 0 auto 20px auto;
+    padding: 0.5rem;
+    background-color: #05043e; /* Dark Blue Theme */
+    display: flex;
+    flex-direction: row; /* Horizontal Layout */
+    justify-content: flex-start;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 10px;
+    box-shadow: 0 5px 10px 0 rgba(5, 4, 62, 0.25);
+    width: fit-content;
+    max-width: 100%;
+    
+    /* FIX: Removed overflow to prevent scrollbars and clipping */
+    /* overflow-x: auto; <--- REMOVED */
+    
+    flex-wrap: wrap; /* Wrap items if screen is too small */
+    position: relative;
+    z-index: 100; /* Ensure toolbar sits on top */
+}
+
+/* Button Styling (Icon Only by Default) */
+#tools button {
+    color: #FFF;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 8px;
+    position: relative;
+    background-color: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    padding: 0;
+    font-weight: normal; 
+}
+
+#tools button:hover, #tools button:focus {
+    background-color: #30305a; /* Lighter blue on hover */
+    outline: 0;
+}
+
+#tools button .material-icons {
+    font-size: 1.375rem;
+    margin-right: 0;
+    color: #FFF;
+}
+
+/* Tooltip (The Text Span) */
+#tools button span:not(.material-icons) {
+    position: absolute;
+    background-color: #30305a;
+    color: #fff;
+    white-space: nowrap;
+    padding: .5rem 1rem;
+    border-radius: 6px;
+    
+    /* Position below the icon */
+    top: 100%;
+    margin-top: 12px; /* Small gap for the arrow */
+    left: 50%;
+    
+    /* Initial Animation State */
+    transform: translateX(-50%) scale(0);
+    transform-origin: top center;
+    opacity: 0;
+    transition: .15s ease;
+    
+    /* High Z-index to float over everything */
+    z-index: 9999; 
+    pointer-events: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    display: block;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3); /* Shadow for pop-out effect */
+}
+
+/* Tooltip Arrow (Little Triangle) */
+#tools button span:not(.material-icons)::before {
+    content: "";
+    display: block;
+    width: 12px;
+    height: 12px;
+    position: absolute;
+    background-color: #30305a;
+    left: 50%;
+    top: -5px; /* Position slightly above the tooltip */
+    /* Rotate square to make a triangle */
+    transform: translateX(-50%) rotate(45deg);
+    border-radius: 2px;
+}
+
+/* Show Tooltip on Hover/Focus */
+#tools button:hover span:not(.material-icons),
+#tools button:focus span:not(.material-icons) {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+}
+
+/* GST Mode Compatibility */
+body.gst-mode #tools button {
+    background-color: transparent;
+    color: #FFF;
+    border: none;
+}
+body.gst-mode #tools button:hover {
+    background-color: #30305a;
+    color: #FFF;
+}
+body.gst-mode #tools button .material-icons {
+    color: #FFF;
+}
+body.gst-mode #tools {
+    border: none; 
+}
+
+/* =========================================
+   NEW 2-LEVEL SIDEBAR STYLES
+   ========================================= */
+
+/* Main Sidebar Container (Hidden by default via transform) */
+#app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    display: flex;
+    z-index: 2000;
+    transition: transform 0.3s ease;
+    transform: translateX(-100%); /* Start hidden off-screen */
+}
+
+#app-sidebar.open {
+    transform: translateX(0);
+}
+
+/* Level 1: Categories Strip */
+#sidebar-categories {
+    width: 60px;
+    background-color: #05043e; /* Dark Blue */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0;
+    gap: 10px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+    z-index: 2002;
+}
+
+/* Category Buttons */
+.sidebar-cat-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: rgba(255,255,255,0.6);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.sidebar-cat-btn:hover, .sidebar-cat-btn.active {
+    background-color: #30305a;
+    color: #fff;
+}
+
+.sidebar-cat-btn .material-icons {
+    font-size: 24px;
+}
+
+/* Tooltip for Categories (Right Side) */
+.sidebar-tooltip {
+    position: absolute;
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px) scale(0);
+    background-color: #30305a;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    transition: 0.2s;
+    pointer-events: none;
+    margin-left: 5px;
+    z-index: 2005;
+}
+
+/* Tooltip Arrow */
+.sidebar-tooltip::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background-color: #30305a;
+}
+
+.sidebar-cat-btn:hover .sidebar-tooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0) scale(1);
+}
+
+/* Level 2: Sub-menus Container */
+#sidebar-submenus {
+    width: 0;
+    background-color: #f8f9fa; /* Light Gray */
+    overflow: hidden;
+    transition: width 0.3s ease;
+    border-right: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 2001;
+}
+
+#sidebar-submenus.open {
+    width: 250px; /* Expanded width */
+    box-shadow: 5px 0 15px rgba(0,0,0,0.1);
+}
+
+/* Sub-menu Groups */
+.sub-menu-group {
+    display: none; /* Hidden by default */
+    flex-direction: column;
+    padding: 10px;
+    width: 250px; /* Fixed width content */
+    height: 100%;
+    overflow-y: auto;
+}
+
+.sub-menu-group.active {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.sub-menu-header {
+    font-size: 14px;
+    font-weight: bold;
+    color: #05043e;
+    padding: 10px 15px;
+    border-bottom: 2px solid #eee;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Action Buttons (Level 2 Items) */
+.sidebar-action-btn {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    border: none;
+    background: transparent;
+    color: #444;
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 5px;
+    text-align: left;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.sidebar-action-btn:hover {
+    background-color: #e3f2fd;
+    color: #1565c0;
+    padding-left: 20px; /* Slide effect */
+}
+
+.sidebar-action-btn .material-icons {
+    font-size: 20px;
+    margin-right: 15px;
+    color: #666;
+    transition: color 0.2s;
+}
+
+.sidebar-action-btn:hover .material-icons {
+    color: #1565c0;
+}
+
+.sidebar-label {
+    font-size: 14px;
+    font-weight: 500;
+}
