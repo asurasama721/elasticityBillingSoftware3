@@ -4666,8 +4666,8 @@ terms modal
 }
 
 /* Show Tooltip on Hover/Focus */
-#tools button:hover span:not(.material-icons),
-#tools button:focus span:not(.material-icons) {
+/* Show Tooltip on Hover ONLY (Removed Focus) */
+#tools button:hover span:not(.material-icons) {
     transform: translateX(-50%) scale(1);
     opacity: 1;
 }
