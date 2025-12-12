@@ -1081,260 +1081,261 @@
     <!-- Settings Sidebar -->
     <div id="settings-overlay" onclick="toggleSettingsSidebar()"></div>
     <div id="app-sidebar" class="sidebar-closed">
-    <div id="sidebar-categories">
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('business', this)" title="Business">
-            <span class="material-icons">business_center</span>
-            <span class="sidebar-tooltip">Business</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('modes')" title="Modes & Tax">
-            <span class="material-icons">settings_applications</span>
-            <span class="sidebar-tooltip">Modes & Tax</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="openManageItemsModal()" title="Manage Items">
-            <span class="material-icons">inventory_2</span>
-            <span class="sidebar-tooltip">Items</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('sale')" title="Sale">
-            <span class="material-icons">shopping_cart</span>
-            <span class="sidebar-tooltip">Sale</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('purchase')" title="Purchase">
-            <span class="material-icons">shopping_bag</span>
-            <span class="sidebar-tooltip">Purchase</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="openExpenseModal()" title="Expenses">
-            <span class="material-icons">account_balance_wallet</span>
-            <span class="sidebar-tooltip">Expenses</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('tools')" title="Tools">
-            <span class="material-icons">build</span>
-            <span class="sidebar-tooltip">Tools</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('records')" title="Records">
-            <span class="material-icons">folder_shared</span>
-            <span class="sidebar-tooltip">Records</span>
-        </button>
-        
-        <button class="sidebar-cat-btn" onclick="toggleSubMenu('settings')" title="Settings">
-            <span class="material-icons">settings</span>
-            <span class="sidebar-tooltip">Settings</span>
-        </button>
+        <div id="sidebar-categories">
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('business', this)" title="Business">
+                <span class="material-icons">business_center</span>
+                <span class="sidebar-tooltip">Business</span>
+            </button>
 
-        <div style="flex:1"></div>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('modes')" title="Modes & Tax">
+                <span class="material-icons">settings_applications</span>
+                <span class="sidebar-tooltip">Modes & Tax</span>
+            </button>
 
-        <button class="sidebar-cat-btn" onclick="saveCurrentBill()" title="Save Bill">
-            <span class="material-icons">save</span>
-            <span class="sidebar-tooltip">Save</span>
-        </button>
+            <button class="sidebar-cat-btn" onclick="openManageItemsModal()" title="Manage Items">
+                <span class="material-icons">inventory_2</span>
+                <span class="sidebar-tooltip">Items</span>
+            </button>
 
-        <button class="sidebar-cat-btn" onclick="handlePrint()" title="Print">
-            <span class="material-icons">print</span>
-            <span class="sidebar-tooltip">Print</span>
-        </button>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('sale')" title="Sale">
+                <span class="material-icons">shopping_cart</span>
+                <span class="sidebar-tooltip">Sale</span>
+            </button>
 
-        <button class="sidebar-cat-btn" onclick="toggleSettingsSidebar()">
-            <span class="material-icons">close</span>
-            <span class="sidebar-tooltip">Close</span>
-        </button>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('purchase')" title="Purchase">
+                <span class="material-icons">shopping_bag</span>
+                <span class="sidebar-tooltip">Purchase</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="openExpenseModal()" title="Expenses">
+                <span class="material-icons">account_balance_wallet</span>
+                <span class="sidebar-tooltip">Expenses</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('tools')" title="Tools">
+                <span class="material-icons">build</span>
+                <span class="sidebar-tooltip">Tools</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('records')" title="Records">
+                <span class="material-icons">folder_shared</span>
+                <span class="sidebar-tooltip">Records</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('settings')" title="Settings">
+                <span class="material-icons">settings</span>
+                <span class="sidebar-tooltip">Settings</span>
+            </button>
+
+            <div style="flex:1"></div>
+
+            <button class="sidebar-cat-btn" onclick="saveCurrentBill()" title="Save Bill">
+                <span class="material-icons">save</span>
+                <span class="sidebar-tooltip">Save</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="handlePrint()" title="Print">
+                <span class="material-icons">print</span>
+                <span class="sidebar-tooltip">Print</span>
+            </button>
+
+            <button class="sidebar-cat-btn" onclick="toggleSettingsSidebar()">
+                <span class="material-icons">close</span>
+                <span class="sidebar-tooltip">Close</span>
+            </button>
+        </div>
+
+        <div id="sidebar-submenus">
+
+            <div id="sub-business" class="sub-menu-group">
+                <div class="sub-menu-header">Business</div>
+                <button onclick="openBusinessDashboard()" class="sidebar-action-btn">
+                    <span class="material-icons">dashboard</span>
+                    <span class="sidebar-label">Dashboard</span>
+                </button>
+                <button onclick="openCompanyInfoModal()" class="sidebar-action-btn company-info-btn">
+                    <span class="material-icons">business</span>
+                    <span class="sidebar-label">Company Info</span>
+                </button>
+                <button onclick="openBillHeadingModal()" class="sidebar-action-btn">
+                    <span class="material-icons">title</span>
+                    <span class="sidebar-label">Bill Headings</span>
+                </button>
+                <button onclick="openTermsListModal()" class="sidebar-action-btn" id="addTermsListSectionBtn">
+                    <span class="material-icons">list</span>
+                    <span class="sidebar-label">Add Terms</span>
+                </button>
+                <button onclick="openBrandingModal()" class="sidebar-action-btn">
+                    <span class="material-icons">branding_watermark</span>
+                    <span class="sidebar-label">Logo & Sign</span>
+                </button>
+            </div>
+
+            <div id="sub-modes" class="sub-menu-group">
+                <div class="sub-menu-header">Modes</div>
+                <button onclick="openGSTModeModal()" class="sidebar-action-btn gst-mode-btn">
+                    <span class="material-icons">receipt_long</span>
+                    <span class="sidebar-label">Switch Mode</span>
+                </button>
+                <button onclick="openCustomerDetailsModal()" class="sidebar-action-btn customer-details-btn">
+                    <span class="material-icons">person</span>
+                    <span class="sidebar-label">Cust. Details (GST)</span>
+                </button>
+                <button onclick="openTaxAdjustmentModal()" class="sidebar-action-btn tax-adjustment-btn">
+                    <span class="material-icons">calculate</span>
+                    <span class="sidebar-label">Tax Rates</span>
+                </button>
+                <button onclick="toggleProfitView()" class="sidebar-action-btn">
+                    <span class="material-icons">trending_up</span>
+                    <span class="sidebar-label">Profit Calc</span>
+                </button>
+            </div>
+
+            <div id="sub-sale" class="sub-menu-group">
+                <div class="sub-menu-header">Sale</div>
+                <button onclick="openManageCustomersModal()" class="sidebar-action-btn">
+                    <span class="material-icons">groups</span>
+                    <span class="sidebar-label">Customers</span>
+                </button>
+                <button onclick="openGSTManageCustomersModal()" class="sidebar-action-btn gst-customers-btn">
+                    <span class="material-icons">group_add</span>
+                    <span class="sidebar-label">GST Customers</span>
+                </button>
+                <button onclick="openSavedBillsModal()" class="sidebar-action-btn">
+                    <span class="material-icons">folder_open</span>
+                    <span class="sidebar-label">Saved Bills</span>
+                </button>
+                <button onclick="openGSTSavedBillsModal()" class="sidebar-action-btn gst-bills-btn">
+                    <span class="material-icons">receipt</span>
+                    <span class="sidebar-label">GST Bills</span>
+                </button>
+            </div>
+
+            <div id="sub-purchase" class="sub-menu-group">
+                <div class="sub-menu-header">Purchase</div>
+                <button onclick="toggleVendorMode()" class="sidebar-action-btn vendor-mode-btn">
+                    <span class="material-icons">store</span>
+                    <span class="sidebar-label">Vendor Mode</span>
+                </button>
+                <button onclick="openManageVendorsModal()" class="sidebar-action-btn">
+                    <span class="material-icons">people_alt</span>
+                    <span class="sidebar-label">Vendors</span>
+                </button>
+                <button onclick="openVendorSavedBillsModal()" class="sidebar-action-btn">
+                    <span class="material-icons">snippet_folder</span>
+                    <span class="sidebar-label">Vendor Bills</span>
+                </button>
+            </div>
+
+            <div id="sub-tools" class="sub-menu-group">
+                <div class="sub-menu-header">Tools</div>
+                <button onclick="openOCRModal()" class="sidebar-action-btn">
+                    <span class="material-icons">text_snippet</span>
+                    <span class="sidebar-label">OCR Assistant</span>
+                </button>
+                <button onclick="openBatchInvoiceModal()" class="sidebar-action-btn">
+                    <span class="material-icons">receipt</span>
+                    <span class="sidebar-label">Batch Invoice</span>
+                </button>
+            </div>
+
+            <div id="sub-records" class="sub-menu-group">
+                <div class="sub-menu-header">Records</div>
+                <button onclick="openHistoryModal()" class="sidebar-action-btn">
+                    <span class="material-icons">history</span>
+                    <span class="sidebar-label">History</span>
+                </button>
+                <button onclick="openRestoredBillsModal()" class="sidebar-action-btn">
+                    <span class="material-icons">cloud_download</span>
+                    <span class="sidebar-label">Restored</span>
+                </button>
+            </div>
+
+            <div id="sub-settings" class="sub-menu-group">
+                <div class="sub-menu-header">Settings</div>
+                <button onclick="cycleTheme()" class="sidebar-action-btn">
+                    <span class="material-icons">palette</span>
+                    <span class="sidebar-label">Theme</span>
+                </button>
+                <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn">
+                    <span class="material-icons">auto_awesome</span>
+                    <span class="sidebar-label">Auto Rates</span>
+                </button>
+                <button onclick="toggleAutoRateConversion()" class="sidebar-action-btn" id="btn-auto-rate">
+                    <span class="material-icons">autorenew</span>
+                    <span class="sidebar-label">Auto Rate Conv.</span>
+                </button>
+                
+                <button onclick="backupData()" class="sidebar-action-btn">
+                    <span class="material-icons">backup</span>
+                    <span class="sidebar-label">Backup</span>
+                </button>
+                <button onclick="restoreData()" class="sidebar-action-btn">
+                    <span class="material-icons">restore</span>
+                    <span class="sidebar-label">Restore</span>
+                </button>
+            </div>
+        </div>
     </div>
-
-    <div id="sidebar-submenus">
-        
-        <div id="sub-business" class="sub-menu-group">
-            <div class="sub-menu-header">Business</div>
-            <button onclick="openBusinessDashboard()" class="sidebar-action-btn">
-                <span class="material-icons">dashboard</span>
-                <span class="sidebar-label">Dashboard</span>
-            </button>
-            <button onclick="openCompanyInfoModal()" class="sidebar-action-btn company-info-btn">
-                <span class="material-icons">business</span>
-                <span class="sidebar-label">Company Info</span>
-            </button>
-            <button onclick="openBillHeadingModal()" class="sidebar-action-btn">
-                <span class="material-icons">title</span>
-                <span class="sidebar-label">Bill Headings</span>
-            </button>
-            <button onclick="openBrandingModal()" class="sidebar-action-btn">
-                <span class="material-icons">branding_watermark</span>
-                <span class="sidebar-label">Logo & Sign</span>
-            </button>
-        </div>
-
-        <div id="sub-modes" class="sub-menu-group">
-            <div class="sub-menu-header">Modes</div>
-            <button onclick="openGSTModeModal()" class="sidebar-action-btn gst-mode-btn">
-                <span class="material-icons">receipt_long</span>
-                <span class="sidebar-label">Switch Mode</span>
-            </button>
-            <button onclick="openCustomerDetailsModal()" class="sidebar-action-btn customer-details-btn">
-                <span class="material-icons">person</span>
-                <span class="sidebar-label">Cust. Details (GST)</span>
-            </button>
-            <button onclick="openTaxAdjustmentModal()" class="sidebar-action-btn tax-adjustment-btn">
-                <span class="material-icons">calculate</span>
-                <span class="sidebar-label">Tax Rates</span>
-            </button>
-            <button onclick="toggleProfitView()" class="sidebar-action-btn">
-                <span class="material-icons">trending_up</span>
-                <span class="sidebar-label">Profit Calc</span>
-            </button>
-        </div>
-
-        <div id="sub-sale" class="sub-menu-group">
-            <div class="sub-menu-header">Sale</div>
-            <button onclick="openManageCustomersModal()" class="sidebar-action-btn">
-                <span class="material-icons">groups</span>
-                <span class="sidebar-label">Customers</span>
-            </button>
-            <button onclick="openGSTManageCustomersModal()" class="sidebar-action-btn gst-customers-btn">
-                <span class="material-icons">group_add</span>
-                <span class="sidebar-label">GST Customers</span>
-            </button>
-            <button onclick="openSavedBillsModal()" class="sidebar-action-btn">
-                <span class="material-icons">folder_open</span>
-                <span class="sidebar-label">Saved Bills</span>
-            </button>
-            <button onclick="openGSTSavedBillsModal()" class="sidebar-action-btn gst-bills-btn">
-                <span class="material-icons">receipt</span>
-                <span class="sidebar-label">GST Bills</span>
-            </button>
-        </div>
-
-        <div id="sub-purchase" class="sub-menu-group">
-            <div class="sub-menu-header">Purchase</div>
-            <button onclick="toggleVendorMode()" class="sidebar-action-btn vendor-mode-btn">
-                <span class="material-icons">store</span>
-                <span class="sidebar-label">Vendor Mode</span>
-            </button>
-            <button onclick="openManageVendorsModal()" class="sidebar-action-btn">
-                <span class="material-icons">people_alt</span>
-                <span class="sidebar-label">Vendors</span>
-            </button>
-            <button onclick="openVendorSavedBillsModal()" class="sidebar-action-btn">
-                <span class="material-icons">snippet_folder</span>
-                <span class="sidebar-label">Vendor Bills</span>
-            </button>
-        </div>
-
-        <div id="sub-tools" class="sub-menu-group">
-            <div class="sub-menu-header">Tools</div>
-            <button onclick="openOCRModal()" class="sidebar-action-btn">
-                <span class="material-icons">text_snippet</span>
-                <span class="sidebar-label">OCR Assistant</span>
-            </button>
-            <button onclick="openBatchInvoiceModal()" class="sidebar-action-btn">
-                <span class="material-icons">receipt</span>
-                <span class="sidebar-label">Batch Invoice</span>
-            </button>
-        </div>
-
-        <div id="sub-records" class="sub-menu-group">
-            <div class="sub-menu-header">Records</div>
-            <button onclick="openHistoryModal()" class="sidebar-action-btn">
-                <span class="material-icons">history</span>
-                <span class="sidebar-label">History</span>
-            </button>
-            <button onclick="openRestoredBillsModal()" class="sidebar-action-btn">
-                <span class="material-icons">cloud_download</span>
-                <span class="sidebar-label">Restored</span>
-            </button>
-        </div>
-
-        <div id="sub-settings" class="sub-menu-group">
-            <div class="sub-menu-header">Settings</div>
-            <button onclick="cycleTheme()" class="sidebar-action-btn">
-                <span class="material-icons">palette</span>
-                <span class="sidebar-label">Theme</span>
-            </button>
-            <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn">
-                <span class="material-icons">auto_awesome</span>
-                <span class="sidebar-label">Auto Rates</span>
-            </button>
-            <button onclick="toggleAutoRateConversion()" class="sidebar-action-btn" id="btn-auto-rate">
-                <span class="material-icons">autorenew</span>
-                <span class="sidebar-label">Auto Rate Conv.</span>
-            </button>
-            <button onclick="openTermsListModal()" class="sidebar-action-btn" id="addTermsListSectionBtn">
-                <span class="material-icons">list</span>
-                <span class="sidebar-label">Add Terms</span>
-            </button>
-            <button onclick="backupData()" class="sidebar-action-btn">
-                <span class="material-icons">backup</span>
-                <span class="sidebar-label">Backup</span>
-            </button>
-            <button onclick="restoreData()" class="sidebar-action-btn">
-                <span class="material-icons">restore</span>
-                <span class="sidebar-label">Restore</span>
-            </button>
-        </div>
-    </div>
-</div>
 
     <div id="tools">
-    <button onclick="toggleSettingsSidebar()">
-        <span class="material-icons">menu</span>
-        <span>Sidebar</span>
-    </button>
-    <button onclick="toggleView()" data-view="bill">
-        <span class="material-icons" id="view-icon">description</span>
-        <span id="view-text">SHOW BILL</span>
-    </button>
-    <button onclick="undoAction()">
-        <span class="material-icons">undo</span>
-        <span>UNDO</span>
-    </button>
-    <button onclick="redoAction()">
-        <span class="material-icons">redo</span>
-        <span>REDO</span>
-    </button>
-    <button onclick="clearAllData()">
-        <span class="material-icons">auto_delete</span>
-        <span>CLEAR ALL</span>
-    </button>
-    <button onclick="downloadPDF()">
-        <span class="material-icons">picture_as_pdf</span>
-        <span>PDF</span>
-    </button>
-    <button onclick="openShareModal()">
-        <span class="material-icons">share</span>
-        <span>SHARE</span>
-    </button>
-    <button id="rate-toggle-btn" onclick="openColumnDialog()" style="display: inline-block;">
-        <span class="material-icons">visibility</span>
-        <span>COLUMNS</span>
-    </button>
-    <button onclick="openDiscountModal()">
-        <span class="material-icons">percent</span>
-        <span>DISCOUNT</span>
-    </button>
-    <button onclick="openAdjustmentModal()">
-        <span class="material-icons">tune</span>
-        <span>ADJUSTMENTS</span>
-    </button>
-    <button onclick="openGSTModal()" id="gst-tool-btn">
-        <span class="material-icons">request_quote</span>
-        <span>GST</span>
-    </button>
-    <button onclick="openSectionModal()">
-        <span class="material-icons">view_day</span>
-        <span>SECTION</span>
-    </button>
-    <button onclick="toggleDimensionsDisplay()" id="toggleDimensionBtn">
-        <span class="material-icons">layers</span>
-        <span>DIMENSIONS</span>
-    </button>
-    <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;">
-        <span class="material-icons">vertical_align_bottom</span>
-        <span>FOOTER</span>
-    </button>
-</div>
+        <button onclick="toggleSettingsSidebar()">
+            <span class="material-icons">menu</span>
+            <span>Sidebar</span>
+        </button>
+        <button onclick="toggleView()" data-view="bill">
+            <span class="material-icons" id="view-icon">description</span>
+            <span id="view-text">SHOW BILL</span>
+        </button>
+        <button onclick="undoAction()">
+            <span class="material-icons">undo</span>
+            <span>UNDO</span>
+        </button>
+        <button onclick="redoAction()">
+            <span class="material-icons">redo</span>
+            <span>REDO</span>
+        </button>
+        <button onclick="clearAllData()">
+            <span class="material-icons">auto_delete</span>
+            <span>CLEAR ALL</span>
+        </button>
+        <button onclick="downloadPDF()">
+            <span class="material-icons">picture_as_pdf</span>
+            <span>PDF</span>
+        </button>
+        <button onclick="openShareModal()">
+            <span class="material-icons">share</span>
+            <span>SHARE</span>
+        </button>
+        <button id="rate-toggle-btn" onclick="openColumnDialog()" style="display: inline-block;">
+            <span class="material-icons">visibility</span>
+            <span>COLUMNS</span>
+        </button>
+        <button onclick="openDiscountModal()">
+            <span class="material-icons">percent</span>
+            <span>DISCOUNT</span>
+        </button>
+        <button onclick="openAdjustmentModal()">
+            <span class="material-icons">tune</span>
+            <span>ADJUSTMENTS</span>
+        </button>
+        <button onclick="openGSTModal()" id="gst-tool-btn">
+            <span class="material-icons">request_quote</span>
+            <span>GST</span>
+        </button>
+        <button onclick="openSectionModal()">
+            <span class="material-icons">view_day</span>
+            <span>SECTION</span>
+        </button>
+        <button onclick="toggleDimensionsDisplay()" id="toggleDimensionBtn">
+            <span class="material-icons">layers</span>
+            <span>DIMENSIONS</span>
+        </button>
+        <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;">
+            <span class="material-icons">vertical_align_bottom</span>
+            <span>FOOTER</span>
+        </button>
+    </div>
 
     <div id="main-container">
         <!-- Regular Bill Container -->
