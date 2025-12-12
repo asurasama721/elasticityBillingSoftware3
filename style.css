@@ -124,7 +124,7 @@ body.gst-mode #tools button:hover .material-icons {
 #gst-bill-container .company-details {
     text-align: center;
     margin-bottom: 15px;
-    border-bottom: 2px solid var(--border-color);
+    border-bottom: 2px solid var(--primary-color);
 }
 
 #gst-bill-container .customer-details {
@@ -443,8 +443,9 @@ body.gst-mode #tools button:hover .material-icons {
 /* Regular Bill Styles */
 .company-details {
     text-align: center;
-    margin-bottom: 40px;
-    border-bottom: 2px solid var(--border-color);
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--primary-color);
+    box-shadow: 0px 3px rgb(241, 241, 241);
     padding-bottom: 10px;
 }
 
@@ -477,6 +478,7 @@ body.gst-mode #tools button:hover .material-icons {
 .customer-details .label {
     padding: 5px 0;
     white-space: nowrap;
+    font-weight: 600;
 }
 
 .customer-details input {
@@ -527,9 +529,23 @@ body.gst-mode #tools button:hover .material-icons {
 #addedItemsManual thead th:nth-child(3),
 .list-of-items tbody td:nth-child(3),
 #addedItemsManual tbody td:nth-child(3) {
-    text-align: left;
+    text-align: center;
 }
 
+.list-of-items thead th:nth-child(5),
+#addedItemsManual thead th:nth-child(5),
+.list-of-items tbody td:nth-child(5),
+#addedItemsManual tbody td:nth-child(5) {
+    text-align: right;
+}
+
+.list-of-items thead th:nth-child(6),
+#addedItemsManual thead th:nth-child(6),
+.list-of-items tbody td:nth-child(6),
+#addedItemsManual tbody td:nth-child(6) {
+    text-align: right;
+    padding-right: 14px;
+}
 .sizes {
     color: gray;
     margin: 0;
@@ -1542,6 +1558,10 @@ body.gst-mode .settings-btn:hover .material-icons {
 
     #company-info-modal .modal-body {
         max-height: calc(90vh - 120px);
+    }
+
+    .modal-body{
+        zoom:0.8;
     }
 }
 
