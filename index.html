@@ -1265,7 +1265,7 @@
                     <span class="material-icons">autorenew</span>
                     <span class="sidebar-label">Rate Convert : OFF</span>
                 </button>
-                
+
                 <button onclick="backupData()" class="sidebar-action-btn">
                     <span class="material-icons">backup</span>
                     <span class="sidebar-label">Backup</span>
@@ -1311,18 +1311,19 @@
             <span class="material-icons">visibility</span>
             <span>COLUMNS</span>
         </button>
-        <button onclick="openDiscountModal()">
+        <button onclick="openDiscountModal()" id="discount-tool-btn">
             <span class="material-icons">percent</span>
             <span>DISCOUNT</span>
-        </button>
-        <button onclick="openAdjustmentModal()">
-            <span class="material-icons">tune</span>
-            <span>ADJUSTMENTS</span>
         </button>
         <button onclick="openGSTModal()" id="gst-tool-btn">
             <span class="material-icons">request_quote</span>
             <span>GST</span>
         </button>
+        <button onclick="openAdjustmentModal()">
+            <span class="material-icons">tune</span>
+            <span>ADJUSTMENTS</span>
+        </button>
+
         <button onclick="openSectionModal()">
             <span class="material-icons">view_day</span>
             <span>SECTION</span>
@@ -2093,7 +2094,7 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 20px;">
+                <div style="margin-top: 20px;overflow: auto;">
                     <table class="unified-ledger-table" id="adj-preview-table">
                         <thead>
                             <tr>
