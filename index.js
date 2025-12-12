@@ -294,10 +294,10 @@ function updateAutoApplyButton() {
     if (button) {
         if (autoApplyCustomerRates) {
             button.style.backgroundColor = '#27ae60';
-            button.innerHTML = '<span class="material-icons">auto_awesome</span>AUTO RATES: ON';
+            button.innerHTML = '<span class="material-icons">auto_awesome</span>Auto Rate : ON';
         } else {
             button.style.backgroundColor = '';
-            button.innerHTML = '<span class="material-icons">auto_awesome</span>AUTO RATES: OFF';
+            button.innerHTML = '<span class="material-icons">auto_awesome</span>Auto Rate : OFF';
         }
     }
 }
@@ -1598,11 +1598,11 @@ function updateAutoRateUI() {
     const icon = btn.querySelector('.material-icons');
     
     if (autoRateConversion) {
-        label.textContent = "Auto Rate: ON";
+        label.textContent = "Rate Convert : ON";
         icon.style.color = "#2ecc71"; // Green
         btn.style.backgroundColor = "#e8f5e9";
     } else {
-        label.textContent = "Auto Rate: OFF";
+        label.textContent = "Rate Convert: OFF";
         icon.style.color = ""; // Reset
         btn.style.backgroundColor = "";
     }
