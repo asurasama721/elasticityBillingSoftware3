@@ -1564,6 +1564,172 @@ function getDimensionDisplayText(dimensionType = null, dimensionValues = null, d
     return dimensionText;
 }
 
+
+// ==========================================
+// AUTO RATE CONVERSION LOGIC (FINAL)
+// ==========================================
+
+let autoRateConversion = false;
+let previousConvertUnit = 'none';
+
+function toggleAutoRateConversion() {
+    autoRateConversion = !autoRateConversion;
+    
+    // 1. Save state
+    localStorage.setItem('billApp_autoRate', autoRateConversion);
+    
+    // 2. Update UI
+    updateAutoRateUI();
+    
+    // 3. Notify
+    if (autoRateConversion) {
+        showNotification("Auto Rate Conversion Enabled", "success");
+    } else {
+        showNotification("Auto Rate Conversion Disabled", "info");
+    }
+}
+
+// Helper: Update Button UI based on state
+function updateAutoRateUI() {
+    const btn = document.getElementById('btn-auto-rate');
+    if (!btn) return;
+    
+    const label = btn.querySelector('.sidebar-label');
+    const icon = btn.querySelector('.material-icons');
+    
+    if (autoRateConversion) {
+        label.textContent = "Auto Rate: ON";
+        icon.style.color = "#2ecc71"; // Green
+        btn.style.backgroundColor = "#e8f5e9";
+    } else {
+        label.textContent = "Auto Rate: OFF";
+        icon.style.color = ""; // Reset
+        btn.style.backgroundColor = "";
+    }
+}
+
+// Helper: Check if the "Convert" button is toggled ON
+function isConvertModeActive() {
+    const btn = document.getElementById('toggleConvertBtn');
+    return btn && btn.classList.contains('active');
+}
+
+// LOAD STATE ON STARTUP
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Restore Auto Rate Toggle
+    const savedState = localStorage.getItem('billApp_autoRate');
+    if (savedState === 'true') {
+        autoRateConversion = true;
+        setTimeout(updateAutoRateUI, 100); 
+    }
+
+    // 2. Sync "Previous Unit" Tracker
+    setTimeout(() => {
+        const convertSelect = document.getElementById('convertUnit');
+        if (convertSelect) {
+            previousConvertUnit = convertSelect.value;
+        }
+    }, 1000); 
+});
+
+// --- MATH HELPERS ---
+
+function getLinearFactor(fromUnit, toUnit) {
+    if (!fromUnit || !toUnit || fromUnit === toUnit || fromUnit === 'none' || toUnit === 'none') return 1;
+    
+    const factors = {
+        'ft': { 'inch': 12, 'mtr': 0.3048, 'cm': 30.48, 'mm': 304.8 },
+        'inch': { 'ft': 1/12, 'mtr': 0.0254, 'cm': 2.54, 'mm': 25.4 },
+        'mtr': { 'ft': 3.28084, 'inch': 39.3701, 'cm': 100, 'mm': 1000 },
+        'cm': { 'ft': 0.0328084, 'inch': 0.393701, 'mtr': 0.01, 'mm': 10 },
+        'mm': { 'ft': 0.00328084, 'inch': 0.0393701, 'mtr': 0.001, 'cm': 0.1 }
+    };
+    
+    if (factors[fromUnit] && factors[fromUnit][toUnit]) {
+        return factors[fromUnit][toUnit];
+    }
+    return 1;
+}
+
+function getDimensionPower() {
+    const type = document.getElementById('dimensionType').value;
+    if (['widthXheightXdepth', 'lengthXwidthXheight', 'lengthXheightXdepth', 'lengthXwidthXdepth'].includes(type)) return 3;
+    if (['widthXheight', 'widthXdepth', 'lengthXdepth', 'lengthXheight', 'lengthXwidth'].includes(type)) return 2;
+    return 1; 
+}
+
+// --- OVERRIDES WITH CONDITIONAL CHECKS ---
+
+const originalHandleMeasurementUnitChange = handleMeasurementUnitChange;
+
+handleMeasurementUnitChange = function() {
+    const newUnit = document.getElementById('measurementUnit').value;
+    const oldUnit = currentDimensions.unit || 'ft'; 
+    const rateInput = document.getElementById('rateManual');
+    
+    // CONDITION: Convert ONLY if AutoRate is ON AND Convert Button is OFF
+    if (autoRateConversion && !isConvertModeActive() && rateInput.value && oldUnit !== newUnit) {
+        const currentRate = parseFloat(rateInput.value);
+        const power = getDimensionPower();
+        const factor = getLinearFactor(oldUnit, newUnit);
+        
+        // Input Change: Rate DECREASES if unit gets smaller
+        const conversionMultiplier = Math.pow(factor, power);
+        const newRate = currentRate / conversionMultiplier;
+        
+        rateInput.value = parseFloat(newRate.toFixed(4)); 
+        showNotification(`Rate converted: ${oldUnit} -> ${newUnit}`, "info");
+    }
+    
+    originalHandleMeasurementUnitChange();
+};
+
+const originalHandleConvertUnitChange = handleConvertUnitChange;
+
+handleConvertUnitChange = function() {
+    const convertSelect = document.getElementById('convertUnit');
+    const newConvertUnit = convertSelect.value;
+    
+    // 1. Update Global Variable (Original Functionality)
+    currentConvertUnit = newConvertUnit;
+
+    // 2. Auto Rate Conversion Logic
+    const rateInput = document.getElementById('rateManual');
+    
+    // Determine source unit (Previous convert unit OR Base unit if starting from None)
+    const oldConvertUnit = previousConvertUnit || 'none';
+    const baseUnit = document.getElementById('measurementUnit').value;
+    const sourceUnit = (oldConvertUnit === 'none') ? baseUnit : oldConvertUnit;
+    
+    // CONDITION: Convert only if AutoRate ON + Convert Button ON + Valid Values
+    if (autoRateConversion && isConvertModeActive() && rateInput.value && newConvertUnit !== 'none') {
+        const currentRate = parseFloat(rateInput.value);
+        const power = getDimensionPower();
+        const factor = getLinearFactor(sourceUnit, newConvertUnit);
+        
+        // Output Change: Rate INCREASES if unit gets larger (Divide by factor)
+        // e.g. ft -> mtr (0.3048). Rate must increase. Rate / 0.3048 = Larger Rate.
+        const conversionMultiplier = Math.pow(factor, power);
+        
+        if (conversionMultiplier !== 0) {
+            const newRate = currentRate / conversionMultiplier;
+            rateInput.value = parseFloat(newRate.toFixed(4));
+            showNotification(`Rate converted to ${newConvertUnit}`, "info");
+        }
+    }
+    
+    // 3. Update Previous Unit Tracker
+    previousConvertUnit = newConvertUnit;
+};
+
+const originalHandleDimensionTypeChange = handleDimensionTypeChange;
+handleDimensionTypeChange = function() {
+    originalHandleDimensionTypeChange();
+    previousConvertUnit = document.getElementById('convertUnit').value;
+};
+
+// END AUTO RATE CONVERT
+
 function toggleDimensionsDisplay() {
     showDimensions = !showDimensions;
 
@@ -18246,3 +18412,4 @@ document.addEventListener('DOMContentLoaded', () => {
         overlay.onclick = toggleSettingsSidebar;
     }
 });
+
