@@ -8153,6 +8153,27 @@ async function clearAllData(silent = false) {
         // Set today's date in customer dialog modal
         document.getElementById('invoice-date').value = `${day}-${month}-${year}`;
 
+        // [INSERT THIS BLOCK] ----------------------------------------------------
+        // Clear Vendor Inputs (Silent Mode)
+        document.getElementById('vendorName').value = '';
+        document.getElementById('vendorInvoiceNo').value = '';
+        document.getElementById('vendorAddr').value = '';
+        document.getElementById('vendorPhone').value = '';
+        document.getElementById('vendorGSTIN').value = '';
+        document.getElementById('vendorEmail').value = '';
+        const vDateSil = document.getElementById('vendorDate');
+        if (vDateSil) vDateSil.value = `${day}-${month}-${year}`;
+
+        document.getElementById('vendorFile').value = '';
+        const vFileLabelSil = document.getElementById('vendorFileName');
+        if (vFileLabelSil) vFileLabelSil.style.display = 'none';
+        currentVendorFile = null;
+
+        if (typeof saveVendorState === 'function') saveVendorState();
+        // ------------------------------------------------------------------------
+
+        const createListTbody = document.querySelector("#createListManual tbody");
+
     } catch (error) {
         console.error('Error clearing customer dialog state:', error);
     }
@@ -8892,7 +8913,7 @@ async function downloadPDF() {
 
     // 4. Configure Options
     const opt = {
-        margin: [10, 10, 10, 10],
+        margin: [5, 5, 5, 5],
         filename: filename,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: {
@@ -18449,3 +18470,236 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+/* ==========================================
+   PERSONALIZATION MODULE (Windows 11 Style)
+   ========================================== */
+
+const defaultPznState = {
+    mode: 'solid',
+    color: '#f9f9f9', // Default App Background Color
+    image: null,
+    fit: 'cover',
+    brightness: 100,
+    contrast: 100,
+    blur: 0
+};
+
+let pznState = { ...defaultPznState };
+
+const winColors = [
+    '#f9f9f9', '#ffffff', '#e8f4fd', '#eafaf1', '#fdedec', 
+    '#fef5e7', '#f5eef8', '#e0f7fa', '#333333', '#000000'
+];
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // ... existing init calls ...
+    await loadPersonalizationState();
+    initPznColorGrid();
+});
+
+// Initialize Color Dots in Modal
+function initPznColorGrid() {
+    const grid = document.getElementById('pzn-colorGrid');
+    if(!grid) return;
+    
+    // Clear existing dots (except custom picker)
+    const custom = grid.querySelector('.custom-color-wrapper');
+    grid.innerHTML = '';
+    if(custom) grid.appendChild(custom);
+
+    winColors.forEach(c => {
+        const dot = document.createElement('div');
+        dot.className = 'color-dot';
+        dot.style.backgroundColor = c;
+        dot.title = c;
+        dot.onclick = () => handlePznColorSelect(c, dot);
+        grid.insertBefore(dot, custom);
+    });
+}
+
+function openPersonalizeModal() {
+    toggleSettingsSidebar(); // Close sidebar
+    document.getElementById('personalize-modal').style.display = 'block';
+    
+    // Sync UI Inputs with current state
+    document.getElementById('pzn-bgTypeSelect').value = pznState.mode;
+    document.getElementById('pzn-fitSelect').value = pznState.fit;
+    document.getElementById('pzn-customColorPicker').value = pznState.color;
+    
+    document.getElementById('pzn-brightnessSlider').value = pznState.brightness;
+    document.getElementById('pzn-contrastSlider').value = pznState.contrast;
+    document.getElementById('pzn-blurSlider').value = pznState.blur;
+
+    handlePznTypeChange(); // Show/Hide correct sections based on mode
+    updatePznPreview();    // Render preview
+}
+
+function closePersonalizeModal() {
+    document.getElementById('personalize-modal').style.display = 'none';
+}
+
+function handlePznTypeChange() {
+    const mode = document.getElementById('pzn-bgTypeSelect').value;
+    pznState.mode = mode;
+
+    const picOpts = document.getElementById('pzn-pictureOptions');
+    const fitOpts = document.getElementById('pzn-fitOptions');
+    const solidOpts = document.getElementById('pzn-solidOptions');
+
+    if (mode === 'picture') {
+        picOpts.classList.remove('hidden');
+        fitOpts.classList.remove('hidden');
+        solidOpts.classList.add('hidden');
+    } else {
+        picOpts.classList.add('hidden');
+        fitOpts.classList.add('hidden');
+        solidOpts.classList.remove('hidden');
+    }
+    updatePznPreview();
+}
+
+function handlePznColorSelect(color, dotElement) {
+    pznState.color = color;
+    pznState.mode = 'solid'; // Force mode if clicking color
+    document.getElementById('pzn-bgTypeSelect').value = 'solid';
+    handlePznTypeChange();
+    
+    // Update active class visual
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+    if(dotElement) dotElement.classList.add('active');
+    
+    document.getElementById('pzn-customColorPicker').value = color;
+    updatePznPreview();
+}
+
+function handlePznColorInput(input) {
+    pznState.color = input.value;
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+    updatePznPreview();
+}
+
+function handlePznImageUpload(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            pznState.image = e.target.result;
+            // Switch mode to picture automatically
+            pznState.mode = 'picture';
+            document.getElementById('pzn-bgTypeSelect').value = 'picture';
+            handlePznTypeChange();
+            updatePznPreview();
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function updatePznPreview() {
+    // Get current values from inputs
+    const fit = document.getElementById('pzn-fitSelect').value;
+    const b = document.getElementById('pzn-brightnessSlider').value;
+    const c = document.getElementById('pzn-contrastSlider').value;
+    const blur = document.getElementById('pzn-blurSlider').value;
+
+    // Update State object
+    pznState.fit = fit;
+    pznState.brightness = b;
+    pznState.contrast = c;
+    pznState.blur = blur;
+
+    // Update Slider Label Text
+    document.getElementById('pzn-brightnessVal').textContent = b + '%';
+    document.getElementById('pzn-contrastVal').textContent = c + '%';
+    document.getElementById('pzn-blurVal').textContent = blur + 'px';
+
+    // Apply to Preview Box
+    const target = document.getElementById('pzn-previewScreen');
+    applyStylesToTarget(target);
+}
+
+function applyStylesToTarget(target) {
+    if (!target) return;
+
+    let css = '';
+    
+    if (pznState.mode === 'picture' && pznState.image) {
+        css += `background-image: url('${pznState.image}'); background-color: #333; `;
+        
+        switch(pznState.fit) {
+            case 'cover': css += `background-size: cover; background-position: center; background-repeat: no-repeat;`; break;
+            case 'contain': css += `background-size: contain; background-position: center; background-repeat: no-repeat;`; break;
+            case '100% 100%': css += `background-size: 100% 100%; background-position: center; background-repeat: no-repeat;`; break;
+            case 'repeat': css += `background-size: auto; background-position: top left; background-repeat: repeat;`; break;
+            case 'auto': css += `background-size: auto; background-position: center; background-repeat: no-repeat;`; break;
+        }
+    } else {
+        // Solid Color Mode
+        css += `background-image: none; background-color: ${pznState.color};`;
+    }
+
+    // Apply Filters
+    css += `filter: brightness(${pznState.brightness}%) contrast(${pznState.contrast}%) blur(${pznState.blur}px);`;
+    
+    // Scale correction for blur edges
+    if (pznState.mode === 'picture' && pznState.fit === 'cover' && pznState.blur > 0) {
+        css += `transform: scale(1.02);`;
+    } else {
+        css += `transform: scale(1);`;
+    }
+
+    target.style.cssText = css;
+}
+
+function saveAndApplyPersonalization() {
+    // 1. Apply to the dedicated background layer
+    const bgLayer = document.getElementById('app-background');
+    if (bgLayer) {
+        applyStylesToTarget(bgLayer);
+    }
+
+    // 2. Persist to Database
+    setInDB('settings', 'personalization', pznState)
+        .then(() => showNotification('Personalization saved!', 'success'))
+        .catch(e => console.error("Save error", e));
+        
+    closePersonalizeModal();
+}
+
+function resetPersonalization() {
+    // Revert to defaults
+    pznState = { ...defaultPznState };
+    
+    // Update Inputs
+    document.getElementById('pzn-bgTypeSelect').value = 'solid';
+    document.getElementById('pzn-customColorPicker').value = defaultPznState.color;
+    document.getElementById('pzn-brightnessSlider').value = 100;
+    document.getElementById('pzn-contrastSlider').value = 100;
+    document.getElementById('pzn-blurSlider').value = 0;
+    
+    // Reset Active Color Dots
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active'));
+
+    handlePznTypeChange();
+    updatePznPreview();
+}
+
+async function loadPersonalizationState() {
+    // 1. Apply Defaults IMMEDIATELY (Visual feedback)
+    const bgLayer = document.getElementById('app-background');
+    if (bgLayer) {
+        applyStylesToTarget(bgLayer);
+    }
+
+    try {
+        // 2. Load Saved Settings (Overwrite defaults if found)
+        const saved = await getFromDB('settings', 'personalization');
+        if (saved) {
+            pznState = { ...defaultPznState, ...saved };
+            // Re-apply with saved settings
+            if (bgLayer) {
+                applyStylesToTarget(bgLayer);
+            }
+        }
+    } catch (e) {
+        console.error("Error loading personalization", e);
+    }
+}
