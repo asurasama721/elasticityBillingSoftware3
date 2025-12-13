@@ -12,6 +12,7 @@
 </head>
 
 <body data-mode="manual">
+    <div id="app-background"></div>
     <!-- Purchase Price Dialog -->
     <div class="purchase-price-dialog" id="purchase-price-dialog">
         <div class="purchase-price-dialog-content">
@@ -1257,6 +1258,10 @@
                     <span class="material-icons">palette</span>
                     <span class="sidebar-label">Theme</span>
                 </button>
+                <button onclick="openPersonalizeModal()" class="sidebar-action-btn">
+                    <span class="material-icons">wallpaper</span>
+                    <span class="sidebar-label">Personalize</span>
+                </button>
                 <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn">
                     <span class="material-icons">auto_awesome</span>
                     <span class="sidebar-label">Auto Rates</span>
@@ -2394,6 +2399,19 @@
             </div>
         </div>
 
+        <div class="magic-item">
+            <span><i class="material-icons">store</i> Purchase / Vendor</span>
+            <span class="material-icons arrow">chevron_right</span>
+            <div class="magic-sub-menu">
+                <div class="magic-item" onclick="magicFillField('vendorName')">Vendor Name</div>
+                <div class="magic-item" onclick="magicFillField('vendorAddr')">Address</div>
+                <div class="magic-item" onclick="magicFillField('vendorInvoiceNo')">Invoice No</div>
+                <div class="magic-item" onclick="magicFillField('vendorPhone')">Contact No</div>
+                <div class="magic-item" onclick="magicFillField('vendorGSTIN')">GSTIN</div>
+                <div class="magic-item" onclick="magicFillField('vendorEmail')">Email</div>
+            </div>
+        </div>
+
         <div class="magic-divider"></div>
 
         <div class="magic-item">
@@ -2920,6 +2938,123 @@
             <div class="modal-footer">
                 <button onclick="closeAddCategoryModal()" class="btn-cancel">Cancel</button>
                 <button onclick="saveNewCategory()" class="btn-apply">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="personalize-modal" class="modal">
+        <div class="modal-content" style="max-width: 850px; height: 85vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: rgba(243, 243, 243, 0.95); backdrop-filter: blur(20px);">
+            
+            <div class="window-header" style="padding: 15px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div class="window-title" style="font-weight: 600; color: #202020;"><i class="fas fa-cog"></i> Personalization</div>
+                <span class="close" onclick="closePersonalizeModal()" style="color: #202020;">&times;</span>
+            </div>
+
+            <div class="window-content" style="flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px;">
+                
+                <div class="preview-container" id="pzn-previewContainer">
+                    <div class="preview-screen" id="pzn-previewScreen"></div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-label">
+                            <div class="item-text">
+                                <h4>Background</h4>
+                            </div>
+                        </div>
+                        <div class="item-control">
+                            <select id="pzn-bgTypeSelect" onchange="handlePznTypeChange()">
+                                <option value="solid">Solid color</option>
+                                <option value="picture">Picture</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="pzn-pictureOptions" class="settings-item hidden">
+                        <div class="item-label">
+                            <div class="item-text"><h4>Choose a photo</h4></div>
+                        </div>
+                        <div class="item-control">
+                            <label class="browse-btn">
+                                Browse photos
+                                <input type="file" id="pzn-imageUpload" accept="image/*" style="display: none;" onchange="handlePznImageUpload(this)">
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="pzn-fitOptions" class="settings-item hidden">
+                        <div class="item-label">
+                            <div class="item-text"><h4>Choose a fit</h4></div>
+                        </div>
+                        <div class="item-control">
+                            <select id="pzn-fitSelect" onchange="updatePznPreview()">
+                                <option value="cover">Fill</option>
+                                <option value="contain">Fit</option>
+                                <option value="100% 100%">Stretch</option>
+                                <option value="repeat">Tile</option>
+                                <option value="auto">Center</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="pzn-solidOptions" class="settings-item">
+                        <div class="item-label">
+                            <div class="item-text"><h4>Choose your background color</h4></div>
+                        </div>
+                        <div class="item-control">
+                            <div class="color-grid" id="pzn-colorGrid">
+                                <div class="custom-color-wrapper" title="Custom">
+                                    <input type="color" id="pzn-customColorPicker" value="#f9f9f9" oninput="handlePznColorInput(this)">
+                                    <i class="fas fa-plus" style="position: absolute; top:50%; left:50%; transform: translate(-50%,-50%); color: #666; pointer-events: none; font-size: 10px;"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <div class="settings-item">
+                        <div class="item-label">
+                            <i class="fas fa-sun"></i>
+                            <div class="item-text"><h4>Brightness</h4></div>
+                        </div>
+                        <div class="item-control win-slider-container">
+                            <input type="range" min="0" max="200" value="100" id="pzn-brightnessSlider" oninput="updatePznPreview()">
+                            <span class="slider-val" id="pzn-brightnessVal">100%</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="item-label">
+                            <i class="fas fa-adjust"></i>
+                            <div class="item-text"><h4>Contrast</h4></div>
+                        </div>
+                        <div class="item-control win-slider-container">
+                            <input type="range" min="0" max="200" value="100" id="pzn-contrastSlider" oninput="updatePznPreview()">
+                            <span class="slider-val" id="pzn-contrastVal">100%</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-item">
+                        <div class="item-label">
+                            <i class="fas fa-tint"></i>
+                            <div class="item-text"><h4>Blur</h4></div>
+                        </div>
+                        <div class="item-control win-slider-container">
+                            <input type="range" min="0" max="50" value="0" id="pzn-blurSlider" oninput="updatePznPreview()">
+                            <span class="slider-val" id="pzn-blurVal">0px</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="window-footer" style="padding: 20px 32px; background: rgba(243, 243, 243, 0.8); border-top: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-danger" onclick="resetPersonalization()">Reset to Default</button>
+                <div class="footer-actions">
+                    <button class="btn btn-secondary" onclick="closePersonalizeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveAndApplyPersonalization()">Apply</button>
+                </div>
             </div>
         </div>
     </div>
