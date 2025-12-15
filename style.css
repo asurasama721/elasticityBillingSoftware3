@@ -467,7 +467,7 @@ body.gst-mode #tools button:hover .material-icons {
 }
 
 .customer-details {
-    margin-bottom: 20px;
+    margin-bottom: 5px;
 }
 
 .customer-details table {
@@ -546,6 +546,7 @@ body.gst-mode #tools button:hover .material-icons {
     text-align: right;
     padding-right: 14px;
 }
+
 .sizes {
     color: gray;
     margin: 0;
@@ -734,6 +735,15 @@ body.gst-mode #tools button:hover .material-icons {
     background-color: #f9f9f9;
     border-radius: 0 0 8px 8px;
 }
+
+#discount-type-select{
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    flex: 1;
+    max-width: 100%;
+}
+
 
 .btn-cancel,
 .btn-apply {
@@ -1046,6 +1056,27 @@ body.gst-mode .settings-btn:hover .material-icons {
     margin-bottom: 10px;
 }
 
+.customer-details input {
+    width: 85%;
+    margin-left: 0;
+}
+
+#custAddr {
+    width: 79%;
+}
+
+#custPhone {
+    width: 73%;
+}
+
+#billDate {
+    width: 82%;
+}
+
+#billNo {
+    width: 70%;
+}
+
 .item-actions,
 .customer-actions {
     display: flex;
@@ -1259,10 +1290,10 @@ body.gst-mode .settings-btn:hover .material-icons {
         flex-direction: column;
     }
 
-    .customer-details input {
+    /* .customer-details input {
         width: 100%;
         margin-left: 0;
-    }
+    } */
 
     #manual-item-container .size-input {
         align-items: stretch;
@@ -1285,8 +1316,20 @@ body.gst-mode .settings-btn:hover .material-icons {
     }
 
     .customer-details input {
-        width: 100%;
+        width: 85%;
         margin-left: 0;
+    }
+    #custAddr {
+        width: 78%;
+    }
+
+    #custPhone {
+        width: 72%;
+    }
+
+
+    #billNo {
+        width: 71%;
     }
 
     .modal-content {
@@ -1560,8 +1603,8 @@ body.gst-mode .settings-btn:hover .material-icons {
         max-height: calc(90vh - 120px);
     }
 
-    .modal-body{
-        zoom:0.8;
+    .modal-body {
+        zoom: 0.8;
     }
 }
 
@@ -4512,6 +4555,37 @@ terms modal
     }
 }
 
+@media (max-width: 486px) {
+
+    .customer-details input {
+        width: 85%;
+        margin-left: 0;
+    }
+
+    #custAddr {
+        width: 70%;
+    }
+
+    #custPhone {
+        width: 62%;
+    }
+
+    #billDate {
+        width: 82%;
+    }
+
+    #billNo{
+        width: 66%;
+    }
+
+
+
+
+}
+
+
+
+
 /*  DASHBOARD END */
 
 /* File Viewer Zoom & Pan Styles */
@@ -5122,9 +5196,10 @@ body.gst-mode #tools {
     border-radius: 8px;
     overflow: hidden;
     background-color: #333;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12); /* Deeper shadow */
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    /* Deeper shadow */
     margin: 0 auto;
-    flex-shrink: 0; 
+    flex-shrink: 0;
     border: 4px solid #333;
 }
 
@@ -5139,7 +5214,8 @@ body.gst-mode #tools {
 
 /* Settings List */
 .settings-group {
-    background: rgba(255, 255, 255, 0.7); /* Slightly more opaque */
+    background: rgba(255, 255, 255, 0.7);
+    /* Slightly more opaque */
     border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: 8px;
     display: flex;
@@ -5152,12 +5228,17 @@ body.gst-mode #tools {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
     gap: 20px;
 }
 
-.settings-item:last-child { border-bottom: none; }
-.settings-item.hidden { display: none !important; }
+.settings-item:last-child {
+    border-bottom: none;
+}
+
+.settings-item.hidden {
+    display: none !important;
+}
 
 /* Labels & Text */
 .item-label {
@@ -5173,7 +5254,12 @@ body.gst-mode #tools {
     text-align: center;
 }
 
-.item-text h4 { font-size: 14px; font-weight: 500; margin: 0; color: #202020; }
+.item-text h4 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0;
+    color: #202020;
+}
 
 .item-control {
     display: flex;
@@ -5183,11 +5269,12 @@ body.gst-mode #tools {
 }
 
 /* Controls */
-#pzn-bgTypeSelect, #pzn-fitSelect {
+#pzn-bgTypeSelect,
+#pzn-fitSelect {
     padding: 6px 12px;
     border-radius: 4px;
     border: 1px solid #e0e0e0;
-    background: rgba(255,255,255,0.9);
+    background: rgba(255, 255, 255, 0.9);
     font-size: 14px;
     min-width: 140px;
     cursor: pointer;
@@ -5206,7 +5293,10 @@ body.gst-mode #tools {
     display: inline-block;
     color: #202020;
 }
-.browse-btn:hover { background: #f0f0f0; }
+
+.browse-btn:hover {
+    background: #f0f0f0;
+}
 
 /* Color Grid */
 .color-grid {
@@ -5225,8 +5315,14 @@ body.gst-mode #tools {
     border: 2px solid transparent;
     transition: transform 0.1s;
 }
-.color-dot:hover { transform: scale(1.1); }
-.color-dot.active { border-color: #202020; }
+
+.color-dot:hover {
+    transform: scale(1.1);
+}
+
+.color-dot.active {
+    border-color: #202020;
+}
 
 .custom-color-wrapper {
     width: 32px;
@@ -5238,10 +5334,13 @@ body.gst-mode #tools {
     border: 1px solid #ccc;
     background: white;
 }
+
 .custom-color-wrapper input {
     position: absolute;
-    top: -50%; left: -50%;
-    width: 200%; height: 200%;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
     cursor: pointer;
     border: none;
     padding: 0;
@@ -5268,7 +5367,7 @@ input[type=range]::-webkit-slider-thumb {
     border-radius: 50%;
     background: #0067c0;
     border: 4px solid white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     margin-top: -7px;
     cursor: pointer;
 }
@@ -5280,30 +5379,42 @@ input[type=range]::-webkit-slider-runnable-track {
     border-radius: 2px;
 }
 
-.slider-val { font-size: 13px; min-width: 45px; text-align: right; color: #5d5d5d; }
+.slider-val {
+    font-size: 13px;
+    min-width: 45px;
+    text-align: right;
+    color: #5d5d5d;
+}
 
 /* --- WINDOWS 11 FOOTER & BUTTONS --- */
 .window-footer {
     padding: 20px 32px;
-    background: rgba(243, 243, 243, 0.9); /* Slight transparency */
-    border-top: 1px solid rgba(0,0,0,0.08);
+    background: rgba(243, 243, 243, 0.9);
+    /* Slight transparency */
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.footer-actions { display: flex; gap: 8px; }
+.footer-actions {
+    display: flex;
+    gap: 8px;
+}
 
 /* Base Button Style */
 .btn {
-    padding: 6px 24px; /* Shorter height, wide width */
+    padding: 6px 24px;
+    /* Shorter height, wide width */
     border-radius: 4px;
     font-size: 14px;
-    font-weight: 500; /* Medium weight */
+    font-weight: 500;
+    /* Medium weight */
     cursor: pointer;
     border: 1px solid transparent;
     transition: all 0.1s ease;
-    height: 32px; /* Standard Windows button height */
+    height: 32px;
+    /* Standard Windows button height */
     display: flex;
     align-items: center;
     justify-content: center;
@@ -5313,20 +5424,34 @@ input[type=range]::-webkit-slider-runnable-track {
 .btn-primary {
     background-color: #0067c0;
     color: white;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
-.btn-primary:hover { background-color: #187bcd; }
-.btn-primary:active { background-color: #005a9e; opacity: 0.9; }
+
+.btn-primary:hover {
+    background-color: #187bcd;
+}
+
+.btn-primary:active {
+    background-color: #005a9e;
+    opacity: 0.9;
+}
 
 /* Secondary (Standard) Button */
 .btn-secondary {
     background-color: white;
     border-color: #d1d1d1;
     color: #202020;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
-.btn-secondary:hover { background-color: #f6f6f6; border-color: #b1b1b1; }
-.btn-secondary:active { background-color: #e5e5e5; }
+
+.btn-secondary:hover {
+    background-color: #f6f6f6;
+    border-color: #b1b1b1;
+}
+
+.btn-secondary:active {
+    background-color: #e5e5e5;
+}
 
 /* Danger (Reset) Button */
 .btn-danger {
@@ -5334,11 +5459,13 @@ input[type=range]::-webkit-slider-runnable-track {
     background: transparent;
     border: 1px solid transparent;
 }
-.btn-danger:hover { 
-    background-color: rgba(196, 43, 28, 0.05); 
+
+.btn-danger:hover {
+    background-color: rgba(196, 43, 28, 0.05);
 }
-.btn-danger:active { 
-    background-color: rgba(196, 43, 28, 0.1); 
+
+.btn-danger:active {
+    background-color: rgba(196, 43, 28, 0.1);
 }
 
 /* --- FINAL BACKGROUND VISIBILITY FIX --- */
@@ -5355,7 +5482,8 @@ body {
     background-image: none !important;
     min-height: 100vh;
     margin: 0;
-    padding: 20px; /* Keep your original padding */
+    padding: 20px;
+    /* Keep your original padding */
 }
 
 /* 3. The actual wallpaper layer */
@@ -5365,8 +5493,247 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: -1; /* Stays behind content */
-    background-color: #f9f9f9; /* Default visible color */
-    pointer-events: none; /* Lets clicks pass through */
+    z-index: -1;
+    /* Stays behind content */
+    background-color: #f9f9f9;
+    /* Default visible color */
+    pointer-events: none;
+    /* Lets clicks pass through */
     transition: all 0.3s ease;
+}
+
+/* --- REGULAR BILL MODAL STYLES --- */
+.input-group-lock {
+    display: flex;
+    align-items: center;
+}
+
+.input-group-lock input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+#reg-prefix-lock-btn {
+    height: 38px;
+    /* Match input height */
+    width: 40px;
+    border: 1px solid #ddd;
+    border-left: none;
+    background: #eee;
+    cursor: pointer;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#reg-prefix-lock-btn.unlocked {
+    background: #fff;
+    color: var(--primary-color);
+}
+
+.column-header {
+    font-size: 14px;
+    margin-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
+    padding-bottom: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.copy-icon {
+    font-size: 18px;
+    cursor: pointer;
+    color: var(--primary-color);
+}
+
+.copy-icon:hover {
+    transform: scale(1.1);
+}
+
+/* Utility Margins */
+.mb-2 {
+    margin-bottom: 8px;
+    width: 100%;
+}
+
+.mt-2 {
+    margin-top: 8px;
+    width: 100%;
+}
+
+/* --- UTILITY CLASSES --- */
+.mb-2 {
+    margin-bottom: 8px;
+    display: block;
+    width: 100%;
+    /* Ensures input takes full width of column */
+    box-sizing: border-box;
+    /* Ensures padding doesn't break width */
+}
+
+.mt-2 {
+    margin-top: 8px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* --- MODAL COLUMN INPUT STYLING --- */
+/* Styles specifically for the Bill To/Ship To inputs inside the modal */
+#reg-modal-advanced-section input[type="text"],
+#reg-modal-advanced-section textarea {
+    padding: 8px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    transition: border-color 0.2s;
+}
+
+#reg-modal-advanced-section input[type="text"]:focus,
+#reg-modal-advanced-section textarea:focus {
+    border-color: var(--primary-color);
+    outline: none;
+}
+
+/* Styling for the column containers */
+#reg-modal-advanced-section>div>div {
+    background-color: #f9f9f9;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+}
+
+/* --- REGULAR BILL MODAL FORM STYLES --- */
+
+/* 1. Labels */
+.form-group-row label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+}
+
+/* 2. Standard Inputs & Selects */
+.form-group-row input[type="text"],
+.form-group-row select {
+    width: 100%;
+    height: 38px;
+    /* Fixed height for perfect alignment */
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    box-sizing: border-box;
+    /* Prevents padding from breaking layout */
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group-row input[type="text"]:focus,
+.form-group-row select:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+    /* Subtle glow */
+}
+
+/* 3. Prefix Group (Input + Lock Button) */
+.input-group-lock {
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+/* The Input side */
+.input-group-lock input {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+    border-right: none !important;
+    /* Remove border between input and button */
+    flex: 1;
+    /* Take up all available space */
+}
+
+/* The Button side */
+#reg-prefix-lock-btn {
+    height: 38px;
+    /* Match input height exactly */
+    width: 42px;
+    border: 1px solid #ccc;
+    border-left: 1px solid #eee;
+    /* Subtle divider */
+    background: #f5f5f5;
+    cursor: pointer;
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    color: #666;
+    padding: 0;
+}
+
+#reg-prefix-lock-btn:hover {
+    background-color: #e0e0e0;
+    color: #333;
+}
+
+/* When Unlocked (Active State) */
+#reg-prefix-lock-btn.unlocked {
+    background-color: #fff;
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+/* Disabled Input Styling */
+.form-group-row input:disabled {
+    background-color: #f9f9f9;
+    color: #888;
+    cursor: not-allowed;
+}
+
+/* 4. Save Button alignment */
+#reg-save-custom-btn {
+    height: 38px;
+    line-height: 1;
+    font-size: 13px;
+    padding: 0 15px;
+}
+
+/* --- CUSTOM TYPE PANEL STYLES --- */
+
+/* 1. Style the container inputs */
+#reg-custom-type-panel input[type="text"] {
+    flex: 1;
+    /* Make both inputs grow to fill space equally */
+    width: 100%;
+    height: 38px;
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+/* 2. Focus state for interaction */
+#reg-custom-type-panel input[type="text"]:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.1);
+}
+
+/* 3. Panel Container adjustments (optional polish) */
+#reg-custom-type-panel {
+    border: 1px dashed #ccc;
+    /* Makes it look like a special "edit zone" */
+    background-color: #f8f9fa !important;
+    /* Slightly lighter gray */
 }
