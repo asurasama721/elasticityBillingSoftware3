@@ -1730,77 +1730,87 @@ handleDimensionTypeChange = function () {
 
 // END AUTO RATE CONVERT
 
-function toggleDimensionsDisplay() {
-    showDimensions = !showDimensions;
 
-    // Update all existing rows to reflect the new global setting
-    const rows = document.querySelectorAll('#createListManual tbody tr[data-id], #copyListManual tbody tr[data-id]');
+// HELPER: Syncs the Global Toolbar Button with the state of the rows
+function updateGlobalDimensionButtonState() {
+    const rows = document.querySelectorAll('#createListManual tbody tr[data-id]');
+    const btn = document.getElementById('toggleDimensionText');
+    if (!btn) return;
 
-    rows.forEach(row => {
-        const cells = row.children;
-        const particularsDiv = cells[1];
-        const itemName = particularsDiv.querySelector('.itemNameClass')?.textContent.trim() || '';
-        const notes = particularsDiv.querySelector('.notes')?.textContent || '';
+    // If no items, default to OFF (Default Color)
+    if (rows.length === 0) {
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+        return;
+    }
 
-        // Get the stored dimension data
-        const dimensionType = row.getAttribute('data-dimension-type') || 'none';
-        const dimensionValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
-        const dimensionUnit = row.getAttribute('data-dimension-unit') || 'ft';
-        const originalQuantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent);
-        const unit = cells[3].textContent;
-        const rate = parseFloat(cells[4].textContent);
-        const finalQuantity = parseFloat(cells[5].textContent) / rate; // Calculate back the final quantity
+    // Check if ALL items are hidden
+    const allHidden = Array.from(rows).every(row => 
+        row.getAttribute('data-dimensions-visible') === 'false'
+    );
 
-        // Recreate the particulars HTML with current showDimensions setting
-        let particularsHtml = formatParticularsManual(
-            itemName,
-            notes,
-            getDimensionDisplayText(dimensionType, dimensionValues, dimensionUnit),
-            originalQuantity,
-            finalQuantity,
-            rate,
-            dimensionType,
-            dimensionUnit,
-            unit
-        );
+    if (allHidden) {
+        // STATE: ON (All Hidden) -> Primary Color
+        btn.style.backgroundColor = 'var(--primary-color)';
+        btn.style.color = 'white';
+    } else {
+        // STATE: OFF (All Visible) or PARTIAL (Mixed) -> Default Color
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+    }
+}
 
-        // Update the particulars cell
-        cells[1].innerHTML = particularsHtml;
+// HELPER: Sets visibility for a specific row and updates UI
+function setRowDimensionVisibility(rowId, isVisible) {
+    // Update Input Table Row
+    const inputRow = document.querySelector(`#createListManual tr[data-id="${rowId}"]`);
+    if (inputRow) {
+        inputRow.setAttribute('data-dimensions-visible', isVisible ? 'true' : 'false');
+        const dimDiv = inputRow.querySelector('.dimensions');
+        if (dimDiv) dimDiv.style.display = isVisible ? 'block' : 'none';
+        
+        // Update Icon
+        const btnIcon = inputRow.querySelector('.dimensions-btn .material-icons');
+        if (btnIcon) btnIcon.textContent = isVisible ? 'layers' : 'layers_clear';
+    }
 
-        // Reset per-row visibility to follow global setting
-        if (showDimensions) {
-            row.setAttribute('data-dimensions-visible', 'true');
-        } else {
-            row.setAttribute('data-dimensions-visible', 'false');
-        }
-
-        // Update toggle button icon in input table
-        if (row.closest('#createListManual')) {
-            const dimensionsBtn = row.querySelector('.dimensions-btn .material-icons');
-            if (dimensionsBtn) {
-                dimensionsBtn.textContent = showDimensions ? 'layers' : 'layers_clear';
-            }
+    // Update Regular/GST View Tables (Visual sync only)
+    const viewTables = ['copyListManual', 'gstCopyListManual'];
+    viewTables.forEach(tableId => {
+        const viewRow = document.querySelector(`#${tableId} tr[data-id="${rowId}"]`);
+        if (viewRow) {
+            const dimDiv = viewRow.querySelector('.dimensions');
+            if (dimDiv) dimDiv.style.display = isVisible ? 'block' : 'none';
         }
     });
+}
 
-    // Also update the copy table
-    const copyRows = document.querySelectorAll('#copyListManual tbody tr[data-id]');
-    copyRows.forEach((row, index) => {
-        const createRow = rows[index];
-        if (createRow) {
-            row.children[1].innerHTML = createRow.children[1].innerHTML;
-        }
+function toggleDimensionsDisplay() {
+    const btn = document.getElementById('toggleDimensionText');
+    const rows = document.querySelectorAll('#createListManual tbody tr[data-id]');
+    
+    if (rows.length === 0) return;
+
+    // LOGIC: 
+    // If Button is colored (All Hidden) -> Action: SHOW ALL
+    // If Button is default (All Visible OR Partial) -> Action: HIDE ALL
+    
+    // Check if currently "All Hidden" (Primary Color)
+    const isCurrentlyAllHidden = btn.style.backgroundColor !== ''; 
+    
+    // Target state: If All Hidden, we want to Show (true). Otherwise Hide (false).
+    const targetState = isCurrentlyAllHidden; 
+
+    rows.forEach(row => {
+        const rowId = row.getAttribute('data-id');
+        setRowDimensionVisibility(rowId, targetState);
     });
 
     saveToLocalStorage();
     saveStateToHistory();
-
-    // === NEW: UPDATE BUTTON STYLE DIRECTLY ===
-    const btn = document.getElementById('toggleDimensionText');
-    if (btn) {
-        btn.style.backgroundColor = showDimensions ? 'var(--primary-color)' : '';
-        btn.style.color = showDimensions ? 'white' : '';
-    }
+    
+    // Recalculate button state immediately
+    updateGlobalDimensionButtonState();
 }
 
 async function handleItemSearch() {
@@ -3555,18 +3565,30 @@ async function autoSaveRegularCustomer(customerName) {
 }
 
 // Check for duplicate bill/invoice numbers
-async function checkDuplicateBillNumber(number, type) {
+async function checkDuplicateBillNumber(number, mode, currentBillType, excludeId = null) {
     try {
-        const storeName = type === 'gst' ? 'gstSavedBills' : 'savedBills';
+        const storeName = mode === 'gst' ? 'gstSavedBills' : 'savedBills';
         const savedBills = await getAllFromDB(storeName);
 
         for (const bill of savedBills) {
-            if (type === 'gst') {
-                if (bill.value.invoiceDetails && bill.value.invoiceDetails.number === number) {
+            // Skip the bill currently being edited (Self-check)
+            if (excludeId && bill.id === excludeId) continue;
+
+            const val = bill.value;
+
+            if (mode === 'gst') {
+                // GST Logic (Standard Invoice Number check)
+                if (val.invoiceDetails && val.invoiceDetails.number === number) {
                     return true;
                 }
             } else {
-                if (bill.value.customer && bill.value.customer.billNo === number) {
+                // REGULAR MODE: Check both Number AND Type
+                const savedNo = val.customer?.billNo;
+                // Default to 'Estimate' if modalState is missing (Legacy support)
+                const savedType = val.modalState?.type || 'Estimate';
+
+                // Duplicate if BOTH Number and Type match
+                if (String(savedNo) === String(number) && savedType === currentBillType) {
                     return true;
                 }
             }
@@ -3610,6 +3632,7 @@ function setEditMode(billId, billType) {
 
 async function editSavedBill(billId, billType, event) {
     if (event) event.stopPropagation();
+    
     // CLEAR CURRENT DATA AND SAVE TO HISTORY FIRST
     await clearAllData(true); // true = silent mode
 
@@ -3620,7 +3643,7 @@ async function editSavedBill(billId, billType, event) {
     let savedBill;
     if (billType === 'regular') {
         savedBill = await getFromDB('savedBills', billId);
-        window.currentEditingBillOriginalNumber = savedBill?.customer?.billNo;
+        window.currentEditingBillOriginalNumber = savedBill?.customer?.billNo; // or savedBill.modalState.invoiceNo
     } else {
         savedBill = await getFromDB('gstSavedBills', billId);
         window.currentEditingBillOriginalNumber = savedBill?.invoiceDetails?.number;
@@ -3645,7 +3668,33 @@ async function editSavedBill(billId, billType, event) {
 
     // LOAD THE BILL DATA
     if (billType === 'regular') {
+        // 1. Load Items & Basic Data
         await loadSavedBill(billId);
+        
+        // 2. --- NEW: RESTORE MODAL STATE ---
+        if (savedBill && savedBill.modalState) {
+            // A. Push state back to LocalStorage
+            localStorage.setItem('regularBillState', JSON.stringify(savedBill.modalState));
+            
+            // B. Ensure Custom Types exist in dropdown (if custom type was used)
+            initRegBillTypes(); 
+            
+            // C. Restore the UI (Inputs, Labels, Prefix, View Mode)
+            loadRegularModalState(); 
+            
+            // D. Force Label Update (in case loadRegularModalState missed dynamic labels)
+            // This ensures "Proforma No" appears instead of "Invoice No"
+            if (savedBill.modalState.type) {
+                // Temporarily set value to ensure change handler picks it up correctly
+                const typeSelect = document.getElementById('reg-modal-type-select');
+                if(typeSelect) {
+                    typeSelect.value = savedBill.modalState.type;
+                    handleRegTypeChange(); 
+                    // Re-load state again because handleRegTypeChange might reset inputs
+                    loadRegularModalState();
+                }
+            }
+        }
     } else {
         await loadGSTSavedBill(billId);
         updateGSTBillDisplay();
@@ -3694,26 +3743,32 @@ async function saveCurrentBill() {
     if (isGSTMode) {
         await saveGSTCurrentBill();
     } else {
-        // Regular bill save logic
+        // --- REGULAR BILL SAVE LOGIC ---
         const customerName = document.getElementById('custName').value.trim();
         const billNo = document.getElementById('billNo').value.trim();
         const totalAmount = document.getElementById('createTotalAmountManual').textContent || '0.00';
-
+        
+        // Validation
         if (!billNo || billNo.length === 0) {
             showNotification('Please enter a bill number before saving.', 'error');
             return;
         }
 
-        // Check for duplicate bill number
-        if (!editMode || (editMode && billNo !== window.currentEditingBillOriginalNumber)) {
-            const isDuplicate = await checkDuplicateBillNumber(billNo, 'regular');
-            if (isDuplicate) {
-                showNotification('Bill number already exists! Please use a different number.', 'error');
-                return;
-            }
+        // --- NEW: DUPLICATE CHECK WITH TYPE ---
+        // Get Current Type from the Modal Dropdown
+        const currentType = document.getElementById('reg-modal-type-select').value;
+        // Determine ID to exclude (if editing)
+        const currentId = (editMode && currentEditingBillId) ? currentEditingBillId : null;
+
+        // Pass Type and ID to the check function
+        const isDuplicate = await checkDuplicateBillNumber(billNo, 'regular', currentType, currentId);
+        
+        if (isDuplicate) {
+            showNotification(`Bill ${billNo} already exists for ${currentType}!`, 'error');
+            return;
         }
 
-        // Auto-save customer if name exists
+        // Auto-save customer
         if (customerName) {
             await autoSaveRegularCustomer(customerName);
         }
@@ -3724,28 +3779,69 @@ async function saveCurrentBill() {
 
             const itemCount = document.querySelectorAll('#createListManual tbody tr[data-id]').length;
 
+            // --- FIX: CAPTURE EXACT MODAL STATE FROM DOM ---
+            // We grab the current values from the inputs directly to ensure accuracy
+            const modalState = {
+                // Config
+                type: currentType,
+                prefix: document.getElementById('reg-modal-prefix').value,
+                invoiceNo: document.getElementById('reg-modal-invoice-no').value,
+                date: document.getElementById('reg-modal-date').value,
+                viewMode: document.getElementById('reg-modal-cust-view-select').value,
+                isLocked: regBillConfig.isLocked,
+
+                // Simple Data
+                simple: {
+                    name: document.getElementById('reg-modal-simple-name').value,
+                    phone: document.getElementById('reg-modal-simple-phone').value,
+                    addr: document.getElementById('reg-modal-simple-addr').value
+                },
+
+                // Advanced Data (Bill To)
+                billTo: {
+                    name: document.getElementById('reg-modal-bill-name').value,
+                    addr: document.getElementById('reg-modal-bill-addr').value,
+                    gst: document.getElementById('reg-modal-bill-gst').value,
+                    phone: document.getElementById('reg-modal-bill-phone').value,
+                    state: document.getElementById('reg-modal-bill-state').value,
+                    code: document.getElementById('reg-modal-bill-code').value,
+                },
+                // Advanced Data (Ship To)
+                shipTo: {
+                    name: document.getElementById('reg-modal-ship-name').value,
+                    addr: document.getElementById('reg-modal-ship-addr').value,
+                    gst: document.getElementById('reg-modal-ship-gst').value,
+                    phone: document.getElementById('reg-modal-ship-phone').value,
+                    state: document.getElementById('reg-modal-ship-state').value,
+                    code: document.getElementById('reg-modal-ship-code').value,
+                    pos: document.getElementById('reg-modal-ship-pos').value
+                }
+            };
+
             const savedBill = {
                 ...currentData,
                 title: `${customerName} - ${billNo}`,
                 totalAmount: totalAmount,
                 timestamp: Date.now(),
                 date: document.getElementById('billDate').value || new Date().toLocaleDateString(),
-                itemCount: itemCount
+                itemCount: itemCount,
+                
+                // STORE THE CAPTURED STATE HERE
+                modalState: modalState 
             };
 
             let billId;
             if (editMode && currentEditingBillId) {
-                // EDIT MODE: Restore original stock first
+                // EDIT MODE: Restore stock -> Save -> Reduce stock
                 await restoreStockFromOriginalBill(currentEditingBillId);
 
                 billId = currentEditingBillId;
                 await setInDB('savedBills', billId, savedBill);
-                // Then reduce stock with new quantities
                 await reduceStockOnSave();
                 showNotification('Bill updated successfully!');
                 resetEditMode();
             } else {
-                // NORMAL MODE: Just reduce stock
+                // NORMAL MODE: Save -> Reduce stock
                 billId = `saved-bill-${Date.now()}`;
                 await setInDB('savedBills', billId, savedBill);
                 await reduceStockOnSave();
@@ -3757,6 +3853,7 @@ async function saveCurrentBill() {
         }
     }
 }
+
 /* ==========================================
    VENDOR STATE PERSISTENCE (AUTO-SAVE)
    ========================================== */
@@ -4905,6 +5002,21 @@ async function loadSavedBillsList() {
         const billsList = document.getElementById('saved-bills-list');
         billsList.innerHTML = '';
 
+        // --- FIX: Populate Filter by Bill Type ---
+        const filterSelect = document.getElementById('saved-prefix-filter'); // ID from HTML
+        if (filterSelect) {
+            // Extract unique types
+            const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
+            
+            filterSelect.innerHTML = '<option value="all">All Types</option>';
+            types.forEach(type => {
+                const opt = document.createElement('option');
+                opt.value = type;
+                opt.textContent = type;
+                filterSelect.appendChild(opt);
+            });
+        }
+
         if (savedBills.length === 0) {
             billsList.innerHTML = '<div class="saved-bill-card">No regular bills saved yet</div>';
             return;
@@ -4917,14 +5029,23 @@ async function loadSavedBillsList() {
             billCard.className = 'saved-bill-card';
 
             const menuId = `menu-bill-${bill.id}-${Date.now()}`;
-            const billNo = bill.value.customer?.billNo || 'N/A';
+            
+            // Get Data from Saved Modal State
+            const state = bill.value.modalState || {};
+            const rawBillNo = state.invoiceNo || bill.value.customer?.billNo || 'N/A';
+            const prefix = state.prefix || '';
+            const billType = state.type || 'Estimate'; // Default text
             const custName = bill.value.customer?.name || 'N/A';
 
-            // New Header: [Bill No] - [Customer] -> [Total] -> [Toggle] -> [Menu]
+            // Construct Display Number (Prefix + No)
+            const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
+
+            // --- FIX: Card HTML with Prefix and Type ---
             billCard.innerHTML = `
                 <div class="card-header-row">
                     <div class="card-info">
-                        <span>${billNo} - ${custName}</span>
+                        <span>${displayBillNo} - ${custName}</span>
+                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; font-weight: 500;">${billType}</span>
                         <span class="card-sub-info" style="color:var(--primary-color)">₹${bill.value.totalAmount}</span>
                     </div>
                     
@@ -4958,20 +5079,15 @@ async function loadSavedBillsList() {
                     <div>Title: ${bill.value.title}</div>
                 </div>
             `;
-            // RESTORE CLICK TO LOAD FUNCTIONALITY
+            
             billCard.addEventListener('click', async (e) => {
-                // Ignore clicks on buttons/menu (Action controls)
                 if (e.target.closest('.card-controls')) return;
-
                 resetEditMode();
                 await clearAllData(true);
-
-                // Ensure we are in Regular Mode
                 if (isGSTMode) {
                     isGSTMode = false;
                     updateUIForGSTMode();
                 }
-
                 await loadSavedBill(bill.id);
                 closeSavedBillsModal();
             });
@@ -5140,6 +5256,7 @@ function refreshCopyTableTotal() {
     }
 }
 
+// Function: Add Row Manual
 async function addRowManual() {
     let itemName = document.getElementById("itemNameManual").value.trim();
     let quantity = parseFloat(document.getElementById("quantityManual").value.trim());
@@ -5359,7 +5476,8 @@ async function addRowManual() {
 
     document.getElementById("itemNameManual").focus();
 
-    applyColumnVisibility()
+    applyColumnVisibility();
+    updateGlobalDimensionButtonState(); // <--- ADDED THIS
 }
 
 async function updateRowManual() {
@@ -5811,38 +5929,23 @@ function syncDuplicatedRowToOtherTables(newId, sourceRow, itemName, quantity, un
 }
 
 function toggleRowDimensions(rowId) {
-    const rows = document.querySelectorAll(`tr[data-id="${rowId}"]`);
-    const isCurrentlyVisible = document.querySelector(`#createListManual tr[data-id="${rowId}"]`)?.getAttribute('data-dimensions-visible') === 'true';
-    const newVisibilityState = !isCurrentlyVisible;
+    const row = document.querySelector(`#createListManual tr[data-id="${rowId}"]`);
+    if (!row) return;
 
-    rows.forEach(row => {
-        const particularsCell = row.children[1];
-        const dimensionsDiv = particularsCell.querySelector('.dimensions');
+    const currentVisibility = row.getAttribute('data-dimensions-visible') === 'true';
+    const newVisibility = !currentVisibility;
 
-        if (dimensionsDiv) {
-            if (newVisibilityState) {
-                // Show dimensions
-                dimensionsDiv.style.display = 'block';
-                row.setAttribute('data-dimensions-visible', 'true');
-            } else {
-                // Hide dimensions
-                dimensionsDiv.style.display = 'none';
-                row.setAttribute('data-dimensions-visible', 'false');
-            }
-        }
-
-        // Only update the toggle button icon in the input table (where it exists)
-        if (row.closest('#createListManual')) {
-            const dimensionsBtn = row.querySelector('.dimensions-btn .material-icons');
-            if (dimensionsBtn) {
-                dimensionsBtn.textContent = newVisibilityState ? 'layers' : 'layers_clear';
-            }
-        }
-    });
+    // Apply new state
+    setRowDimensionVisibility(rowId, newVisibility);
 
     saveToLocalStorage();
-    saveStateToHistory(); // ADDED: Capture dimension toggle in undo/redo history
+    saveStateToHistory();
+
+    // CRITICAL: Update Global Button State based on this change
+    updateGlobalDimensionButtonState();
 }
+
+
 function createTableRowManual(id, itemName, quantity, unit, rate, amount, notes, dimensions, editable, finalQuantity = 0, dimensionType = 'none', originalQuantity = 0, dimensionData = { values: [0, 0, 0], toggle1: true, toggle2: true, toggle3: true }, dimensionUnit = 'ft', hsnCode = '', productCode = '', discountType = 'none', discountValue = '', dimensionsVisible = true, convertUnit = 'none') {
     const tr = document.createElement("tr");
     tr.setAttribute("data-id", id);
@@ -5986,15 +6089,14 @@ function createGSTTableRowManual(id, itemName, quantity, unit, rate, amount, not
     return tr;
 }
 
-function removeRowManual(id) {
-    // Remove from regular tables
+// Function: Remove Row Manual
+function removeRowManual(id, skipConfirm = false) {
+    // Note: Kept skipConfirm logic but ensured deletion happens
     document.querySelectorAll(`tr[data-id="${id}"]`).forEach(row => row.remove());
 
-    // Remove from GST table if exists
     const gstRows = document.querySelectorAll(`#gstCopyListManual tr[data-id="${id}"]`);
     gstRows.forEach(row => row.remove());
 
-    // FIX: Update GST table and calculations when in GST mode
     if (isGSTMode) {
         copyItemsToGSTBill();
         updateGSTTaxCalculation();
@@ -6002,11 +6104,11 @@ function removeRowManual(id) {
 
     updateSerialNumbers();
     updateTotal();
-    // In addRowManual, updateRowManual, removeRowManual functions:
-    // After updateTotal(); add:
     refreshCopyTableTotal();
     saveToLocalStorage();
     saveStateToHistory();
+    
+    updateGlobalDimensionButtonState(); // <--- ADDED THIS
 }
 
 function editRowManual(id) {
@@ -6594,6 +6696,7 @@ async function loadGSTCustomerDataFromLocalStorage() {
     }
 }
 
+// Function: Load From Local Storage
 async function loadFromLocalStorage() {
     try {
         const saved = await getFromDB('billDataManual', 'currentBill');
@@ -6662,7 +6765,6 @@ async function loadFromLocalStorage() {
             await loadGSTCustomerDataFromLocalStorage();
 
             if (saved.gstCustomerData) {
-                // ... [Existing GST Customer Load Logic] ...
                 document.getElementById('bill-invoice-no').textContent = saved.gstCustomerData.invoiceNo || '';
                 document.getElementById('bill-date-gst').textContent = saved.gstCustomerData.invoiceDate || '';
                 document.getElementById('billToName').textContent = saved.gstCustomerData.billTo?.name || '';
@@ -6718,7 +6820,10 @@ async function loadFromLocalStorage() {
 
             // Final Updates
             updateSerialNumbers();
-            updateTotal(); // Calculates using the new adjustmentChain
+            updateTotal(); 
+            
+            updateGlobalDimensionButtonState(); // <--- ADDED THIS
+            
             updateGSTINVisibility();
 
             if (isGSTMode) {
@@ -6730,6 +6835,8 @@ async function loadFromLocalStorage() {
         console.error('Error loading from IndexedDB:', error);
     }
 }
+
+
 function getTermsData() {
     const termsDivs = document.querySelectorAll('.bill-footer-list[data-editable="true"]');
     const termsData = [];
@@ -7063,6 +7170,7 @@ function redoAction() {
         restoreStateFromHistory();
     }
 }
+// Function: Restore State From History
 function restoreStateFromHistory() {
     const state = JSON.parse(historyStackManual[historyIndexManual]);
 
@@ -7117,7 +7225,7 @@ function restoreStateFromHistory() {
                     particularsHtml: rowData.particularsHtml,
                     displayQuantity: rowData.displayQuantity,
                     dimensionsVisible: rowData.dimensionsVisible !== false,
-                    convertUnit: rowData.convertUnit // <--- CRITICAL FIX
+                    convertUnit: rowData.convertUnit 
                 });
 
                 const idNum = parseInt(rowData.id.split('-')[2]);
@@ -7148,6 +7256,7 @@ function restoreStateFromHistory() {
 
     updateSerialNumbers();
     updateTotal();
+    updateGlobalDimensionButtonState(); // <--- ADDED THIS
     updateGSTINVisibility();
     saveToLocalStorage();
 
@@ -18745,12 +18854,11 @@ let regCustomTypes = JSON.parse(localStorage.getItem('regCustomTypes')) || [];
 
 // 1. Open/Close Logic
 function openRegularBillModal() {
-    // 1. Close Sidebar Logic (Calling the function you requested)
+    // 1. Close Sidebar Logic
     if (typeof toggleSettingsSidebar === 'function') {
         toggleSettingsSidebar();
     }
 
-    // Also close submenus if needed
     if (typeof closeSubMenu === 'function') {
         closeSubMenu();
     }
@@ -18768,13 +18876,17 @@ function openRegularBillModal() {
     }
 
     initRegBillTypes(); // Load types
-    handleRegTypeChange(); // Sync prefix
+    // Pass TRUE to prevent overwriting existing data when just opening the modal
+    handleRegTypeChange(true); 
 }
 
 function closeRegularModal() {
     document.getElementById('regular-details-modal').style.display = 'none';
 }
 
+/* ==========================================
+   INITIALIZE BILL TYPES (Fix Duplicates)
+   ========================================== */
 /* ==========================================
    INITIALIZE BILL TYPES (Fix Duplicates)
    ========================================== */
@@ -18791,11 +18903,10 @@ function initRegBillTypes() {
     // 3. Get Custom Types first
     const customTypes = JSON.parse(localStorage.getItem('customRegTypes') || '[]');
 
-    // 4. Define Defaults
+    // 4. Define Defaults - ENSURE ESTIMATE IS FIRST
     const defaults = ['Estimate', 'Quotation', 'Purchase Order', 'Work Order'];
 
     // 5. Filter Defaults: Only keep defaults that are NOT in customTypes
-    // (If you edited "Estimate", it's now in customTypes, so we skip the default one)
     const activeDefaults = defaults.filter(defName =>
         !customTypes.some(custom => custom.name === defName)
     );
@@ -18808,7 +18919,7 @@ function initRegBillTypes() {
         select.appendChild(opt);
     });
 
-    // 7. Add Custom Types (This includes edited defaults)
+    // 7. Add Custom Types
     customTypes.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.name;
@@ -18822,10 +18933,7 @@ function initRegBillTypes() {
     customOpt.textContent = 'Custom...';
     select.appendChild(customOpt);
 
-    // 9. Restore Selection
-    // Logic: If the current value exists in our new list, keep it.
-    // If not, and it was "Custom", keep "Custom".
-    // Else, fall back to the first available option.
+    // 9. Restore Selection or Default to First Option (Estimate)
     const options = Array.from(select.options);
     const exists = options.some(o => o.value === currentVal);
 
@@ -18834,7 +18942,7 @@ function initRegBillTypes() {
     } else if (currentVal === 'Custom') {
         select.value = 'Custom';
     } else {
-        // Fallback to the first option (usually "Estimate" or the edited "Estimate")
+        // Fallback to the first option (Now guaranteed to be Estimate if not customized)
         if (select.options.length > 0) {
             select.selectedIndex = 0;
         }
@@ -18861,69 +18969,75 @@ function updateBillLabels(text) {
 }
 
 /* Update this function to LOAD saved prefixes correctly */
-function handleRegTypeChange() {
+async function handleRegTypeChange(preventSync = false) {
     const select = document.getElementById('reg-modal-type-select');
     const type = select.value;
     const prefixInput = document.getElementById('reg-modal-prefix');
     const customPanel = document.getElementById('reg-custom-type-panel');
     const saveBtn = document.getElementById('reg-save-custom-btn');
     const menu = document.getElementById('reg-type-menu');
+    
+    if(menu) menu.style.display = 'none';
 
-    // Hide menu when selection changes
-    if (menu) menu.style.display = 'none';
+    let labelText = "Invoice No"; 
 
-    let labelText = "Invoice No"; // Default Fallback
-
+    // 1. Determine Prefix & Label
     if (type === 'Custom') {
-        // --- CUSTOM MODE ---
         prefixInput.value = '';
         prefixInput.disabled = false;
         customPanel.style.display = 'block';
         saveBtn.style.display = 'block';
-
         // Clear inputs for new entry
-        document.getElementById('reg-custom-name-input').value = '';
-        document.getElementById('reg-custom-prefix-input').value = '';
-        document.getElementById('reg-custom-label-input').value = '';
-
+        // ... (keep existing clear logic)
     } else {
-        // --- PRESET OR SAVED CUSTOM TYPES ---
         customPanel.style.display = 'none';
         saveBtn.style.display = 'none';
 
-        // Check if it's one of our saved custom types
         const customTypes = JSON.parse(localStorage.getItem('customRegTypes') || '[]');
         const foundCustom = customTypes.find(t => t.name === type);
 
         if (foundCustom) {
-            // It is a saved custom type
             prefixInput.value = foundCustom.prefix;
-            labelText = foundCustom.label || (type + " No"); // Use saved label
+            labelText = foundCustom.label || (type + " No");
         } else {
-            // It is a default hardcoded type
             const defaults = {
-                'Estimate': 'EST',
+                'Estimate': '', 
                 'Quotation': 'QTN',
                 'Purchase Order': 'PO',
                 'Work Order': 'WO'
             };
-            prefixInput.value = defaults[type] || '';
-
-            // Generate Label for default types
-            labelText = type + " No"; // e.g., "Estimate No"
+            prefixInput.value = (defaults[type] !== undefined) ? defaults[type] : '';
+            
+            if (type === 'Estimate') labelText = "Bill No";
+            else labelText = type + " No";
         }
-
-        // Lock prefix by default for standard types
+        
         regBillConfig.prefix = prefixInput.value;
         prefixInput.disabled = true;
         updateRegLockIcon();
     }
 
-    // APPLY THE LABEL TEXT
+    // 2. Update Label Text
     updateBillLabels(labelText);
+    
+    // 3. FIX: Auto-Populate Next Invoice Number (Async)
+    // Only if not Custom AND NOT during initial load (preventSync)
+    if (type !== 'Custom' && !preventSync) {
+        const currentPrefix = prefixInput.value;
+        
+        // Call the new Async function
+        const nextNo = await getNextInvoiceNumberAsync(type, currentPrefix);
+        
+        document.getElementById('reg-modal-invoice-no').value = nextNo;
+        
+        // Sync to view immediately
+        syncRegularData('modal');
+    }
 
-    // Save state immediately
-    if (typeof saveRegularModalState === 'function') saveRegularModalState();
+    // 4. Save State
+    if(!preventSync && typeof saveRegularModalState === 'function') {
+        saveRegularModalState();
+    }
 }
 
 /* Update this function to SAVE prefix when locking */
@@ -19051,7 +19165,9 @@ function editRegType() {
         // It's a Default Type (not yet customized)
         // Get current values from the UI
         editPrefix = document.getElementById('reg-modal-prefix').value;
-        editLabel = document.getElementById('lbl-reg-invoice-no').textContent;
+        
+        // UPDATED: Force "Bill No" for Estimate, otherwise use screen text
+        editLabel = (typeName === 'Estimate') ? "Bill No" : document.getElementById('lbl-reg-invoice-no').textContent;
     }
 
     // 3. Populate Inputs
@@ -19077,7 +19193,8 @@ function saveRegCustomType() {
         return;
     }
 
-    const finalLabel = label || (name + " No");
+    // UPDATED: Logic to force "Bill No" for Estimate if label is empty
+    const finalLabel = label || (name === 'Estimate' ? "Bill No" : name + " No");
 
     const newType = { name, prefix, label: finalLabel };
 
@@ -19140,6 +19257,9 @@ function copyRegBillToShip() {
 /* ==========================================
    FINAL SAVE FUNCTION (With State Hiding)
    ========================================== */
+/* ==========================================
+   FINAL SAVE FUNCTION (With State Hiding)
+   ========================================== */
 function saveRegularBillDetails(isSilentLoad = false) {
     // 1. Get Data
     const typeEl = document.getElementById('reg-modal-type-select');
@@ -19192,7 +19312,10 @@ function saveRegularBillDetails(isSilentLoad = false) {
         if (custAddr) custAddr.value = document.getElementById('reg-modal-simple-addr').value;
         if (billDate) billDate.value = date;
 
-        if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
+        // FIX: Prevent saving to DB during silent load (initialization)
+        if (!isSilentLoad && typeof saveToLocalStorage === 'function') {
+            saveToLocalStorage();
+        }
 
     } else {
         // --- ADVANCED VIEW ---
@@ -19282,14 +19405,43 @@ function saveRegularBillDetails(isSilentLoad = false) {
 }
 
 function clearRegularModal() {
-    // Clear all inputs inside the modal
-    const inputs = document.querySelectorAll('#regular-details-modal input, #regular-details-modal textarea');
-    inputs.forEach(i => i.value = '');
+    // 1. Clear Input Fields (but NOT the config dropdowns like Type/Prefix)
+    document.getElementById('reg-modal-invoice-no').value = '';
+    document.getElementById('reg-modal-date').value = '';
+    
+    // Simple View Inputs
+    document.getElementById('reg-modal-simple-name').value = '';
+    document.getElementById('reg-modal-simple-phone').value = '';
+    document.getElementById('reg-modal-simple-addr').value = '';
 
-    // Reset defaults
-    handleRegTypeChange(); // Resets prefix
-    document.getElementById('reg-modal-cust-view-select').value = 'simple';
-    handleRegViewChange();
+    // Advanced View Inputs
+    const idsToClear = [
+        'reg-modal-bill-name', 'reg-modal-bill-addr', 'reg-modal-bill-gst', 
+        'reg-modal-bill-phone', 'reg-modal-bill-state', 'reg-modal-bill-code',
+        'reg-modal-ship-name', 'reg-modal-ship-addr', 'reg-modal-ship-gst', 
+        'reg-modal-ship-phone', 'reg-modal-ship-state', 'reg-modal-ship-code', 
+        'reg-modal-ship-pos'
+    ];
+    idsToClear.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.value = '';
+    });
+
+    // 2. Set Default Defaults
+    document.getElementById('reg-modal-bill-state').value = 'Maharashtra';
+    document.getElementById('reg-modal-bill-code').value = '27';
+    document.getElementById('reg-modal-ship-state').value = 'Maharashtra';
+    document.getElementById('reg-modal-ship-code').value = '27';
+
+    // 3. NEW: Auto-Set Next Number based on CURRENT Prefix
+    const currentPrefix = document.getElementById('reg-modal-prefix').value;
+    if (currentPrefix) {
+        const nextNo = getNextInvoiceNumber(currentPrefix);
+        document.getElementById('reg-modal-invoice-no').value = nextNo;
+    }
+
+    // 4. Update View & Save
+    saveRegularBillDetails();
 }
 
 // 5. Saved Bills Filtering
@@ -19308,27 +19460,133 @@ function updateSavedBillsFilterOptions(bills) {
     });
 }
 
-function applySavedBillsFilter() {
-    const prefix = document.getElementById('saved-prefix-filter').value;
+async function applySavedBillsFilter() {
+    const selectedType = document.getElementById('saved-prefix-filter').value;
     const searchText = document.getElementById('saved-bills-search').value.toLowerCase();
 
-    // Determine source array (Ensure variable compatibility)
-    let source = (typeof gstSavedBills !== 'undefined' && currentBillsMode === 'gst' ? gstSavedBills : regularSavedBills);
+    try {
+        // 1. Determine source array based on current mode and fetch from DB
+        let source;
+        if (typeof currentBillsMode !== 'undefined' && currentBillsMode === 'gst') {
+            source = await getAllFromDB('gstSavedBills');
+        } else {
+            source = await getAllFromDB('savedBills');
+        }
 
-    // Filter
-    const filtered = source.filter(bill => {
-        const matchesPrefix = (prefix === 'all') || ((bill.prefix || 'None') === prefix);
-        const matchesSearch = (bill.billNo?.toString().toLowerCase().includes(searchText) ||
-            bill.custName?.toLowerCase().includes(searchText));
-        return matchesPrefix && matchesSearch;
-    });
+        // 2. Filter Data
+        const filtered = source.filter(bill => {
+            const val = bill.value;
+            
+            // Check Type (using modalState.type, fallback to 'Regular')
+            // If filter is 'all', match everything.
+            const billType = val.modalState?.type || 'Regular'; 
+            const matchesType = (selectedType === 'all') || (billType === selectedType);
+            
+            // Check Search Text (Title, Customer Name, Bill No)
+            const title = val.title?.toLowerCase() || '';
+            const custName = val.customer?.name?.toLowerCase() || '';
+            const billNo = val.customer?.billNo?.toString().toLowerCase() || '';
+            
+            // Allow search by Title OR Customer Name OR Bill Number
+            const matchesSearch = title.includes(searchText) || 
+                                  custName.includes(searchText) || 
+                                  billNo.includes(searchText);
 
-    // Reuse your existing render function
-    const listContainer = document.getElementById('saved-bills-list');
-    listContainer.innerHTML = '';
-    // Call your existing card creator
-    if (typeof createSavedBillCard === 'function') {
-        filtered.forEach(bill => createSavedBillCard(bill));
+            return matchesType && matchesSearch;
+        });
+
+        // 3. Sort by timestamp (Newest First)
+        filtered.sort((a, b) => b.value.timestamp - a.value.timestamp);
+
+        // 4. Render
+        const billsList = document.getElementById('saved-bills-list');
+        billsList.innerHTML = '';
+        
+        if (filtered.length === 0) {
+            billsList.innerHTML = '<div class="saved-bill-card">No bills match filter</div>';
+            return;
+        }
+
+        filtered.forEach(bill => {
+            const billCard = document.createElement('div');
+            billCard.className = 'saved-bill-card';
+            const menuId = `menu-bill-filter-${bill.id}-${Date.now()}`;
+            
+            const val = bill.value;
+            const state = val.modalState || {};
+            
+            // Extract Data
+            const rawBillNo = state.invoiceNo || val.customer?.billNo || 'N/A';
+            const prefix = state.prefix || '';
+            const billType = state.type || 'Estimate'; // Default to Estimate/Regular
+            const custName = val.customer?.name || 'N/A';
+            
+            // Construct Display Number
+            const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
+
+            // Generate HTML
+            billCard.innerHTML = `
+                <div class="card-header-row">
+                    <div class="card-info">
+                        <span>${displayBillNo} - ${custName}</span>
+                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; font-weight: 500;">${billType}</span>
+                        <span class="card-sub-info" style="color:var(--primary-color)">₹${val.totalAmount}</span>
+                    </div>
+                    
+                    <div class="card-controls">
+                        <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
+                            <span class="material-icons">keyboard_arrow_down</span>
+                        </button>
+                        
+                        <div class="action-menu-container">
+                            <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
+                                <span class="material-icons">more_vert</span>
+                            </button>
+                            <div id="${menuId}" class="action-dropdown">
+                                <button class="dropdown-item" onclick="downloadBillAsJson('${bill.id}', 'regular', event)">
+                                    <span class="material-icons">download</span> Download JSON
+                                </button>
+                                <button class="dropdown-item" onclick="editSavedBill('${bill.id}', 'regular', event)">
+                                    <span class="material-icons">edit</span> Edit
+                                </button>
+                                <button class="dropdown-item delete-item" onclick="deleteSavedBill('${bill.id}', 'regular', event)">
+                                    <span class="material-icons">delete</span> Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="details-section hidden saved-bill-details">
+                    <div>Date: ${val.date}</div>
+                    <div>Items: ${val.items?.length || val.itemCount || 0}</div>
+                    <div>Title: ${val.title}</div>
+                </div>
+            `;
+            
+            // Add click listener to load bill
+            billCard.addEventListener('click', async (e) => {
+                // Ignore clicks on buttons/menu (Action controls)
+                if (e.target.closest('.card-controls')) return;
+
+                resetEditMode();
+                await clearAllData(true);
+
+                // Ensure we are in Regular Mode
+                if (typeof isGSTMode !== 'undefined' && isGSTMode) {
+                    isGSTMode = false;
+                    updateUIForGSTMode();
+                }
+
+                await loadSavedBill(bill.id);
+                closeSavedBillsModal();
+            });
+
+            billsList.appendChild(billCard);
+        });
+
+    } catch (error) {
+        console.error("Filter error", error);
     }
 }
 
@@ -19510,7 +19768,8 @@ function loadRegularModalState() {
     // 1. Restore Config
     if (state.type) {
         document.getElementById('reg-modal-type-select').value = state.type;
-        handleRegTypeChange();
+        // PASS TRUE to prevent auto-saving during load
+        handleRegTypeChange(true); 
     }
 
     // Restore Prefix
@@ -19536,16 +19795,14 @@ function loadRegularModalState() {
         document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
     }
 
-    // 4. Restore Advanced Data (FIXED LOGIC HERE)
+    // 4. Restore Advanced Data
     if (state.billTo) {
         document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
         document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
         document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
         document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
-
-        // Fix: Check if undefined so we don't overwrite saved empty strings with defaults
-        document.getElementById('reg-modal-bill-state').value = (state.billTo.state !== undefined) ? state.billTo.state : 'Maharashtra';
-        document.getElementById('reg-modal-bill-code').value = (state.billTo.code !== undefined) ? state.billTo.code : '27';
+        document.getElementById('reg-modal-bill-state').value = (state.billTo.state !== undefined) ? state.billTo.state : '';
+        document.getElementById('reg-modal-bill-code').value = (state.billTo.code !== undefined) ? state.billTo.code : '';
     }
 
     if (state.shipTo) {
@@ -19553,16 +19810,51 @@ function loadRegularModalState() {
         document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
         document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
         document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-
-        // Fix: Check if undefined
-        document.getElementById('reg-modal-ship-state').value = (state.shipTo.state !== undefined) ? state.shipTo.state : 'Maharashtra';
-        document.getElementById('reg-modal-ship-code').value = (state.shipTo.code !== undefined) ? state.shipTo.code : '27';
-        document.getElementById('reg-modal-ship-pos').value = (state.shipTo.pos !== undefined) ? state.shipTo.pos : 'Maharashtra';
+        document.getElementById('reg-modal-ship-state').value = (state.shipTo.state !== undefined) ? state.shipTo.state : '';
+        document.getElementById('reg-modal-ship-code').value = (state.shipTo.code !== undefined) ? state.shipTo.code : '';
+        document.getElementById('reg-modal-ship-pos').value = (state.shipTo.pos !== undefined) ? state.shipTo.pos : '';
     }
 
     // 5. Trigger View Logic
     handleRegViewChange();
 
-    // 6. Apply to Bill View (Silent Mode)
+    // 6. Apply to Bill View (Silent Mode - true)
     saveRegularBillDetails(true);
+}
+
+/* ==========================================
+   AUTO-INCREMENT HELPER
+   ========================================== */
+async function getNextInvoiceNumberAsync(type, prefix) {
+    try {
+        const savedBills = await getAllFromDB('savedBills');
+        let maxNum = 0;
+
+        savedBills.forEach(bill => {
+            const state = bill.value.modalState || {};
+            
+            // Check if Type matches
+            if (state.type === type) {
+                // Check if Prefix matches (handle nulls as empty string)
+                const billPrefix = state.prefix || '';
+                const targetPrefix = prefix || '';
+                
+                if (billPrefix === targetPrefix) {
+                    // Try to parse the Number
+                    const numStr = state.invoiceNo || '0';
+                    const num = parseInt(numStr, 10);
+                    if (!isNaN(num) && num > maxNum) {
+                        maxNum = num;
+                    }
+                }
+            }
+        });
+
+        // Return Max + 1, padded to 3 digits
+        return String(maxNum + 1).padStart(3, '0');
+        
+    } catch (e) {
+        console.error("Error calculating next number", e);
+        return '001';
+    }
 }
