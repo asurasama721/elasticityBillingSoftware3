@@ -379,7 +379,7 @@
 
                 <div class="form-group">
                     <label for="company-mobile">Mobile No:</label>
-                    <input type="text" id="company-mobile" placeholder="+91 9876543210">
+                    <input type="text" id="company-mobile" placeholder="+91 1234567890">
                 </div>
 
                 <div class="form-group">
@@ -494,7 +494,10 @@
                 </div>
 
                 <div class="ship-to-section" id="ship-to-section" style="display: none;">
-                    <h4>Ship To</h4>
+                    <h4>Ship To <span class="material-icons" onclick="copyBillToShipTo()"
+                            title="Copy details from Bill To"
+                            style="font-size: 18px; cursor: pointer; vertical-align: middle; margin-left: 8px; color: var(--primary-color);">content_copy</span>
+                    </h4>
                     <div class="form-group">
                         <label for="buyer-name">Name:</label>
                         <input type="text" id="buyer-name" placeholder="Customer Name"
@@ -947,6 +950,11 @@
                 <div class="search-add-bar">
                     <input type="text" id="saved-bills-search" placeholder="Search bills..."
                         oninput="searchSavedBills()">
+
+                    <select id="saved-prefix-filter" onchange="applySavedBillsFilter()"
+                        style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-left: 10px;">
+                        <option value="all">All Prefixes</option>
+                    </select>
                 </div>
                 <!-- Toggle for Regular/GST Bills -->
                 <div class="mode-toggle" style="margin: 15px 0; display: flex; align-items: center; gap: 10px;">
@@ -1178,6 +1186,10 @@
                     <span class="material-icons">receipt_long</span>
                     <span class="sidebar-label">Switch Mode</span>
                 </button>
+                <button id="btn-regular-details" onclick="openRegularBillModal()" class="sidebar-action-btn">
+                    <span class="material-icons">description</span>
+                    <span class="sidebar-label">Regular Bill Details</span>
+                </button>
                 <button onclick="openCustomerDetailsModal()" class="sidebar-action-btn customer-details-btn">
                     <span class="material-icons">person</span>
                     <span class="sidebar-label">Cust. Details (GST)</span>
@@ -1361,43 +1373,108 @@
             </div>
 
             <div class="customer-details">
-                <table>
-                    <tr>
-                        <td class="label">
-                            Name:
-                            <div
-                                style="position: relative; display: inline-block; width: calc(100% - 70px); vertical-align: top;">
-                                <input type="text" id="custName" oninput="handleRegularCustomerSearch()"
-                                    autocomplete="off" style="width: 100%; margin-left: 5px;">
-                                <div class="customer-suggestions" id="regular-customer-suggestions"
-                                    style="display: none;"></div>
+
+                <div id="reg-default-view" style="display: block;">
+                    <table>
+                        <tbody>
+                            <tr>
+                                <td class="label">
+                                    Name:
+                                    <div
+                                        style="position: relative; display: inline-block; width: calc(100% - 70px); vertical-align: top;">
+                                        <input type="text" id="custName"
+                                            oninput="handleRegularCustomerSearch(); syncRegularData('view')"
+                                            autocomplete="off" style="width: 100%; margin-left: 5px;">
+                                        <div class="customer-suggestions" id="regular-customer-suggestions"
+                                            style="display: none;"></div>
+                                    </div>
+                                </td>
+                                <td class="label">
+                                    <span id="lbl-simple-bill-no">Bill no</span>:
+                                    <span id="billPrefixDisplay"
+                                        style="color: #0f0f0f; margin-right: 2px; font-size: 0.9rem;"></span>
+                                    <input type="text" id="billNo"
+                                        oninput="saveToLocalStorage(); syncRegularData('view')"
+                                        style="display: inline-block;">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="label">
+                                    Address: <input type="text" id="custAddr"
+                                        oninput="saveToLocalStorage(); syncRegularData('view')">
+                                </td>
+                                <td class="label">
+                                    Date: <input type="text" id="billDate"
+                                        oninput="saveToLocalStorage(); syncRegularData('view')">
+                                </td>
+                            </tr>
+                            <tr>
+                                <td class="label">
+                                    Contact no: <input type="text" id="custPhone"
+                                        oninput="saveToLocalStorage(); syncRegularData('view')" pattern="[0-9]*"
+                                        inputmode="numeric">
+                                </td>
+                                <td class="label" id="custGSINTd" style="display: none;">
+                                    GSTIN: <input type="text" id="custGSTIN"
+                                        oninput="saveGSTIN(); syncRegularData('view')">
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="reg-advanced-view" style="display: none;">
+
+                    <div style="display: flex; justify-content: space-between;">
+                        <div style="font-size: 16px;">
+                            <span id="lbl-adv-invoice-no">Invoice No</span> :
+                            <strong id="adv-invoice-no"></strong>
+                        </div>
+                        <div style="font-size: 16px;">
+                            Dated : <strong id="adv-bill-date"></strong>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 20px;">
+
+                        <div style="flex: 1; padding: 10px;">
+                            <h4 style="margin: 0 0 2px 0; color: var(--primary-color);padding-bottom: 5px;">
+                                Bill To</h4>
+                            <div style="font-size: 14px; line-height: 1.2;">
+                                <div id="adv-bill-name" style="font-weight: bold; font-size: 15px;"></div>
+                                <div id="adv-bill-addr" style="white-space: pre-wrap; margin-bottom: 5px; color: #555;">
+                                </div>
+
+                                <div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;">
+                                    <div><span>GSTIN:</span> <span id="adv-bill-gst"></span></div>
+                                    <div><span>Contact:</span> <span id="adv-bill-phone"></span></div>
+                                    <div><span>State:</span> <span id="adv-bill-state"></span> (<span
+                                            id="adv-bill-code"></span>)</div>
+                                </div>
                             </div>
-                        </td>
-                        <td class="label">
-                            Bill no: <input type="text" id="billNo" oninput="saveToLocalStorage()" />
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="label">
-                            Address: <input type="text" id="custAddr" oninput="saveToLocalStorage()" />
-                        </td>
-                        <td class="label">
-                            Date: <input type="text" id="billDate" oninput="saveToLocalStorage()" />
-                        </td>
+                        </div>
 
-                    </tr>
-                    <tr>
-                        <td class="label">
-                            Contact no: <input type="text" id="custPhone" oninput="saveToLocalStorage()"
-                                pattern="[0-9]*" inputmode="numeric" />
-                        </td>
+                        <div id="adv-ship-col" style="flex: 1;padding: 10px;display: none;">
+                            <h4 style="margin: 0 0 2px 0; color: var(--primary-color); padding-bottom: 5px;">
+                                Ship To</h4>
+                            <div style="font-size: 14px; line-height: 1.2;">
+                                <div id="adv-ship-name" style="font-weight: bold; font-size: 15px;"></div>
+                                <div id="adv-ship-addr" style="white-space: pre-wrap; margin-bottom: 5px; color: #555;">
+                                </div>
 
-                        <td class="label" id="custGSINTd">
-                            GSTIN: <input type="text" id="custGSTIN" oninput="saveGSTIN()">
-                        </td>
-                    </tr>
-                </table>
+                                <div style="display: flex; flex-direction: column; gap: 2px; font-size: 13px;">
+                                    <div><span>GSTIN:</span> <span id="adv-ship-gst"></span></div>
+                                    <div><span>Contact:</span> <span id="adv-ship-phone"></span></div>
+                                    <div><span>State:</span> <span id="adv-ship-state"></span> (<span
+                                            id="adv-ship-code"></span>)</div>
+                                    <div><span>POS:</span> <span id="adv-ship-pos"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+
             <div id="vendor-details-container" style="display: none; margin-bottom: 20px;">
                 <h4
                     style="text-align: center; margin-bottom: 15px; text-transform: uppercase; color: var(--primary-color);">
@@ -1642,7 +1719,7 @@
                                 <p><strong>Amount Chargeable (in words)</strong></p>
                             </td>
                             <td class="align-center" colspan="2">
-                                <p id="bill-company-signatory">for SHREE BALAJI PLY AND HARDWARE</p>
+                                <p id="bill-company-signatory">for COMPANY NAME</p>
                             </td>
                         </tr>
                         <tr>
@@ -2943,15 +3020,19 @@
     </div>
 
     <div id="personalize-modal" class="modal">
-        <div class="modal-content" style="max-width: 850px; height: 85vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: rgba(243, 243, 243, 0.95); backdrop-filter: blur(20px);">
-            
-            <div class="window-header" style="padding: 15px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
-                <div class="window-title" style="font-weight: 600; color: #202020;"><i class="fas fa-cog"></i> Personalization</div>
+        <div class="modal-content"
+            style="max-width: 850px; height: 85vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: rgba(243, 243, 243, 0.95); backdrop-filter: blur(20px);">
+
+            <div class="window-header"
+                style="padding: 15px 24px; border-bottom: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+                <div class="window-title" style="font-weight: 600; color: #202020;"><i class="fas fa-cog"></i>
+                    Personalization</div>
                 <span class="close" onclick="closePersonalizeModal()" style="color: #202020;">&times;</span>
             </div>
 
-            <div class="window-content" style="flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px;">
-                
+            <div class="window-content"
+                style="flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px;">
+
                 <div class="preview-container" id="pzn-previewContainer">
                     <div class="preview-screen" id="pzn-previewScreen"></div>
                 </div>
@@ -2973,19 +3054,24 @@
 
                     <div id="pzn-pictureOptions" class="settings-item hidden">
                         <div class="item-label">
-                            <div class="item-text"><h4>Choose a photo</h4></div>
+                            <div class="item-text">
+                                <h4>Choose a photo</h4>
+                            </div>
                         </div>
                         <div class="item-control">
                             <label class="browse-btn">
                                 Browse photos
-                                <input type="file" id="pzn-imageUpload" accept="image/*" style="display: none;" onchange="handlePznImageUpload(this)">
+                                <input type="file" id="pzn-imageUpload" accept="image/*" style="display: none;"
+                                    onchange="handlePznImageUpload(this)">
                             </label>
                         </div>
                     </div>
 
                     <div id="pzn-fitOptions" class="settings-item hidden">
                         <div class="item-label">
-                            <div class="item-text"><h4>Choose a fit</h4></div>
+                            <div class="item-text">
+                                <h4>Choose a fit</h4>
+                            </div>
                         </div>
                         <div class="item-control">
                             <select id="pzn-fitSelect" onchange="updatePznPreview()">
@@ -3000,13 +3086,17 @@
 
                     <div id="pzn-solidOptions" class="settings-item">
                         <div class="item-label">
-                            <div class="item-text"><h4>Choose your background color</h4></div>
+                            <div class="item-text">
+                                <h4>Choose your background color</h4>
+                            </div>
                         </div>
                         <div class="item-control">
                             <div class="color-grid" id="pzn-colorGrid">
                                 <div class="custom-color-wrapper" title="Custom">
-                                    <input type="color" id="pzn-customColorPicker" value="#f9f9f9" oninput="handlePznColorInput(this)">
-                                    <i class="fas fa-plus" style="position: absolute; top:50%; left:50%; transform: translate(-50%,-50%); color: #666; pointer-events: none; font-size: 10px;"></i>
+                                    <input type="color" id="pzn-customColorPicker" value="#f9f9f9"
+                                        oninput="handlePznColorInput(this)">
+                                    <i class="fas fa-plus"
+                                        style="position: absolute; top:50%; left:50%; transform: translate(-50%,-50%); color: #666; pointer-events: none; font-size: 10px;"></i>
                                 </div>
                             </div>
                         </div>
@@ -3017,10 +3107,13 @@
                     <div class="settings-item">
                         <div class="item-label">
                             <i class="fas fa-sun"></i>
-                            <div class="item-text"><h4>Brightness</h4></div>
+                            <div class="item-text">
+                                <h4>Brightness</h4>
+                            </div>
                         </div>
                         <div class="item-control win-slider-container">
-                            <input type="range" min="0" max="200" value="100" id="pzn-brightnessSlider" oninput="updatePznPreview()">
+                            <input type="range" min="0" max="200" value="100" id="pzn-brightnessSlider"
+                                oninput="updatePznPreview()">
                             <span class="slider-val" id="pzn-brightnessVal">100%</span>
                         </div>
                     </div>
@@ -3028,10 +3121,13 @@
                     <div class="settings-item">
                         <div class="item-label">
                             <i class="fas fa-adjust"></i>
-                            <div class="item-text"><h4>Contrast</h4></div>
+                            <div class="item-text">
+                                <h4>Contrast</h4>
+                            </div>
                         </div>
                         <div class="item-control win-slider-container">
-                            <input type="range" min="0" max="200" value="100" id="pzn-contrastSlider" oninput="updatePznPreview()">
+                            <input type="range" min="0" max="200" value="100" id="pzn-contrastSlider"
+                                oninput="updatePznPreview()">
                             <span class="slider-val" id="pzn-contrastVal">100%</span>
                         </div>
                     </div>
@@ -3039,22 +3135,185 @@
                     <div class="settings-item">
                         <div class="item-label">
                             <i class="fas fa-tint"></i>
-                            <div class="item-text"><h4>Blur</h4></div>
+                            <div class="item-text">
+                                <h4>Blur</h4>
+                            </div>
                         </div>
                         <div class="item-control win-slider-container">
-                            <input type="range" min="0" max="50" value="0" id="pzn-blurSlider" oninput="updatePznPreview()">
+                            <input type="range" min="0" max="50" value="0" id="pzn-blurSlider"
+                                oninput="updatePznPreview()">
                             <span class="slider-val" id="pzn-blurVal">0px</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="window-footer" style="padding: 20px 32px; background: rgba(243, 243, 243, 0.8); border-top: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <div class="window-footer"
+                style="padding: 20px 32px; background: rgba(243, 243, 243, 0.8); border-top: 1px solid rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
                 <button class="btn btn-danger" onclick="resetPersonalization()">Reset to Default</button>
                 <div class="footer-actions">
                     <button class="btn btn-secondary" onclick="closePersonalizeModal()">Cancel</button>
                     <button class="btn btn-primary" onclick="saveAndApplyPersonalization()">Apply</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="regular-details-modal" class="modal">
+        <div class="modal-content" style="max-width: 750px;">
+            <div class="modal-header">
+                <h3>Regular Bill Details</h3>
+                <span class="close" onclick="closeRegularModal()">×</span>
+            </div>
+            <div class="modal-body" style="max-height: 70vh;overflow: auto;">
+
+                <div class="form-group-row"
+                    style="display: flex; gap: 15px; margin-bottom: 20px; align-items: flex-end;">
+                    <div style="flex: 1; position: relative;">
+                        <label>Bill Type</label>
+                        <div style="display: flex; gap: 5px;">
+                            <select id="reg-modal-type-select" onchange="handleRegTypeChange()"
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <option value="Estimate">Estimate</option>
+                                <option value="Quotation">Quotation</option>
+                                <option value="Purchase Order">Purchase Order</option>
+                                <option value="Work Order">Work Order</option>
+                                <option value="Custom">Custom...</option>
+                            </select>
+
+                            <button onclick="toggleRegTypeMenu()" class="btn-icon"
+                                style="padding: 5px; border: none; background: transparent; cursor: pointer;">
+                                <span class="material-icons">more_vert</span>
+                            </button>
+                        </div>
+
+                        <div id="reg-type-menu"
+                            style="display: none; position: absolute; right: 0; top: 100%; background: white; border: 1px solid #ccc; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10; border-radius: 4px; min-width: 120px;">
+                            <div onclick="editRegType()"
+                                style="padding: 8px 15px; cursor: pointer; border-bottom: 1px solid #eee;">Edit</div>
+                            <div onclick="deleteRegType()" style="padding: 8px 15px; cursor: pointer; color: red;">
+                                Delete</div>
+                        </div>
+                    </div>
+
+                    <div style="flex: 1;">
+                        <label>Prefix</label>
+                        <div class="input-group-lock">
+                            <input type="text" id="reg-modal-prefix" placeholder="EST" disabled="">
+                            <button id="reg-prefix-lock-btn" onclick="toggleRegPrefixLock()" type="button"
+                                title="Toggle Edit">
+                                <span class="material-icons">lock</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div style="flex: 0 0 100px;">
+                        <button id="reg-save-custom-btn" onclick="saveRegCustomType()" class="btn-primary"
+                            style="width: 100%; display: none; height: 38px;">Save Type</button>
+                    </div>
+                </div>
+
+                <div id="reg-custom-type-panel"
+                    style="display: none; background: #f0f4f8; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                    <div style="display: flex; gap: 10px;">
+                        <input type="text" id="reg-custom-name-input" placeholder="Type Name (e.g. Proforma)"
+                            style="flex: 1;">
+                        <input type="text" id="reg-custom-prefix-input" placeholder="Prefix (e.g. PI)"
+                            style="flex:1;">
+                        <input type="text" id="reg-custom-label-input" placeholder="Label (e.g. Proforma No)"
+                            style="flex: 1;">
+                    </div>
+                </div>
+
+                <div class="form-group-row" style="display: flex; gap: 15px; margin-bottom: 20px;">
+                    <div style="flex: 1;">
+                        <label id="lbl-reg-invoice-no">Invoice No</label>
+                        <input type="text" id="reg-modal-invoice-no" oninput="syncRegularData('modal')"
+                            placeholder="001">
+                    </div>
+                    <div style="flex: 1;">
+                        <label>Date</label>
+                        <input type="text" id="reg-modal-date" oninput="syncRegularData('modal')"
+                            placeholder="DD-MM-YYYY">
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <h3>Customer Info</h3>
+
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Select Detail Format:</label>
+                    <select id="reg-modal-cust-view-select" onchange="handleRegViewChange()"
+                        style="width: 100%; padding: 8px;">
+                        <option value="simple" selected>Customer Details (Simple)</option>
+                        <option value="bill_to">Bill To</option>
+                        <option value="both">Bill To & Ship To</option>
+                    </select>
+                </div>
+
+                <div id="reg-modal-simple-section" style="display: block;">
+                    <div class="form-group">
+                        <label>Customer Name</label>
+                        <input type="text" id="reg-modal-simple-name" oninput="syncRegularData('modal')"
+                            placeholder="Enter Name">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone / Contact</label>
+                        <input type="text" id="reg-modal-simple-phone" oninput="syncRegularData('modal')"
+                            placeholder="Enter Contact No">
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea id="reg-modal-simple-addr" oninput="syncRegularData('modal')"
+                            placeholder="Enter Address" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div id="reg-modal-advanced-section" style="display: none;">
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+
+                        <div style="width: 100%;">
+                            <h4 class="column-header">Bill To</h4>
+                            <input type="text" id="reg-modal-bill-name" placeholder="Name" class="mb-2">
+                            <textarea id="reg-modal-bill-addr" placeholder="Address" rows="2" class="mb-2"></textarea>
+                            <input type="text" id="reg-modal-bill-gst" placeholder="GSTIN" class="mb-2">
+                            <input type="text" id="reg-modal-bill-phone" placeholder="Contact No" class="mb-2">
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="reg-modal-bill-state" value="Maharashtra" placeholder="State"
+                                    style="flex: 2;">
+                                <input type="text" id="reg-modal-bill-code" value="27" placeholder="Code"
+                                    style="flex: 1;">
+                            </div>
+                        </div>
+
+                        <div id="reg-modal-ship-col" style="width: 100%; display: block;">
+                            <h4 class="column-header">
+                                Ship To
+                                <span class="material-icons copy-icon" onclick="copyRegBillToShip()"
+                                    title="Copy from Bill To">content_copy</span>
+                            </h4>
+                            <input type="text" id="reg-modal-ship-name" placeholder="Name" class="mb-2">
+                            <textarea id="reg-modal-ship-addr" placeholder="Address" rows="2" class="mb-2"></textarea>
+                            <input type="text" id="reg-modal-ship-gst" placeholder="GSTIN" class="mb-2">
+                            <input type="text" id="reg-modal-ship-phone" placeholder="Contact No" class="mb-2">
+                            <div style="display: flex; gap: 5px;">
+                                <input type="text" id="reg-modal-ship-state" value="Maharashtra" placeholder="State"
+                                    style="flex: 2;">
+                                <input type="text" id="reg-modal-ship-code" value="27" placeholder="Code"
+                                    style="flex: 1;">
+                            </div>
+                            <input type="text" id="reg-modal-ship-pos" value="Maharashtra" placeholder="Place of Supply"
+                                class="mt-2">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button onclick="clearRegularModal()" class="btn-clear">Clear</button>
+                <button onclick="closeRegularModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveRegularBillDetails()" class="btn-apply">Save Details</button>
             </div>
         </div>
     </div>
