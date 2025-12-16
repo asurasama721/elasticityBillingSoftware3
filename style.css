@@ -5737,3 +5737,71 @@ body {
     background-color: #f8f9fa !important;
     /* Slightly lighter gray */
 }
+
+
+
+/* --- HISTORY CARD UPDATES --- */
+.history-item {
+    position: relative; /* For absolute positioning of remove button */
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.history-item:hover {
+    background-color: #f5f8fa;
+}
+
+/* Row 1: Prefix + Number */
+.history-row-main {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-color);
+    padding-right: 30px; /* Space for delete button */
+}
+
+/* Row 2: Bill Type */
+.history-row-type {
+    font-size: 0.9rem;
+    color: var(--primary-color);
+    font-weight: 500;
+}
+
+/* Row 3: Date & Time */
+.history-row-date {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+/* Row 4: Total Price */
+.history-row-total {
+    font-weight: 600;
+    color: var(--text-color);
+    margin-top: 4px;
+    font-size: 1rem;
+}
+
+/* Remove Button - Top Right */
+.history-item-remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    color: #ff6b6b;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.history-item-remove:hover {
+    background-color: #ffe5e5;
+    color: #d63031;
+}
