@@ -52,6 +52,10 @@ let currentVendorFile = null; // Stores Base64 string of uploaded bill
 let currentlyEditingVendorId = null;
 let currentVendorBillsMode = 'regular'; // 'regular' or 'gst'
 
+// Add/Update this at the top with other global variables
+let autoScrollEnabled = localStorage.getItem('billApp_autoScroll') === 'true';
+let lastScrollPosition = 0; // Stores scroll position before editing
+
 // Add this with other global variables
 let sectionModalState = {
     align: 'left',
@@ -1159,6 +1163,22 @@ document.addEventListener('DOMContentLoaded', async function () {
                 }
             });
         });
+
+        // AUTO SCROLL ON LOAD
+        // Restore Auto Scroll Button State
+        const btn = document.getElementById('btn-auto-scroll');
+        if (btn) {
+            if(autoScrollEnabled) {
+                btn.style.backgroundColor = '#80a2c2c4';
+                const label = btn.querySelector('.sidebar-label');
+                if (label) label.textContent = 'Auto Scroll : ON';
+            } else {
+                btn.style.backgroundColor = '';
+                const label = btn.querySelector('.sidebar-label');
+                if (label) label.textContent = 'Auto Scroll : OFF';
+            }
+        }
+        // 
 
 
         // OCR start
@@ -3534,11 +3554,31 @@ async function deleteCustomer(customerName) {
     }
 }
 
-async function autoSaveRegularCustomer(customerName) {
-    // Check if customer already exists in regular customers (case-insensitive)
+async function autoSaveRegularCustomer(data) {
+    // Data can be a string (name only - legacy) or object {name, address, phone, gstin, state, code}
+    let name, address, phone, gstin, state, code;
+
+    if (typeof data === 'string') {
+        name = data;
+        // Fallback to reading DOM if string passed
+        address = document.getElementById('custAddr')?.value || '';
+        phone = document.getElementById('custPhone')?.value || '';
+        gstin = document.getElementById('custGSTIN')?.value || '';
+    } else {
+        name = data.name;
+        address = data.address || '';
+        phone = data.phone || '';
+        gstin = data.gstin || '';
+        state = data.state || '';
+        code = data.code || '';
+    }
+
+    if (!name) return;
+
+    // Check if customer already exists (Case Insensitive)
     const existingCustomers = await getAllFromDB('savedCustomers');
     const customerExists = existingCustomers.some(customer =>
-        customer.value.name.toLowerCase() === customerName.toLowerCase()
+        customer.value.name.toLowerCase() === name.toLowerCase()
     );
 
     if (customerExists) {
@@ -3548,17 +3588,19 @@ async function autoSaveRegularCustomer(customerName) {
 
     // Create customer data
     const customerData = {
-        name: customerName,
-        address: document.getElementById('custAddr').value || '',
-        phone: document.getElementById('custPhone').value || '',
-        gstin: document.getElementById('custGSTIN').value || '',
+        name: name,
+        address: address,
+        phone: phone,
+        gstin: gstin,
+        state: state,
+        code: code,
         timestamp: Date.now()
     };
 
     try {
-        await setInDB('savedCustomers', customerName, customerData);
+        await setInDB('savedCustomers', name, customerData);
         await loadSavedCustomers(); // Refresh the customer list
-        console.log('Customer auto-saved:', customerName);
+        console.log('Customer auto-saved:', name);
     } catch (error) {
         console.error('Error auto-saving customer:', error);
     }
@@ -3643,7 +3685,7 @@ async function editSavedBill(billId, billType, event) {
     let savedBill;
     if (billType === 'regular') {
         savedBill = await getFromDB('savedBills', billId);
-        window.currentEditingBillOriginalNumber = savedBill?.customer?.billNo; 
+        window.currentEditingBillOriginalNumber = savedBill?.customer?.billNo;
     } else {
         savedBill = await getFromDB('gstSavedBills', billId);
         window.currentEditingBillOriginalNumber = savedBill?.invoiceDetails?.number;
@@ -3678,7 +3720,7 @@ async function editSavedBill(billId, billType, event) {
 
             // B. Ensure Custom Types exist in dropdown (if custom type was used)
             if (typeof initRegBillTypes === 'function') {
-                 initRegBillTypes();
+                initRegBillTypes();
             }
 
             // C. Restore the UI (Inputs, Labels, Prefix, View Mode)
@@ -3743,7 +3785,7 @@ async function deleteSavedBill(billId, billType, event) {
 // REPLACE ENTIRE saveCurrentBill FUNCTION WITH THIS:
 async function saveCurrentBill() {
     // 1. CHECK VENDOR MODE FIRST
-    if (isVendorMode) {
+    if (typeof isVendorMode !== 'undefined' && isVendorMode) {
         await saveVendorPurchaseBill();
         return;
     }
@@ -3753,7 +3795,41 @@ async function saveCurrentBill() {
         await saveGSTCurrentBill();
     } else {
         // --- REGULAR BILL SAVE LOGIC ---
-        const customerName = document.getElementById('custName').value.trim();
+
+        // --- FIX: Determine Customer Name & Details based on View Format ---
+        const viewFormat = document.getElementById('reg-modal-cust-view-select').value;
+        let customerName = '';
+        let custDataToSave = null;
+
+        if (viewFormat === 'simple') {
+            customerName = document.getElementById('reg-modal-simple-name').value.trim();
+            if (customerName) {
+                custDataToSave = {
+                    name: customerName,
+                    address: document.getElementById('reg-modal-simple-addr').value,
+                    phone: document.getElementById('reg-modal-simple-phone').value
+                };
+            }
+        } else {
+            // Bill To or Both (Prioritize Bill To details for saving)
+            customerName = document.getElementById('reg-modal-bill-name').value.trim();
+            if (customerName) {
+                custDataToSave = {
+                    name: customerName,
+                    address: document.getElementById('reg-modal-bill-addr').value,
+                    phone: document.getElementById('reg-modal-bill-phone').value,
+                    gstin: document.getElementById('reg-modal-bill-gst').value,
+                    state: document.getElementById('reg-modal-bill-state').value,
+                    code: document.getElementById('reg-modal-bill-code').value
+                };
+            }
+        }
+
+        // Fallback if modal fields are empty (Safety)
+        if (!customerName) {
+            customerName = document.getElementById('custName').value.trim();
+        }
+
         const billNo = document.getElementById('billNo').value.trim();
         const totalAmount = document.getElementById('createTotalAmountManual').textContent || '0.00';
 
@@ -3768,15 +3844,18 @@ async function saveCurrentBill() {
         const currentId = (editMode && currentEditingBillId) ? currentEditingBillId : null;
 
         if (typeof checkDuplicateBillNumber === 'function') {
-             const isDuplicate = await checkDuplicateBillNumber(billNo, 'regular', currentType, currentId);
-             if (isDuplicate) {
-                 showNotification(`Bill ${billNo} already exists for ${currentType}!`, 'error');
-                 return;
-             }
+            const isDuplicate = await checkDuplicateBillNumber(billNo, 'regular', currentType, currentId);
+            if (isDuplicate) {
+                showNotification(`Bill ${billNo} already exists for ${currentType}!`, 'error');
+                return;
+            }
         }
 
-        // Auto-save customer
-        if (customerName) {
+        // --- FIX: Auto-save customer with correct details ---
+        if (custDataToSave) {
+            await autoSaveRegularCustomer(custDataToSave);
+        } else if (customerName) {
+            // Fallback for simple name only
             await autoSaveRegularCustomer(customerName);
         }
 
@@ -3793,9 +3872,9 @@ async function saveCurrentBill() {
                 prefix: document.getElementById('reg-modal-prefix').value,
                 invoiceNo: document.getElementById('reg-modal-invoice-no').value,
                 date: document.getElementById('reg-modal-date').value,
-                
-                // --- FIX: CHANGED 'viewMode' TO 'viewFormat' TO MATCH HISTORY/LOADER ---
-                viewFormat: document.getElementById('reg-modal-cust-view-select').value,
+
+                // View Format
+                viewFormat: viewFormat,
 
                 // Simple Data
                 simple: {
@@ -5007,7 +5086,7 @@ async function loadSavedBillsList() {
         billsList.innerHTML = '';
 
         // --- FIX: Populate Filter by Bill Type ---
-        const filterSelect = document.getElementById('saved-prefix-filter'); // ID from HTML
+        const filterSelect = document.getElementById('saved-prefix-filter');
         if (filterSelect) {
             // Extract unique types
             const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
@@ -5039,7 +5118,22 @@ async function loadSavedBillsList() {
             const rawBillNo = state.invoiceNo || bill.value.customer?.billNo || 'N/A';
             const prefix = state.prefix || '';
             const billType = state.type || 'Estimate'; // Default text
-            const custName = bill.value.customer?.name || 'N/A';
+
+            // --- FIX START: Determine Customer Name based on View Format ---
+            const viewFormat = state.viewFormat || 'simple';
+            let custName = 'N/A';
+
+            if (viewFormat === 'simple') {
+                custName = state.simple?.name;
+            } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
+                custName = state.billTo?.name;
+            }
+
+            // Fallback if the specific name is empty
+            if (!custName) {
+                custName = bill.value.customer?.name || 'N/A';
+            }
+            // --- FIX END ---
 
             // Construct Display Number (Prefix + No)
             const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
@@ -5049,8 +5143,8 @@ async function loadSavedBillsList() {
                 <div class="card-header-row">
                     <div class="card-info">
                         <span>${displayBillNo} - ${custName}</span>
-                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; font-weight: 500;">${billType}</span>
-                        <span class="card-sub-info" style="color:var(--primary-color)">₹${bill.value.totalAmount}</span>
+                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; color:var(--primary-color);font-weight: 500;">${billType}</span>
+                        <span class="card-sub-info">₹${bill.value.totalAmount}</span>
                     </div>
                     
                     <div class="card-controls">
@@ -5080,7 +5174,7 @@ async function loadSavedBillsList() {
                 <div class="details-section hidden saved-bill-details">
                     <div>Date: ${bill.value.date}</div>
                     <div>Items: ${bill.value.items?.length || bill.value.itemCount || 0}</div>
-                    <div>Title: ${bill.value.title}</div>
+                   
                 </div>
             `;
 
@@ -5107,6 +5201,9 @@ async function loadSavedBill(billId) {
         const savedBill = await getFromDB('savedBills', billId);
         if (!savedBill) return;
 
+        // FIX: Persist Regular Mode to DB so it stays in Regular Mode after refresh
+        await setInDB('gstMode', 'isGSTMode', false);
+
         await setInDB('billDataManual', 'currentBill', savedBill);
         await loadFromLocalStorage();
         saveStateToHistory();
@@ -5121,70 +5218,76 @@ async function loadSavedBill(billId) {
 
             // 2. Initialize Dropdowns
             if (typeof initRegBillTypes === 'function') {
-                 initRegBillTypes();
+                initRegBillTypes();
             }
 
             // 3. SET TYPE & PREFIX FIRST
-            if(document.getElementById('reg-modal-type-select')) {
+            if (document.getElementById('reg-modal-type-select')) {
                 document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
             }
-            
+
             // 4. TRIGGER TYPE CHANGE (Updates Labels)
+            // FIX: Pass 'true' to prevent generating a new invoice number
             if (typeof handleRegTypeChange === 'function') {
-                handleRegTypeChange();
+                await handleRegTypeChange(true);
             }
 
-            // 5. RESTORE TYPE & PREFIX AGAIN
-            if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-            if(document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
-            if(document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
-            if(document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
+            // 5. RESTORE TYPE & PREFIX AGAIN (Safety measure)
+            if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+            if (document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
 
-            // 6. SET VIEW FORMAT (Check both keys for safety)
-            if(document.getElementById('reg-modal-cust-view-select')) {
+            // 6. RESTORE INVOICE NUMBER (Now safe from overwrite)
+            if (document.getElementById('reg-modal-invoice-no')) {
+                document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
+            }
+
+            if (document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
+
+            // 7. SET VIEW FORMAT (Check both keys for safety)
+            if (document.getElementById('reg-modal-cust-view-select')) {
                 // FIX: Check viewFormat (Correct) OR viewMode (Legacy/Bugged)
                 document.getElementById('reg-modal-cust-view-select').value = state.viewFormat || state.viewMode || 'simple';
-                
-                if(typeof handleRegViewChange === 'function') {
+
+                if (typeof handleRegViewChange === 'function') {
                     handleRegViewChange();
                 }
             }
 
-            // 7. RESTORE DATA FIELDS
+            // 8. RESTORE DATA FIELDS
             if (state.simple) {
-                if(document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
-                if(document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
-                if(document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
+                if (document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
+                if (document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
+                if (document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
             }
 
             if (state.billTo) {
-                if(document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
-                if(document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
-                if(document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
-                if(document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
-                if(document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                if (document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
+                if (document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
+                if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
+                if (document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
+                if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
             }
 
             if (state.shipTo) {
-                if(document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
-                if(document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
-                if(document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
-                if(document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                if(document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                if(document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
+                if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
+                if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
+                if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
+                if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
+                if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
             }
 
-            // 8. SYNC TO MAIN VIEW
+            // 9. SYNC TO MAIN VIEW
             if (typeof saveRegularBillDetails === 'function') {
-                saveRegularBillDetails(true); 
+                saveRegularBillDetails(true);
             }
         }
         // ------------------------------------------------------------
 
         if (currentView === 'input') toggleView();
-        
+
         resetColumnVisibility();
     } catch (error) {
         console.error('Error loading saved bill:', error);
@@ -5515,7 +5618,7 @@ async function addRowManual() {
     await saveToLocalStorage();
     saveStateToHistory();
 
-    // Clear inputs
+    // --- RESET INPUTS ---
     document.getElementById("itemNameManual").value = "";
     document.getElementById("quantityManual").value = "";
     document.getElementById("rateManual").value = "";
@@ -5523,21 +5626,32 @@ async function addRowManual() {
     document.getElementById("dimension1").value = "";
     document.getElementById("dimension2").value = "";
     document.getElementById("dimension3").value = "";
-    document.getElementById("discountType").value = "none";
-    document.getElementById("discountValue").value = "";
+    document.getElementById("selectUnit").value = "";
 
     if (isGSTMode) {
         document.getElementById("hsnCodeManual").value = "";
         document.getElementById("productCodeManual").value = "";
     }
 
+    // --- RESET DISCOUNT UI ---
+    document.getElementById("discountType").value = "none";
+    document.getElementById("discountValue").value = "";
+    // Hide container and reset button style
+    document.getElementById("discount-inputs-container").style.display = "none";
+    document.getElementById("toggleDiscountBtn").style.backgroundColor = "";
+
+    // --- RESET DIMENSION UI ---
     document.getElementById('dimensionType').value = 'none';
     document.getElementById('measurementUnit').style.display = 'none';
     document.getElementById('dimensionInputs').style.display = 'none';
+    // Hide container and reset button style
+    document.getElementById("dimension-inputs-container").style.display = "none";
+    document.getElementById("toggleDimensionBtn").style.backgroundColor = "";
 
-    // Reset Convert options
+    // --- RESET CONVERT UI ---
     document.getElementById('toggleConvertBtn').style.display = 'none';
     document.getElementById('toggleConvertBtn').classList.remove('active');
+    document.getElementById('toggleConvertBtn').style.backgroundColor = "";
     document.getElementById('convertUnit').style.display = 'none';
     document.getElementById('convertUnit').value = 'none';
     currentConvertUnit = 'none';
@@ -5552,7 +5666,80 @@ async function addRowManual() {
     document.getElementById("itemNameManual").focus();
 
     applyColumnVisibility();
-    updateGlobalDimensionButtonState(); // <--- ADDED THIS
+    updateGlobalDimensionButtonState();
+}
+
+function cancelUpdateManual() {
+    // 1. Clear Inputs
+    document.getElementById("itemNameManual").value = "";
+    document.getElementById("quantityManual").value = "";
+    document.getElementById("rateManual").value = "";
+    document.getElementById("itemNotesManual").value = "";
+    document.getElementById("dimension1").value = "";
+    document.getElementById("dimension2").value = "";
+    document.getElementById("dimension3").value = "";
+    document.getElementById("selectUnit").value = "";
+
+    // Clear GST
+    const hsnInput = document.getElementById("hsnCodeManual");
+    if (hsnInput) hsnInput.value = "";
+    const prodInput = document.getElementById("productCodeManual");
+    if (prodInput) prodInput.value = "";
+
+    // 2. Reset UI Sections (Hide Everything)
+    document.getElementById("discountType").value = "none";
+    document.getElementById("discountValue").value = "";
+    document.getElementById("discount-inputs-container").style.display = "none";
+    document.getElementById("toggleDiscountBtn").style.backgroundColor = "";
+
+    document.getElementById('dimensionType').value = 'none';
+    document.getElementById('measurementUnit').style.display = 'none';
+    document.getElementById('dimensionInputs').style.display = 'none';
+    document.getElementById("dimension-inputs-container").style.display = "none";
+    document.getElementById("toggleDimensionBtn").style.backgroundColor = "";
+
+    document.getElementById('toggleConvertBtn').style.display = 'none';
+    document.getElementById('toggleConvertBtn').classList.remove('active');
+    document.getElementById('toggleConvertBtn').style.backgroundColor = "";
+    document.getElementById('convertUnit').style.display = 'none';
+    document.getElementById('convertUnit').value = 'none';
+    currentConvertUnit = 'none';
+
+    currentDimensions = { type: 'none', unit: 'ft', values: [0, 0, 0], calculatedArea: 0 };
+
+    // 3. Reset Buttons
+    document.getElementById("addItemBtnManual").style.display = "inline-block";
+    document.getElementById("updateItemBtnManual").style.display = "none";
+    document.getElementById("cancelUpdateBtnManual").style.display = "none";
+
+    // 4. Clear Editing State & BLUR active elements
+    currentlyEditingRowIdManual = null;
+    if (document.activeElement) {
+        document.activeElement.blur();
+    }
+
+    // 5. SCROLL LOGIC - Restore Saved Position
+    if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
+
+        // Use requestAnimationFrame to ensure UI updates are complete
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                console.log("Restoring scroll position to:", lastScrollPosition);
+
+                window.scrollTo({
+                    top: lastScrollPosition,
+                    behavior: 'smooth' // Instant jump to avoid conflicts
+                });
+
+                // Optional: We can still highlight the row if we want, but scrolling is the priority
+                // const row = document.querySelector(`tr[data-id="${currentlyEditingRowIdManual}"]`); // ID is null now, so we skip highlighting or save ID earlier if needed
+            });
+        });
+
+    } else {
+        // Auto Scroll OFF
+        document.getElementById("itemNameManual").focus();
+    }
 }
 
 async function updateRowManual() {
@@ -5604,7 +5791,7 @@ async function updateRowManual() {
     const dimensionText = getDimensionDisplayText(dimensionType, currentDimensions.values, currentDimensions.unit, toggleStates);
     const originalQuantity = quantity;
 
-    // --- NEW CONVERSION LOGIC ---
+    // --- CONVERSION LOGIC ---
     let power = 0;
     if (currentDimensions.type !== 'none' && currentDimensions.type !== 'dozen') {
         if (toggleStates.toggle1) power++;
@@ -5623,7 +5810,6 @@ async function updateRowManual() {
     let baseAmount = 0;
 
     if (currentDimensions.type !== 'none' && currentDimensions.type !== 'dozen' && currentDimensions.calculatedArea > 0) {
-        // Apply conversion factor
         calculatedQuantity = (quantity * currentDimensions.calculatedArea) * conversionFactor;
         baseAmount = storeWithPrecision(calculatedQuantity * rate);
     } else if (currentDimensions.type === 'dozen') {
@@ -5681,8 +5867,17 @@ async function updateRowManual() {
 
     const rows = document.querySelectorAll(`tr[data-id="${currentlyEditingRowIdManual}"]`);
     rows.forEach(row => {
+        // --- FIX: Preserve Visibility State ---
+        const wasVisible = row.getAttribute('data-dimensions-visible') !== 'false';
+
         const cells = row.children;
         cells[1].innerHTML = particularsHtml;
+
+        // Re-apply visibility to the new HTML
+        const dimDiv = cells[1].querySelector('.dimensions');
+        if (dimDiv) {
+            dimDiv.style.display = wasVisible ? 'block' : 'none';
+        }
 
         const formattedQuantity = originalQuantity % 1 === 0 ?
             originalQuantity.toString() :
@@ -5701,7 +5896,7 @@ async function updateRowManual() {
         row.setAttribute('data-dimension-unit', currentDimensions.unit);
         row.setAttribute('data-dimension-toggles', JSON.stringify(toggleStates));
         row.setAttribute('data-original-quantity', originalQuantity.toFixed(8));
-        row.setAttribute('data-convert-unit', selectedConvertUnit); // SAVE CONVERT UNIT
+        row.setAttribute('data-convert-unit', selectedConvertUnit);
 
         if (isGSTMode) {
             row.setAttribute('data-hsn', hsnCode);
@@ -5722,44 +5917,8 @@ async function updateRowManual() {
     await saveToLocalStorage();
     saveStateToHistory();
 
-    // Clear inputs
-    document.getElementById("itemNameManual").value = "";
-    document.getElementById("quantityManual").value = "";
-    document.getElementById("rateManual").value = "";
-    document.getElementById("itemNotesManual").value = "";
-    document.getElementById("dimension1").value = "";
-    document.getElementById("dimension2").value = "";
-    document.getElementById("dimension3").value = "";
-    document.getElementById("discountType").value = "none";
-    document.getElementById("discountValue").value = "";
-
-    if (isGSTMode) {
-        document.getElementById("hsnCodeManual").value = "";
-        document.getElementById("productCodeManual").value = "";
-    }
-
-    document.getElementById('dimensionType').value = 'none';
-    document.getElementById('measurementUnit').style.display = 'none';
-    document.getElementById('dimensionInputs').style.display = 'none';
-
-    // Reset Convert Options
-    document.getElementById('toggleConvertBtn').style.display = 'none';
-    document.getElementById('toggleConvertBtn').classList.remove('active');
-    document.getElementById('convertUnit').style.display = 'none';
-    document.getElementById('convertUnit').value = 'none';
-    currentConvertUnit = 'none';
-
-    currentDimensions = {
-        type: 'none',
-        unit: 'ft',
-        values: [0, 0, 0],
-        calculatedArea: 0
-    };
-
-    document.getElementById("addItemBtnManual").style.display = "inline-block";
-    document.getElementById("updateItemBtnManual").style.display = "none";
-    currentlyEditingRowIdManual = null;
-    document.getElementById("itemNameManual").focus();
+    // --- RESET UI (Same as cancel logic) ---
+    cancelUpdateManual();
 }
 
 // Helper function to calculate area from dimensions considering toggle states
@@ -6062,13 +6221,13 @@ function createTableRowManual(id, itemName, quantity, unit, rate, amount, notes,
         actionsHtml = `
             <div class="action-buttons">
                 <button onclick="duplicateRow('${id}')" class="action-btn copy-btn" title="Duplicate Item">
-                    <span class="material-icons">content_copy</span>
+                    <span class="material-icons"  translate="no">content_copy</span>
                 </button>
                 <button onclick="toggleRowDimensions('${id}')" class="action-btn dimensions-btn" title="Toggle Dimensions">
-                    <span class="material-icons">${dimensionsVisible ? 'layers' : 'layers_clear'}</span>
+                    <span class="material-icons"  translate="no">${dimensionsVisible ? 'layers' : 'layers_clear'}</span>
                 </button>
                 <button onclick="${removeFn}" class="action-btn remove-btn" title="Remove Item">
-                    <span class="material-icons">close</span>
+                    <span class="material-icons"  translate="no">close</span>
                 </button>
             </div>
         `;
@@ -6186,6 +6345,23 @@ function removeRowManual(id, skipConfirm = false) {
     updateGlobalDimensionButtonState(); // <--- ADDED THIS
 }
 
+function toggleAutoScroll() {
+    autoScrollEnabled = !autoScrollEnabled;
+
+    // SAVE TO LOCAL STORAGE
+    localStorage.setItem('billApp_autoScroll', autoScrollEnabled);
+
+    const btn = document.getElementById('btn-auto-scroll');
+    const label = btn.querySelector('.sidebar-label');
+
+    if (autoScrollEnabled) {
+        btn.style.backgroundColor = '#27ae60'; // Green
+        label.textContent = 'Auto Scroll : ON';
+    } else {
+        btn.style.backgroundColor = ''; // Default
+        label.textContent = 'Auto Scroll : OFF';
+    }
+}
 function editRowManual(id) {
     // Prevent editing if click came from action buttons
     if (window.event) {
@@ -6193,6 +6369,13 @@ function editRowManual(id) {
         if (target.closest('.action-buttons') || target.closest('.action-btn')) {
             return;
         }
+    }
+
+    // --- NEW: SAVE SCROLL POSITION IMMEDIATELY ---
+    // We capture where the user is looking BEFORE we jump to the top
+    if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
+        lastScrollPosition = window.scrollY || document.documentElement.scrollTop;
+        console.log("Saved scroll position:", lastScrollPosition);
     }
 
     const row = document.querySelector(`#createListManual tr[data-id="${id}"]`);
@@ -6206,7 +6389,6 @@ function editRowManual(id) {
     const dimensionType = row.getAttribute('data-dimension-type') || 'none';
     const dimensionValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
     const dimensionUnit = row.getAttribute('data-dimension-unit') || 'ft';
-
 
     // Safe JSON parsing for dimension toggles
     const toggleStatesAttr = row.getAttribute('data-dimension-toggles');
@@ -6227,7 +6409,6 @@ function editRowManual(id) {
     const discountValue = row.getAttribute('data-discount-value') || '';
     const savedConvertUnit = row.getAttribute('data-convert-unit') || 'none';
 
-
     // Populate all fields
     document.getElementById("itemNameManual").value = itemName;
 
@@ -6240,8 +6421,10 @@ function editRowManual(id) {
     document.getElementById("rateManual").value = parseFloat(cells[4].textContent).toFixed(2);
     document.getElementById("itemNotesManual").value = notesText;
 
-    document.getElementById("hsnCodeManual").value = hsnCode;
-    document.getElementById("productCodeManual").value = productCode;
+    if (isGSTMode) {
+        document.getElementById("hsnCodeManual").value = hsnCode;
+        document.getElementById("productCodeManual").value = productCode;
+    }
 
     // --- RESTORE DISCOUNT STATE ---
     document.getElementById("discountType").value = discountType;
@@ -6275,7 +6458,7 @@ function editRowManual(id) {
 
         if (hasActualDimensions) {
             document.getElementById('dimension1').value = parseFloat(dimensionValues[0]).toFixed(2);
-            // Only fill 2 and 3 if applicable to type to keep UI clean
+            // Only fill 2 and 3 if applicable
             if (['widthXheight', 'widthXdepth', 'lengthXdepth', 'lengthXheight', 'lengthXwidth', 'widthXheightXdepth', 'lengthXwidthXheight', 'lengthXheightXdepth', 'lengthXwidthXdepth'].some(t => dimensionType.includes(t) || dimensionType === t)) {
                 document.getElementById('dimension2').value = parseFloat(dimensionValues[1]).toFixed(2);
             }
@@ -6291,9 +6474,9 @@ function editRowManual(id) {
         currentDimensions.values = dimensionValues;
 
         // Set toggle states
-        document.getElementById('dimension1-toggle').checked = toggleStates.toggle1;
-        document.getElementById('dimension2-toggle').checked = toggleStates.toggle2;
-        document.getElementById('dimension3-toggle').checked = toggleStates.toggle3;
+        if (document.getElementById('dimension1-toggle')) document.getElementById('dimension1-toggle').checked = toggleStates.toggle1;
+        if (document.getElementById('dimension2-toggle')) document.getElementById('dimension2-toggle').checked = toggleStates.toggle2;
+        if (document.getElementById('dimension3-toggle')) document.getElementById('dimension3-toggle').checked = toggleStates.toggle3;
 
         // --- RESTORE CONVERT UNIT STATE ---
         if (savedConvertUnit && savedConvertUnit !== 'none') {
@@ -6316,8 +6499,16 @@ function editRowManual(id) {
         document.getElementById('toggleConvertBtn').style.display = 'none'; // Hide convert
     }
     previousConvertUnit = savedConvertUnit;
+
+    // --- BUTTON VISIBILITY ---
     document.getElementById("addItemBtnManual").style.display = "none";
     document.getElementById("updateItemBtnManual").style.display = "inline-block";
+    document.getElementById("cancelUpdateBtnManual").style.display = "inline-block";
+
+    // --- AUTO SCROLL TO TOP ---
+    if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
+        document.getElementById('tools').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 }
 
 function updateSerialNumbers() {
@@ -7440,7 +7631,7 @@ async function saveToHistory() {
             invoiceNo: document.getElementById('reg-modal-invoice-no')?.value || '',
             date: document.getElementById('reg-modal-date')?.value || '',
             viewFormat: document.getElementById('reg-modal-cust-view-select')?.value || 'simple',
-            
+
             simple: {
                 name: document.getElementById('reg-modal-simple-name')?.value || '',
                 phone: document.getElementById('reg-modal-simple-phone')?.value || '',
@@ -7482,8 +7673,8 @@ async function saveToHistory() {
                 gstin: document.getElementById("custGSTIN").value
             },
             // === NEW: Save the Modal State ===
-            modalState: modalState, 
-            
+            modalState: modalState,
+
             adjustmentChain: adjustmentChain,
             taxSettings: {
                 discountPercent: 0,
@@ -7522,7 +7713,7 @@ async function saveToHistory() {
                 const itemName = particularsDiv.querySelector('.itemNameClass')?.textContent.trim() || '';
                 const notes = particularsDiv.querySelector('.notes')?.textContent || '';
                 const particularsHtml = particularsDiv.innerHTML;
-                
+
                 // Get Attributes safely
                 const dimensionValuesAttr = row.getAttribute('data-dimension-values');
                 const dimensionValues = dimensionValuesAttr ? JSON.parse(dimensionValuesAttr) : [0, 0, 0];
@@ -7584,9 +7775,9 @@ async function saveToHistory() {
 
         const historySidebar = document.getElementById("history-sidebar");
         const historyModal = document.getElementById("history-modal");
-        
+
         // Reload if either sidebar or modal is open
-        if ((historySidebar && historySidebar.classList.contains("open")) || 
+        if ((historySidebar && historySidebar.classList.contains("open")) ||
             (historyModal && historyModal.style.display === "block")) {
             loadHistoryFromLocalStorage();
         }
@@ -7620,7 +7811,7 @@ async function loadFromHistory(item) {
 
     // Only load data if there's actual content
     if (data.tableStructure && data.tableStructure.length > 0) {
-        
+
         // 1. Load Legacy/Standard Fields (Fallback for older bills)
         document.getElementById("companyName").textContent = data.company.name;
         document.getElementById("companyAddr").textContent = data.company.address;
@@ -7638,44 +7829,44 @@ async function loadFromHistory(item) {
         const state = data.modalState;
         if (state) {
             // A. Restore General Settings
-            if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-            if(document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
-            if(document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
-            if(document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
+            if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+            if (document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
+            if (document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
+            if (document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
 
             // B. Restore View Format
-            if(document.getElementById('reg-modal-cust-view-select')) {
+            if (document.getElementById('reg-modal-cust-view-select')) {
                 document.getElementById('reg-modal-cust-view-select').value = state.viewFormat || 'simple';
                 // Trigger view change to ensure correct fields are visible
-                if(typeof handleRegViewChange === 'function') handleRegViewChange();
+                if (typeof handleRegViewChange === 'function') handleRegViewChange();
             }
 
             // C. Restore Simple Details
             if (state.simple) {
-                if(document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
-                if(document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
-                if(document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
+                if (document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
+                if (document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
+                if (document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
             }
 
             // D. Restore Bill To
             if (state.billTo) {
-                if(document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
-                if(document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
-                if(document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
-                if(document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
-                if(document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                if (document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
+                if (document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
+                if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
+                if (document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
+                if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
             }
 
             // E. Restore Ship To
             if (state.shipTo) {
-                if(document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
-                if(document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
-                if(document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
-                if(document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                if(document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                if(document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
+                if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
+                if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
+                if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
+                if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
+                if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
             }
 
             // F. SYNC TO MAIN VIEW (Push modal data to bill paper)
@@ -8290,28 +8481,28 @@ async function clearAllData(silent = false) {
     // ---------------------------------------------------------
 
     // A. Clear Simple View Inputs
-    if(document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = '';
-    if(document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = '';
-    if(document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = '';
+    if (document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = '';
+    if (document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = '';
+    if (document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = '';
 
     // B. Clear Advanced Bill To Inputs
-    if(document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = '';
-    if(document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = '';
-    if(document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = '';
-    if(document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = '';
+    if (document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = '';
+    if (document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = '';
+    if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = '';
+    if (document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = '';
     // Reset State/Code to defaults
-    if(document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = '';
-    if(document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = '';
+    if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = '';
+    if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = '';
 
     // C. Clear Advanced Ship To Inputs
-    if(document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = '';
-    if(document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = '';
-    if(document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = '';
-    if(document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = '';
+    if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = '';
+    if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = '';
+    if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = '';
+    if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = '';
     // Reset State/Code/POS to defaults
-    if(document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = '';
-    if(document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = '';
-    if(document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = '';
+    if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = '';
+    if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = '';
+    if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = '';
 
     // ---------------------------------------------------------
     // 3. UPDATE DATE & SMART INVOICE NUMBER
@@ -8323,14 +8514,14 @@ async function clearAllData(silent = false) {
     const dateStr = `${day}-${month}-${year}`;
 
     // Set Date in Modal
-    if(document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = dateStr;
+    if (document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = dateStr;
 
     // Generate Next Invoice Number based on Modal Settings
     try {
         const typeEl = document.getElementById('reg-modal-type-select');
         const prefixEl = document.getElementById('reg-modal-prefix');
         const invoiceEl = document.getElementById('reg-modal-invoice-no');
-        
+
         if (typeEl && prefixEl && invoiceEl && typeof getNextInvoiceNumberAsync === 'function') {
             // This function respects the selected Type and Prefix
             const nextNo = await getNextInvoiceNumberAsync(typeEl.value, prefixEl.value);
@@ -8338,40 +8529,40 @@ async function clearAllData(silent = false) {
         }
     } catch (e) {
         console.error("Error refreshing invoice number:", e);
-        if(document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = '';
+        if (document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = '';
     }
 
     // 4. Clear All Tables (Standard)
     const createListTbody = document.querySelector("#createListManual tbody");
     const copyListTbody = document.querySelector("#copyListManual tbody");
-    if(createListTbody) createListTbody.innerHTML = "";
-    if(copyListTbody) copyListTbody.innerHTML = "";
+    if (createListTbody) createListTbody.innerHTML = "";
+    if (copyListTbody) copyListTbody.innerHTML = "";
 
     // Clear GST table if exists
     const gstListTbody = document.querySelector("#gstCopyListManual tbody");
     if (gstListTbody) gstListTbody.innerHTML = "";
 
     // 5. RESET ADJUSTMENTS & CALCULATIONS
-    if(typeof adjustmentChain !== 'undefined') adjustmentChain = [];
-    if(typeof discountPercent !== 'undefined') discountPercent = 0;
-    if(typeof discountAmount !== 'undefined') discountAmount = 0;
-    if(typeof gstPercent !== 'undefined') gstPercent = 0;
+    if (typeof adjustmentChain !== 'undefined') adjustmentChain = [];
+    if (typeof discountPercent !== 'undefined') discountPercent = 0;
+    if (typeof discountAmount !== 'undefined') discountAmount = 0;
+    if (typeof gstPercent !== 'undefined') gstPercent = 0;
 
-    if(typeof rowCounterManual !== 'undefined') rowCounterManual = 1;
-    if(typeof currentlyEditingRowIdManual !== 'undefined') currentlyEditingRowIdManual = null;
+    if (typeof rowCounterManual !== 'undefined') rowCounterManual = 1;
+    if (typeof currentlyEditingRowIdManual !== 'undefined') currentlyEditingRowIdManual = null;
 
-    if(typeof currentDimensions !== 'undefined') {
+    if (typeof currentDimensions !== 'undefined') {
         currentDimensions = { type: 'none', unit: 'ft', values: [0, 0, 0], calculatedArea: 0 };
     }
 
     // 6. Reset GST Customer Dialog State (Preserved Logic)
     try {
-        if(typeof removeFromDB === 'function') await removeFromDB('gstMode', 'customerDialogState');
-        
+        if (typeof removeFromDB === 'function') await removeFromDB('gstMode', 'customerDialogState');
+
         const custTypeEl = document.getElementById('customer-type');
         if (custTypeEl) {
             custTypeEl.value = 'bill-to';
-            if(typeof handleCustomerTypeChange === 'function') handleCustomerTypeChange();
+            if (typeof handleCustomerTypeChange === 'function') handleCustomerTypeChange();
         }
 
         const inputsToClear = [
@@ -8391,24 +8582,24 @@ async function clearAllData(silent = false) {
             }
         });
 
-        if(document.getElementById('invoice-date')) document.getElementById('invoice-date').value = dateStr;
+        if (document.getElementById('invoice-date')) document.getElementById('invoice-date').value = dateStr;
 
         // Clear Vendor Inputs (Silent Mode preservation)
-        if(document.getElementById('vendorName')) document.getElementById('vendorName').value = '';
-        if(document.getElementById('vendorInvoiceNo')) document.getElementById('vendorInvoiceNo').value = '';
-        if(document.getElementById('vendorAddr')) document.getElementById('vendorAddr').value = '';
-        if(document.getElementById('vendorPhone')) document.getElementById('vendorPhone').value = '';
-        if(document.getElementById('vendorGSTIN')) document.getElementById('vendorGSTIN').value = '';
-        if(document.getElementById('vendorEmail')) document.getElementById('vendorEmail').value = '';
-        
+        if (document.getElementById('vendorName')) document.getElementById('vendorName').value = '';
+        if (document.getElementById('vendorInvoiceNo')) document.getElementById('vendorInvoiceNo').value = '';
+        if (document.getElementById('vendorAddr')) document.getElementById('vendorAddr').value = '';
+        if (document.getElementById('vendorPhone')) document.getElementById('vendorPhone').value = '';
+        if (document.getElementById('vendorGSTIN')) document.getElementById('vendorGSTIN').value = '';
+        if (document.getElementById('vendorEmail')) document.getElementById('vendorEmail').value = '';
+
         const vDateSil = document.getElementById('vendorDate');
         if (vDateSil) vDateSil.value = dateStr;
 
-        if(document.getElementById('vendorFile')) document.getElementById('vendorFile').value = '';
+        if (document.getElementById('vendorFile')) document.getElementById('vendorFile').value = '';
         const vFileLabelSil = document.getElementById('vendorFileName');
         if (vFileLabelSil) vFileLabelSil.style.display = 'none';
-        
-        if(typeof currentVendorFile !== 'undefined') currentVendorFile = null;
+
+        if (typeof currentVendorFile !== 'undefined') currentVendorFile = null;
         if (typeof saveVendorState === 'function') saveVendorState();
 
     } catch (error) {
@@ -8417,21 +8608,21 @@ async function clearAllData(silent = false) {
 
     // 7. Reset GST Mode Display Elements
     if (typeof isGSTMode !== 'undefined' && isGSTMode) {
-        if(typeof generateNextInvoiceNumber === 'function') await generateNextInvoiceNumber();
-        if(document.getElementById('bill-invoice-no')) document.getElementById('bill-invoice-no').textContent = document.getElementById('invoice-no').value;
-        if(document.getElementById('bill-date-gst')) document.getElementById('bill-date-gst').textContent = dateStr;
-        
+        if (typeof generateNextInvoiceNumber === 'function') await generateNextInvoiceNumber();
+        if (document.getElementById('bill-invoice-no')) document.getElementById('bill-invoice-no').textContent = document.getElementById('invoice-no').value;
+        if (document.getElementById('bill-date-gst')) document.getElementById('bill-date-gst').textContent = dateStr;
+
         // Reset placeholders
-        if(document.getElementById('billToName')) document.getElementById('billToName').textContent = ' ';
-        if(document.getElementById('billToAddr')) document.getElementById('billToAddr').textContent = ' ';
+        if (document.getElementById('billToName')) document.getElementById('billToName').textContent = ' ';
+        if (document.getElementById('billToAddr')) document.getElementById('billToAddr').textContent = ' ';
         // ... (standard resets)
-        if(document.getElementById('shipTo')) document.getElementById('shipTo').style.display = 'none';
+        if (document.getElementById('shipTo')) document.getElementById('shipTo').style.display = 'none';
     }
 
     // 8. Update UI & Reset Modals
-    if(typeof updateSerialNumbers === 'function') updateSerialNumbers();
-    if(typeof updateTotal === 'function') updateTotal();
-    if(typeof resetEditMode === 'function') resetEditMode();
+    if (typeof updateSerialNumbers === 'function') updateSerialNumbers();
+    if (typeof updateTotal === 'function') updateTotal();
+    if (typeof resetEditMode === 'function') resetEditMode();
 
     setTimeout(() => {
         const discountTypeSelect = document.getElementById('discount-type-select');
@@ -8448,7 +8639,7 @@ async function clearAllData(silent = false) {
         if (gstInput) gstInput.value = '';
         if (gstinInput) gstinInput.value = '';
 
-        if(typeof handleDiscountTypeChange === 'function') handleDiscountTypeChange();
+        if (typeof handleDiscountTypeChange === 'function') handleDiscountTypeChange();
     }, 100);
 
     // ---------------------------------------------------------
@@ -8456,14 +8647,14 @@ async function clearAllData(silent = false) {
     // ---------------------------------------------------------
     // This pushes the cleared modal data (and new invoice #) to the main view
     if (typeof saveRegularBillDetails === 'function') {
-        saveRegularBillDetails(); 
+        saveRegularBillDetails();
     }
 
     // 10. Persist
-    if(typeof saveTaxSettings === 'function') await saveTaxSettings();
-    if(typeof saveToLocalStorage === 'function') await saveToLocalStorage();
-    if(typeof saveCustomerDialogState === 'function') await saveCustomerDialogState();
-    if(typeof saveGSTCustomerDataToLocalStorage === 'function') await saveGSTCustomerDataToLocalStorage();
+    if (typeof saveTaxSettings === 'function') await saveTaxSettings();
+    if (typeof saveToLocalStorage === 'function') await saveToLocalStorage();
+    if (typeof saveCustomerDialogState === 'function') await saveCustomerDialogState();
+    if (typeof saveGSTCustomerDataToLocalStorage === 'function') await saveGSTCustomerDataToLocalStorage();
 
     if (!silent) {
         console.log('All data cleared.');
@@ -9549,7 +9740,7 @@ async function loadHistoryFromLocalStorage() {
             // Extract Data for UI
             const data = item.data;
             const state = data.modalState || {}; // Fallback for old bills
-            
+
             // --- 1. GET NAME (Check all possible locations) ---
             let custName = 'Unnamed';
             if (state.billTo?.name) custName = state.billTo.name;
@@ -9564,9 +9755,9 @@ async function loadHistoryFromLocalStorage() {
             // Other Vars
             const type = state.type || 'Regular Bill';
             const dateStr = state.date || data.customer.date || '---';
-            const timestamp = data.timestamp || parseInt(item.id.replace('bill-', '')); 
-            const timeStr = timestamp 
-                ? new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) 
+            const timestamp = data.timestamp || parseInt(item.id.replace('bill-', ''));
+            const timeStr = timestamp
+                ? new Date(timestamp).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : '';
             const totalVal = data.totalAmount || '0.00';
 
