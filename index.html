@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" translate="no">
 
 <head>
     <meta charset="UTF-8" />
+    <meta name="google" content="notranslate">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="./asuralogo2.png">
     <title>Billig App</title>
@@ -54,7 +55,7 @@
                     </div>
                     <div class="payment-filters">
                         <button class="filter-btn" id="sort-order-btn" data-order="desc">
-                            <i class="material-icons">arrow_downward</i>
+                            <i class="material-icons" translate="no">arrow_downward</i>
                         </button>
                         <select class="filter-select" id="sort-by-select">
                             <option value="date">Date</option>
@@ -825,7 +826,7 @@
                                 <option value="UPC_A">UPC A</option>
                             </select>
                             <button onclick="openScanner('modal')" class="icon-btn-square" title="Scan">
-                                <span class="material-icons">qr_code_scanner</span>
+                                <span class="material-icons" translate="no">qr_code_scanner</span>
                             </button>
                         </div>
                     </div>
@@ -1091,65 +1092,65 @@
     <div id="settings-overlay" onclick="toggleSettingsSidebar()"></div>
     <div id="app-sidebar" class="sidebar-closed">
         <div id="sidebar-categories">
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('business', this)" title="Business">
-                <span class="material-icons">business_center</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('business', this)">
+                <span class="material-icons" translate="no">business_center</span>
                 <span class="sidebar-tooltip">Business</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('modes')" title="Modes & Tax">
-                <span class="material-icons">settings_applications</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('modes')">
+                <span class="material-icons" translate="no">settings_applications</span>
                 <span class="sidebar-tooltip">Modes & Tax</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="openManageItemsModal()" title="Manage Items">
-                <span class="material-icons">inventory_2</span>
+            <button class="sidebar-cat-btn" onclick="openManageItemsModal()">
+                <span class="material-icons" translate="no">inventory_2</span>
                 <span class="sidebar-tooltip">Items</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('sale')" title="Sale">
-                <span class="material-icons">shopping_cart</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('sale')">
+                <span class="material-icons" translate="no">shopping_cart</span>
                 <span class="sidebar-tooltip">Sale</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('purchase')" title="Purchase">
-                <span class="material-icons">shopping_bag</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('purchase')">
+                <span class="material-icons" translate="no">shopping_bag</span>
                 <span class="sidebar-tooltip">Purchase</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="openExpenseModal()" title="Expenses">
-                <span class="material-icons">account_balance_wallet</span>
+            <button class="sidebar-cat-btn" onclick="openExpenseModal()">
+                <span class="material-icons" translate="no">account_balance_wallet</span>
                 <span class="sidebar-tooltip">Expenses</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('tools')" title="Tools">
-                <span class="material-icons">build</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('tools')">
+                <span class="material-icons" translate="no">build</span>
                 <span class="sidebar-tooltip">Tools</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('records')" title="Records">
-                <span class="material-icons">article</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('records')">
+                <span class="material-icons" translate="no">article</span>
                 <span class="sidebar-tooltip">Records</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="toggleSubMenu('settings')" title="Settings">
-                <span class="material-icons">settings</span>
+            <button class="sidebar-cat-btn" onclick="toggleSubMenu('settings')">
+                <span class="material-icons" translate="no">settings</span>
                 <span class="sidebar-tooltip">Settings</span>
             </button>
 
             <div style="flex:1"></div>
 
-            <button class="sidebar-cat-btn" onclick="saveCurrentBill()" title="Save Bill">
-                <span class="material-icons">save</span>
+            <button class="sidebar-cat-btn" onclick="saveCurrentBill()">
+                <span class="material-icons" translate="no">save</span>
                 <span class="sidebar-tooltip">Save</span>
             </button>
 
-            <button class="sidebar-cat-btn" onclick="handlePrint()" title="Print">
-                <span class="material-icons">print</span>
+            <button class="sidebar-cat-btn" onclick="handlePrint()">
+                <span class="material-icons" translate="no">print</span>
                 <span class="sidebar-tooltip">Print</span>
             </button>
 
             <button class="sidebar-cat-btn" onclick="toggleSettingsSidebar()">
-                <span class="material-icons">close</span>
+                <span class="material-icons" translate="no">close</span>
                 <span class="sidebar-tooltip">Close</span>
             </button>
         </div>
@@ -1210,18 +1211,18 @@
                     <span class="material-icons">groups</span>
                     <span class="sidebar-label">Customers</span>
                 </button>
-                <button onclick="openGSTManageCustomersModal()" class="sidebar-action-btn gst-customers-btn">
+                <!-- <button onclick="openGSTManageCustomersModal()" class="sidebar-action-btn gst-customers-btn">
                     <span class="material-icons">group_add</span>
                     <span class="sidebar-label">GST Customers</span>
-                </button>
+                </button> -->
                 <button onclick="openSavedBillsModal()" class="sidebar-action-btn">
                     <span class="material-icons">folder_open</span>
                     <span class="sidebar-label">Saved Bills</span>
                 </button>
-                <button onclick="openGSTSavedBillsModal()" class="sidebar-action-btn gst-bills-btn">
+                <!-- <button onclick="openGSTSavedBillsModal()" class="sidebar-action-btn gst-bills-btn">
                     <span class="material-icons">receipt</span>
                     <span class="sidebar-label">GST Bills</span>
-                </button>
+                </button> -->
             </div>
 
             <div id="sub-purchase" class="sub-menu-group">
@@ -1264,7 +1265,7 @@
                 </button>
             </div>
 
-            <div id="sub-settings" class="sub-menu-group">
+            <div id="sub-settings" class="sub-menu-group active">
                 <div class="sub-menu-header">Settings</div>
                 <button onclick="cycleTheme()" class="sidebar-action-btn">
                     <span class="material-icons">palette</span>
@@ -1274,13 +1275,18 @@
                     <span class="material-icons">wallpaper</span>
                     <span class="sidebar-label">Personalize</span>
                 </button>
-                <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn">
-                    <span class="material-icons">auto_awesome</span>
-                    <span class="sidebar-label">Auto Rates</span>
+                <button onclick="toggleAutoApplyRates()" class="sidebar-action-btn auto-apply-rates-btn"
+                    style="background-color: rgb(39, 174, 96);">
+                    <span class="material-icons">auto_awesome</span>Auto Rate : ON
                 </button>
                 <button onclick="toggleAutoRateConversion()" class="sidebar-action-btn" id="btn-auto-rate">
                     <span class="material-icons">autorenew</span>
                     <span class="sidebar-label">Rate Convert : OFF</span>
+                </button>
+
+                <button onclick="toggleAutoScroll()" class="sidebar-action-btn" id="btn-auto-scroll">
+                    <span class="material-icons">vertical_align_center</span>
+                    <span class="sidebar-label">Auto Scroll : OFF</span>
                 </button>
 
                 <button onclick="backupData()" class="sidebar-action-btn">
@@ -1297,60 +1303,60 @@
 
     <div id="tools">
         <button onclick="toggleSettingsSidebar()">
-            <span class="material-icons">menu</span>
+            <span class="material-icons" translate="no">menu</span>
             <span>Sidebar</span>
         </button>
         <button onclick="toggleView()" data-view="bill">
-            <span class="material-icons" id="view-icon">description</span>
+            <span class="material-icons" translate="no" id="view-icon">description</span>
             <span id="view-text">SHOW BILL</span>
         </button>
         <button onclick="undoAction()">
-            <span class="material-icons">undo</span>
+            <span class="material-icons" translate="no">undo</span>
             <span>UNDO</span>
         </button>
         <button onclick="redoAction()">
-            <span class="material-icons">redo</span>
+            <span class="material-icons" translate="no">redo</span>
             <span>REDO</span>
         </button>
         <button onclick="clearAllData()">
-            <span class="material-icons">auto_delete</span>
+            <span class="material-icons" translate="no">auto_delete</span>
             <span>CLEAR ALL</span>
         </button>
         <button onclick="downloadPDF()">
-            <span class="material-icons">picture_as_pdf</span>
+            <span class="material-icons" translate="no">picture_as_pdf</span>
             <span>PDF</span>
         </button>
         <button onclick="openShareModal()">
-            <span class="material-icons">share</span>
+            <span class="material-icons" translate="no">share</span>
             <span>SHARE</span>
         </button>
         <button id="rate-toggle-btn" onclick="openColumnDialog()" style="display: inline-block;">
-            <span class="material-icons">visibility</span>
+            <span class="material-icons" translate="no">visibility</span>
             <span>COLUMNS</span>
         </button>
         <button onclick="openDiscountModal()" id="discount-tool-btn">
-            <span class="material-icons">percent</span>
+            <span class="material-icons" translate="no">percent</span>
             <span>DISCOUNT</span>
         </button>
         <button onclick="openGSTModal()" id="gst-tool-btn">
-            <span class="material-icons">request_quote</span>
+            <span class="material-icons" translate="no">request_quote</span>
             <span>GST</span>
         </button>
         <button onclick="openAdjustmentModal()">
-            <span class="material-icons">tune</span>
+            <span class="material-icons" translate="no">tune</span>
             <span>ADJUSTMENTS</span>
         </button>
 
         <button onclick="openSectionModal()">
-            <span class="material-icons">view_day</span>
+            <span class="material-icons" translate="no">view_day</span>
             <span>SECTION</span>
         </button>
         <button onclick="toggleDimensionsDisplay()" id="toggleDimensionText">
-            <span class="material-icons">layers</span>
+            <span class="material-icons" translate="no">layers</span>
             <span>DIMENSIONS</span>
         </button>
         <button onclick="toggleRegularFooter()" id="reg-footer-btn" style="display: none;">
-            <span class="material-icons">approval</span>
+            <span class="material-icons" translate="no">approval</span>
             <span>FOOTER</span>
         </button>
     </div>
@@ -1761,7 +1767,7 @@
                     <input id="itemNameManual" type="text" autocomplete="off" placeholder="Custom Item Name..."
                         onchange="handleItemNameInput()" oninput="handleItemSearch()" style="flex: 1;">
                     <button onclick="openScanner('main')" id="addItemScan" class="icon-btn-square" title="Scan Barcode">
-                        <span class="material-icons">qr_code_scanner</span>
+                        <span class="material-icons" translate="no">qr_code_scanner</span>
                     </button>
                     <div class="item-suggestions" id="item-suggestions" style="display: none;"></div>
                 </div>
@@ -1855,7 +1861,17 @@
 
             <div class="size-input">
                 <button onclick="addRowManual()" id="addItemBtnManual">Add Item</button>
-                <button onclick="updateRowManual()" id="updateItemBtnManual" style="display: none;">Update Item</button>
+
+                <button onclick="updateRowManual()" id="updateItemBtnManual"
+                    style="display: none; background-color: var(--primary-color); padding: 2px 4px;"
+                    title="Update Item">
+                    <span class="material-icons">check</span>
+                </button>
+                <button onclick="cancelUpdateManual()" id="cancelUpdateBtnManual"
+                    style="display: none; background-color: #e74c3c; padding: 2px 4px;" title="Cancel Update">
+                    <span class="material-icons">close</span>
+                </button>
+
                 <button onclick="toggleDiscountInputs()" id="toggleDiscountBtn">Discount</button>
                 <button onclick="toggleDimensionInputs()" id="toggleDimensionBtn">Dimensions</button>
                 <button onclick="toggleConvertOptions()" id="toggleConvertBtn"
@@ -2046,7 +2062,7 @@
                 </div>
                 <div class="form-group">
                     <label>GST Bill Heading:</label>
-                    <input type="text" id="gst-heading-input" placeholder="e.g. TAX INVOICE">
+                    <input type="text" id="gst-heading-input" placeholder="e.g. TAX INVOICE" value="TAX INVOICE">
                 </div>
 
                 <div class="form-group">
@@ -2329,15 +2345,15 @@
         <div id="ocr-body">
             <div class="ocr-toolbar">
                 <label class="ocr-btn-upload" title="Upload File">
-                    <span class="material-icons">upload_file</span> Open
+                    <span class="material-icons" translate="no">upload_file</span> Open
                     <input type="file" id="ocr-file-input" hidden accept="image/*,.pdf,.docx,.xlsx,.xls,.csv"
                         onchange="handleOCRFile(this)">
                 </label>
                 <div class="divider-v"></div>
-                <button onclick="ocrProcess('full')" title="Scan Full Document"><span
-                        class="material-icons">fullscreen</span> Full Scan</button>
+                <button onclick="ocrProcess('full')" title="Scan Full Document"><span class="material-icons"
+                        translate="no">fullscreen</span> Full Scan</button>
                 <button onclick="ocrProcess('crop')" id="btn-crop-scan" disabled title="Scan Selected Area"><span
-                        class="material-icons">crop</span> Scan Crop</button>
+                        class="material-icons" translate="no">crop</span> Scan Crop</button>
                 <div class="divider-v"></div>
                 <div style="position: relative;">
                     <button onclick="toggleFilterMenu()" id="btn-filter" disabled title="Image Filters">
@@ -3218,8 +3234,7 @@
                     <div style="display: flex; gap: 10px;">
                         <input type="text" id="reg-custom-name-input" placeholder="Type Name (e.g. Proforma)"
                             style="flex: 1;">
-                        <input type="text" id="reg-custom-prefix-input" placeholder="Prefix (e.g. PI)"
-                            style="flex:1;">
+                        <input type="text" id="reg-custom-prefix-input" placeholder="Prefix (e.g. PI)" style="flex:1;">
                         <input type="text" id="reg-custom-label-input" placeholder="Label (e.g. Proforma No)"
                             style="flex: 1;">
                     </div>
