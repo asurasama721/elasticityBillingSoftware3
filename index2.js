@@ -1126,6 +1126,10 @@ async function loadGSTSavedBill(billId) {
         const savedBill = await getFromDB('gstSavedBills', billId);
         if (!savedBill) return;
 
+        // FIX: Persist GST Mode to DB so it stays in GST Mode after refresh
+        await setInDB('gstMode', 'isGSTMode', true);
+        
+
         // 1. Load company info
         if (savedBill.companyInfo) {
             companyInfo = savedBill.companyInfo;
@@ -4851,52 +4855,64 @@ function createRestoredBillCard(bill) {
     const billCard = document.createElement('div');
     billCard.className = 'saved-bill-card';
 
-    const billData = bill.value || bill;
+    const val = bill.value || bill;
     const menuId = `menu-restored-${bill.id}-${Date.now()}`;
 
-    // IMPROVED DETECTION FOR CARD DISPLAY (Kept existing logic)
+    // --- DATA EXTRACTION ---
     let isGST = false;
-    let billNo = 'No Number';
-    let customerName = 'Unknown Customer';
+    let prefix = '';
+    let rawBillNo = 'N/A';
+    let billType = 'Regular';
+    let custName = 'N/A';
     let date = 'Unknown';
 
-    // Check for Regular bill structure first
-    if (billData.customer && billData.customer.name && !billData.customer.billTo) {
-        isGST = false;
-        billNo = billData.customer.billNo || 'No Number';
-        customerName = billData.customer.name || 'Unknown Customer';
-        date = billData.customer.date || 'Unknown';
-    }
-    else if (billData.customer && billData.customer.billNo && !billData.invoiceDetails) {
-        isGST = false;
-        billNo = billData.customer.billNo || 'No Number';
-        customerName = billData.customer.name || 'Unknown Customer';
-        date = billData.customer.date || 'Unknown';
-    }
-    // Then check for GST structure
-    else if (billData.sourceType === 'gst' || billData.invoiceDetails || billData.gstCustomerData || billData.customer?.billTo) {
+    // 1. Check for GST Structure
+    if (val.sourceType === 'gst' || val.gstCustomerData || val.invoiceDetails) {
         isGST = true;
-        billNo = billData.invoiceDetails?.number || billData.gstCustomerData?.invoiceNo || 'No Number';
-        customerName = billData.customer?.billTo?.name || billData.gstCustomerData?.billTo?.name || 'Unknown Customer';
-        date = billData.invoiceDetails?.date || billData.gstCustomerData?.invoiceDate || 'Unknown';
-    }
-    // Default to Regular if unclear
+        billType = 'GST Invoice';
+        const gstData = val.gstCustomerData || {};
+        
+        // GST always uses Bill To Name
+        custName = gstData.billTo?.name || val.customer?.billTo?.name || 'Unknown Customer';
+        rawBillNo = val.invoiceDetails?.number || gstData.invoiceNo || 'N/A';
+        date = val.invoiceDetails?.date || gstData.invoiceDate || 'Unknown';
+    } 
+    // 2. Regular Bill Structure (Apply Fixed Logic)
     else {
         isGST = false;
-        billNo = billData.customer?.billNo || 'No Number';
-        customerName = billData.customer?.name || 'Unknown Customer';
-        date = billData.customer?.date || 'Unknown';
+        const state = val.modalState || {};
+        
+        billType = state.type || 'Estimate';
+        prefix = state.prefix || '';
+        rawBillNo = state.invoiceNo || val.customer?.billNo || 'N/A';
+        date = state.date || val.customer?.date || 'Unknown';
+
+        // --- Determine Customer Name based on View Format ---
+        const viewFormat = state.viewFormat || 'simple';
+        
+        if (viewFormat === 'simple') {
+            custName = state.simple?.name;
+        } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
+            custName = state.billTo?.name;
+        }
+
+        // Fallback
+        if (!custName) {
+            custName = val.customer?.name || 'N/A';
+        }
     }
 
-    const totalAmount = billData.totalAmount || '0.00';
-    const itemCount = billData.itemCount || billData.items?.length || billData.tableStructure?.filter(item => item.type === 'item').length || 0;
+    const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
+    const totalAmount = val.totalAmount || '0.00';
+    const itemCount = val.itemCount || val.items?.length || 0;
 
-    // New UI Structure
+    // --- NEW UI STRUCTURE (MATCHING SAVED BILLS VISUAL) ---
     billCard.innerHTML = `
         <div class="card-header-row">
             <div class="card-info">
-                <span>${customerName} - ${billNo}</span>
-                <span class="card-sub-info" style="color:var(--primary-color)">₹${totalAmount}</span>
+                <span>${displayBillNo} - ${custName}</span>
+                <span class="card-sub-info" style="font-size: 0.85em; color:var(--primary-color); font-weight: 500;">${billType}</span>
+                <span class="card-sub-info">₹${totalAmount}</span>
             </div>
             
             <div class="card-controls">
@@ -4925,7 +4941,6 @@ function createRestoredBillCard(bill) {
         
         <div class="details-section hidden saved-bill-details">
             <div>Date: ${date}</div>
-            <div>Customer: ${customerName}</div>
             <div>Items: ${itemCount}</div>
             <div>Type: ${isGST ? 'GST' : 'Regular'} • Restored</div>
         </div>
@@ -5243,88 +5258,6 @@ async function loadRestoredBill(billId, event) {
     }
 }
 
-// // Add this helper function to clear data without triggering modals
-// async function clearAllDataSilently() {
-//     // Save current state to history BEFORE clearing (only if there's actual data)
-//     const hasItems = document.querySelectorAll('#createListManual tbody tr[data-id]').length > 0;
-//     const hasSections = document.querySelectorAll('#createListManual tbody tr.section-row').length > 0;
-
-//     if (hasItems || hasSections) {
-//         saveStateToHistory();
-//         await saveToHistory();
-//     }
-
-//     // Clear current workspace data without triggering mode modals
-//     document.getElementById("custName").value = "";
-
-//     // Auto-increment bill number based on saved bills
-//     try {
-//         const savedBills = await getAllFromDB('savedBills');
-//         let maxBillNo = 0;
-
-//         savedBills.forEach(bill => {
-//             if (bill.value.customer?.billNo) {
-//                 const billNo = parseInt(bill.value.customer.billNo);
-//                 if (!isNaN(billNo) && billNo > maxBillNo) {
-//                     maxBillNo = billNo;
-//                 }
-//             }
-//         });
-
-//         if (maxBillNo > 0) {
-//             document.getElementById("billNo").value = (maxBillNo + 1).toString();
-//         } else {
-//             document.getElementById("billNo").value = "";
-//         }
-//     } catch (error) {
-//         document.getElementById("billNo").value = "";
-//     }
-
-//     document.getElementById("custAddr").value = "";
-//     document.getElementById("custPhone").value = "";
-//     document.getElementById("custGSTIN").value = "";
-
-//     // Set current date without triggering other modals
-//     const now = new Date();
-//     const day = String(now.getDate()).padStart(2, '0');
-//     const month = String(now.getMonth() + 1).padStart(2, '0');
-//     const year = now.getFullYear();
-//     document.getElementById('billDate').value = `${day}-${month}-${year}`;
-
-//     const createListTbody = document.querySelector("#createListManual tbody");
-//     const copyListTbody = document.querySelector("#copyListManual tbody");
-//     createListTbody.innerHTML = "";
-//     copyListTbody.innerHTML = "";
-
-//     // Clear GST table if exists
-//     const gstListTbody = document.querySelector("#gstCopyListManual tbody");
-//     if (gstListTbody) {
-//         gstListTbody.innerHTML = "";
-//     }
-
-//     rowCounterManual = 1;
-//     currentlyEditingRowIdManual = null;
-
-//     discountPercent = 0;
-//     gstPercent = 0;
-
-//     currentDimensions = {
-//         type: 'none',
-//         unit: 'ft',
-//         values: [0, 0, 0],
-//         calculatedArea: 0
-//     };
-
-//     updateSerialNumbers();
-//     updateTotal();
-
-//     // Reset edit mode when clearing all data
-//     resetEditMode();
-
-//     // Save the empty state to localStorage but NOT to history
-//     await saveToLocalStorage();
-// }
-
 
 // NEW: Helper function to populate GST customer details in modal and bill view
 async function populateGSTCustomerDetails(gstCustomerData) {
@@ -5536,7 +5469,7 @@ async function saveBillHeadings() {
             textTransform: textTransform
         };
         await setInDB('settings', 'billHeadings', headings);
-        showNotification('Bill headings saved successfully!', 'success');
+        // showNotification('Bill headings saved successfully!', 'success');
         closeBillHeadingModal();
     } catch (error) {
         console.error('Error saving bill headings:', error);
@@ -9310,7 +9243,7 @@ function quickSavePrefix() {
     // Update labels in background
     document.getElementById('billPrefixDisplay').textContent = newPrefix ? `${newPrefix}/` : '';
 
-    if (typeof showNotification === 'function') showNotification('Prefix updated & saved', 'success');
+    // if (typeof showNotification === 'function') showNotification('Prefix updated & saved', 'success');
 }
 
 function updateRegLockIcon() {
@@ -9427,7 +9360,7 @@ function saveRegCustomType() {
 
     handleRegTypeChange(); // Trigger updates
 
-    if (typeof showNotification === 'function') showNotification('Bill Type Saved', 'success');
+    // if (typeof showNotification === 'function') showNotification('Bill Type Saved', 'success');
 }
 
 // 3. Customer View Logic
@@ -9613,7 +9546,7 @@ async function saveRegularBillDetails(isSilentLoad = false) {
 
     if (!isSilentLoad) {
         closeRegularModal();
-        if (typeof showNotification === 'function') showNotification('Bill details updated', 'success');
+        // if (typeof showNotification === 'function') showNotification('Bill details updated', 'success');
     }
 }
 
@@ -9732,7 +9665,22 @@ async function applySavedBillsFilter() {
             const rawBillNo = state.invoiceNo || val.customer?.billNo || 'N/A';
             const prefix = state.prefix || '';
             const billType = state.type || 'Estimate'; // Default to Estimate/Regular
-            const custName = val.customer?.name || 'N/A';
+
+            // --- FIX START: Determine Customer Name based on View Format ---
+            const viewFormat = state.viewFormat || 'simple';
+            let custName = 'N/A';
+
+            if (viewFormat === 'simple') {
+                custName = state.simple?.name;
+            } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
+                custName = state.billTo?.name;
+            }
+
+            // Fallback if the specific name is empty
+            if (!custName) {
+                custName = val.customer?.name || 'N/A';
+            }
+            // --- FIX END ---
 
             // Construct Display Number
             const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
@@ -9742,8 +9690,8 @@ async function applySavedBillsFilter() {
                 <div class="card-header-row">
                     <div class="card-info">
                         <span>${displayBillNo} - ${custName}</span>
-                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; font-weight: 500;">${billType}</span>
-                        <span class="card-sub-info" style="color:var(--primary-color)">₹${val.totalAmount}</span>
+                        <span class="card-sub-info" style="color:var(--primary-color);font-size: 0.85em; font-weight: 500;">${billType}</span>
+                        <span class="card-sub-info">₹${val.totalAmount}</span>
                     </div>
                     
                     <div class="card-controls">
@@ -9773,7 +9721,7 @@ async function applySavedBillsFilter() {
                 <div class="details-section hidden saved-bill-details">
                     <div>Date: ${val.date}</div>
                     <div>Items: ${val.items?.length || val.itemCount || 0}</div>
-                    <div>Title: ${val.title}</div>
+                    
                 </div>
             `;
 
@@ -9902,8 +9850,12 @@ function syncBillHeadingToSettings(typeVal) {
 
 document.addEventListener('DOMContentLoaded',async () => {
     // ... your other init code ...
-    initRegBillTypes();    // Load custom types options first
-    await loadRegularModalState(); // Wait for DB load
+    // 1. Init Options
+    if (typeof initRegBillTypes === 'function') initRegBillTypes();
+
+    // 2. Load State (This internally calls saveRegularBillDetails(true))
+    // This is what puts the saved bill number into the main view input
+    if (typeof loadRegularModalState === 'function') await loadRegularModalState();
 
     /* ==========================================
    CLOSE MENUS WHEN CLICKING OUTSIDE
