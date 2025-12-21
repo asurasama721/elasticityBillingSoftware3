@@ -421,20 +421,30 @@ function syncRateToOtherTables(itemId, newRate, newAmount, particularsHtml = nul
     }
 }
 
-// Check and apply customer-specific rates to existing items (SYNCED VERSION)
+// Check and apply customer-specific rates to existing items
 // Check and apply customer-specific rates to existing items
 async function checkAndApplyCustomerRates(paramIdentifier) {
     if (!autoApplyCustomerRates) return;
 
     try {
+        // --- RESTRICTION: Regular Mode only runs for 'Invoice' Type ---
+        if (!isGSTMode) {
+            const billTypeEl = document.getElementById('reg-modal-type-select');
+            const currentType = billTypeEl ? billTypeEl.value : 'Invoice';
+            
+            if (currentType !== 'Invoice') {
+                return; // Abort if not Invoice
+            }
+        }
+        // -------------------------------------------------------------
+
         // Determine Identifier based on Mode
         let identifier = null;
 
         if (isGSTMode) {
             // GST Mode: Use GSTIN
-            // Try display element first, then input value
-            const displayGstin = document.getElementById('billToGstin').textContent.trim();
-            const inputGstin = document.getElementById('consignee-gst').value.trim();
+            const displayGstin = document.getElementById('billToGstin')?.textContent.trim();
+            const inputGstin = document.getElementById('consignee-gst')?.value.trim();
 
             if (displayGstin && displayGstin !== 'customer 15-digit GSTIN' && displayGstin !== 'N/A') {
                 identifier = displayGstin;
@@ -442,11 +452,16 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                 identifier = inputGstin;
             }
         } else {
-            // Regular Mode: Use Customer Name (from param or input)
-            identifier = paramIdentifier || document.getElementById('custName').value.trim();
+            // Regular Mode: Use Customer Name
+            identifier = paramIdentifier || document.getElementById('custName')?.value.trim() || window.currentCustomer;
         }
 
         if (!identifier) return;
+
+        // --- FIX: Ensure Global Variable is Updated ---
+        // This fixes the issue where 'save' button passes the name but the fetcher doesn't see it
+        window.currentCustomer = identifier;
+        // ----------------------------------------------
 
         const items = document.querySelectorAll('#createListManual tbody tr[data-id]');
         let appliedCount = 0;
@@ -462,7 +477,7 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                 if (suggestion) {
                     const { rate: suggestedRate, discountType, discountValue } = suggestion;
 
-                    // 1. Update Rate
+                    // 1. Update Rate Visuals & Data
                     cells[4].textContent = parseFloat(suggestedRate).toFixed(2);
                     row.setAttribute('data-rate', parseFloat(suggestedRate).toFixed(8));
 
@@ -470,37 +485,81 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                     row.setAttribute('data-discount-type', discountType);
                     row.setAttribute('data-discount-value', discountValue);
 
-                    // 3. Recalculate Amount
-                    const quantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent);
+                    // 3. Recalculate Quantity
+                    const baseQuantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent);
                     const dimensionType = row.getAttribute('data-dimension-type') || 'none';
+                    
+                    let finalQuantity = baseQuantity;
+                    
+                    const dimValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
+                    const dimToggles = JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}');
+                    const dimUnit = row.getAttribute('data-dimension-unit') || 'inch';
+                    const convertUnit = row.getAttribute('data-convert-unit') || 'none';
 
-                    let finalQuantity = quantity;
                     if (dimensionType !== 'none' && dimensionType !== 'dozen') {
-                        const dimensionValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
-                        const calculatedArea = calculateAreaFromDimensions(dimensionType, dimensionValues);
-                        finalQuantity = quantity * calculatedArea;
-                    } else if (dimensionType === 'dozen') {
-                        finalQuantity = quantity / 12;
+                        const v1 = dimToggles.toggle1 ? dimValues[0] : 1;
+                        const v2 = dimToggles.toggle2 ? dimValues[1] : 1;
+                        const v3 = dimToggles.toggle3 ? dimValues[2] : 1;
+
+                        let rawResult = 0;
+                        let activeDimensionCount = 0;
+
+                        switch (dimensionType) {
+                            case 'length':
+                                rawResult = v1;
+                                if (dimToggles.toggle1) activeDimensionCount++;
+                                break;
+                            case 'widthXheight':
+                            case 'widthXdepth':
+                            case 'lengthXheight':
+                            case 'lengthXwidth':
+                            case 'lengthXdepth':
+                                rawResult = v1 * v2;
+                                if (dimToggles.toggle1) activeDimensionCount++;
+                                if (dimToggles.toggle2) activeDimensionCount++;
+                                break;
+                            case 'widthXheightXdepth':
+                            case 'lengthXwidthXheight':
+                            case 'lengthXheightXdepth':
+                            case 'lengthXwidthXdepth':
+                                rawResult = v1 * v2 * v3;
+                                if (dimToggles.toggle1) activeDimensionCount++;
+                                if (dimToggles.toggle2) activeDimensionCount++;
+                                if (dimToggles.toggle3) activeDimensionCount++;
+                                break;
+                            default:
+                                rawResult = 0;
+                        }
+
+                        let conversionFactor = 1;
+                        if (convertUnit !== 'none' && convertUnit !== dimUnit) {
+                            const unitFactors = { 'mm': 1, 'cm': 10, 'inch': 25.4, 'ft': 304.8, 'mtr': 1000 };
+                            if (unitFactors[dimUnit] && unitFactors[convertUnit]) {
+                                const linearFactor = unitFactors[dimUnit] / unitFactors[convertUnit];
+                                const power = activeDimensionCount > 0 ? activeDimensionCount : 1;
+                                conversionFactor = Math.pow(linearFactor, power);
+                            }
+                        }
+                        finalQuantity = baseQuantity * rawResult * conversionFactor;
+                    } 
+                    else if (dimensionType === 'dozen') {
+                        finalQuantity = baseQuantity / 12;
                     }
 
+                    // 4. Calculate Amounts
                     let baseAmount = finalQuantity * suggestedRate;
                     let discountAmount = 0;
 
                     if (discountType !== 'none' && discountValue > 0) {
                         switch (discountType) {
                             case 'percent_per_unit':
-                                const discountPerUnit = suggestedRate * (discountValue / 100);
-                                discountAmount = discountPerUnit * finalQuantity;
-                                break;
+                                discountAmount = (suggestedRate * (discountValue / 100)) * finalQuantity; break;
                             case 'amt_per_unit':
-                                discountAmount = discountValue * finalQuantity;
-                                break;
+                                discountAmount = discountValue * finalQuantity; break;
                             case 'percent_on_amount':
-                                discountAmount = baseAmount * (discountValue / 100);
-                                break;
+                                discountAmount = baseAmount * (discountValue / 100); break;
                             case 'amt_on_amount':
-                                discountAmount = discountValue;
-                                break;
+                                discountAmount = discountValue; break;
                         }
                     }
 
@@ -510,25 +569,18 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                     cells[5].textContent = safeFinalAmount.toFixed(2);
                     row.setAttribute('data-amount', safeFinalAmount.toFixed(8));
 
-                    // 4. Regenerate Particulars Text
+                    // 5. Update Text
                     const notes = particularsDiv.querySelector('.notes')?.textContent || '';
-                    const storedDimValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
-                    const storedDimUnit = row.getAttribute('data-dimension-unit') || 'ft';
                     const storedUnit = cells[3].textContent;
-                    const storedToggles = JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}');
-
-                    const dimDisplayText = getDimensionDisplayText(dimensionType, storedDimValues, storedDimUnit, storedToggles);
+                    const dimDisplayText = getDimensionDisplayText(dimensionType, dimValues, dimUnit, dimToggles);
 
                     const particularsHtml = formatParticularsManual(
-                        itemName, notes, dimDisplayText, quantity, finalQuantity, suggestedRate,
-                        dimensionType, storedDimUnit, storedUnit, discountType, discountValue, storedToggles
+                        itemName, notes, dimDisplayText, baseQuantity, finalQuantity, suggestedRate,
+                        dimensionType, dimUnit, storedUnit, discountType, discountValue, dimToggles, convertUnit
                     );
 
                     cells[1].innerHTML = particularsHtml;
-
-                    // 5. Sync
                     syncRateToOtherTables(row.getAttribute('data-id'), suggestedRate, safeFinalAmount, particularsHtml, discountType, discountValue);
-
                     appliedCount++;
                 }
             }
@@ -538,7 +590,9 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
             updateTotal();
             if (isGSTMode) updateGSTTaxCalculation();
             await saveToLocalStorage();
-            showNotification(`Applied previous rates for ${identifier}`, 'info', 3000);
+            if (typeof showNotification === 'function') {
+                showNotification(`Applied previous rates for ${identifier}`, 'info', 3000);
+            }
         }
 
     } catch (error) {
@@ -3478,6 +3532,102 @@ async function handleRegularCustomerSearch() {
     }
 }
 
+/* =========================================
+   REGULAR MODAL CUSTOMER SUGGESTIONS
+   ========================================= */
+
+async function handleRegModalCustomerSearch(input, type) {
+    const query = input.value.trim().toLowerCase();
+    const suggestionsBox = document.getElementById(type === 'simple' ? 'reg-modal-simple-suggestions' : 'reg-modal-bill-suggestions');
+
+    if (query.length < 1) {
+        suggestionsBox.style.display = 'none';
+        return;
+    }
+
+    try {
+        // CORRECTION: Using 'savedCustomers' matching your existing logic
+        const allCustomers = await getAllFromDB('savedCustomers'); 
+        
+        // CORRECTION: Accessing .value.name based on your snippet
+        const filtered = allCustomers.filter(item => 
+            item.value && item.value.name.toLowerCase().includes(query)
+        ).slice(0, 5); // Limit to 5 suggestions
+
+        suggestionsBox.innerHTML = '';
+        
+        if (filtered.length > 0) {
+            filtered.forEach(item => {
+                const customer = item.value; // Unwrap the customer object
+                const div = document.createElement('div');
+                div.className = 'customer-suggestion-item';
+                div.textContent = customer.name;
+                
+                // Click handler
+                div.onclick = () => selectRegModalCustomer(customer, type);
+                
+                suggestionsBox.appendChild(div);
+            });
+            suggestionsBox.style.display = 'block';
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+    } catch (e) {
+        console.error("Error fetching customers for modal:", e);
+        suggestionsBox.style.display = 'none';
+    }
+}
+
+function selectRegModalCustomer(customer, type) {
+    const isSimple = type === 'simple';
+    
+    // Define inputs based on Simple vs Advanced
+    const nameInput = document.getElementById(isSimple ? 'reg-modal-simple-name' : 'reg-modal-bill-name');
+    const phoneInput = document.getElementById(isSimple ? 'reg-modal-simple-phone' : 'reg-modal-bill-phone');
+    const addrInput = document.getElementById(isSimple ? 'reg-modal-simple-addr' : 'reg-modal-bill-addr');
+    const suggestionsBox = document.getElementById(isSimple ? 'reg-modal-simple-suggestions' : 'reg-modal-bill-suggestions');
+
+    // 1. Fill Fields
+    if (nameInput) nameInput.value = customer.name || '';
+    if (phoneInput) phoneInput.value = customer.phone || '';
+    if (addrInput) addrInput.value = customer.address || '';
+
+    // 2. Extra fields for Advanced Mode (Bill To)
+    if (!isSimple) {
+        const gstInput = document.getElementById('reg-modal-bill-gst');
+        // Handle potential missing fields gracefully
+        if (gstInput) gstInput.value = customer.gstin || '';
+        
+        // Optional: Fill State/Code if they exist in your customer object
+        if (customer.state) {
+            const stateInput = document.getElementById('reg-modal-bill-state');
+            if(stateInput) stateInput.value = customer.state;
+        }
+        if (customer.stateCode) {
+            const codeInput = document.getElementById('reg-modal-bill-code');
+            if(codeInput) codeInput.value = customer.stateCode;
+        }
+    }
+
+    // 3. Hide Box & Sync
+    if (suggestionsBox) suggestionsBox.style.display = 'none';
+    syncRegularData('modal'); 
+}
+
+// Global Listener to close suggestions when clicking outside (Modal Specific)
+document.addEventListener('click', function(e) {
+    // Only run if a modal suggestion box is actually open
+    const simpleBox = document.getElementById('reg-modal-simple-suggestions');
+    const billBox = document.getElementById('reg-modal-bill-suggestions');
+    
+    if ((simpleBox && simpleBox.style.display === 'block') || (billBox && billBox.style.display === 'block')) {
+        if (!e.target.closest('.customer-suggestions') && !e.target.closest('input[id^="reg-modal"]')) {
+             if(simpleBox) simpleBox.style.display = 'none';
+             if(billBox) billBox.style.display = 'none';
+        }
+    }
+});
+
 async function selectRegularCustomer(customer) {
     // 1. Fill Fields
     document.getElementById('custName').value = customer.name;
@@ -5670,7 +5820,19 @@ async function addRowManual() {
 }
 
 function cancelUpdateManual() {
-    // 1. Clear Inputs
+    // 1. CAPTURE DATA
+    const targetRowId = currentlyEditingRowIdManual;
+    const scrollPosToRestore = lastScrollPosition;
+
+    // --- STEP A: INSTANT VISUAL CLEANUP ---
+    // Remove background color and transitions from ALL rows immediately
+    const allRows = document.querySelectorAll('#createListManual tr');
+    allRows.forEach(r => {
+        r.style.backgroundColor = ''; 
+        r.style.transition = 'none'; // Disable transition to clear instantly
+    });
+
+    // 2. Clear Inputs
     document.getElementById("itemNameManual").value = "";
     document.getElementById("quantityManual").value = "";
     document.getElementById("rateManual").value = "";
@@ -5679,14 +5841,14 @@ function cancelUpdateManual() {
     document.getElementById("dimension2").value = "";
     document.getElementById("dimension3").value = "";
     document.getElementById("selectUnit").value = "";
-
+    
     // Clear GST
     const hsnInput = document.getElementById("hsnCodeManual");
     if (hsnInput) hsnInput.value = "";
     const prodInput = document.getElementById("productCodeManual");
     if (prodInput) prodInput.value = "";
 
-    // 2. Reset UI Sections (Hide Everything)
+    // 3. Reset UI Sections
     document.getElementById("discountType").value = "none";
     document.getElementById("discountValue").value = "";
     document.getElementById("discount-inputs-container").style.display = "none";
@@ -5707,35 +5869,23 @@ function cancelUpdateManual() {
 
     currentDimensions = { type: 'none', unit: 'ft', values: [0, 0, 0], calculatedArea: 0 };
 
-    // 3. Reset Buttons
+    // 4. Reset Buttons
     document.getElementById("addItemBtnManual").style.display = "inline-block";
     document.getElementById("updateItemBtnManual").style.display = "none";
     document.getElementById("cancelUpdateBtnManual").style.display = "none";
-
-    // 4. Clear Editing State & BLUR active elements
+    
+    // 5. Clear Editing State & Blur
     currentlyEditingRowIdManual = null;
     if (document.activeElement) {
-        document.activeElement.blur();
+        document.activeElement.blur(); 
     }
 
-    // 5. SCROLL LOGIC - Restore Saved Position
+    // --- STEP B: RESTORE SCROLL POSITION ---
     if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
-
-        // Use requestAnimationFrame to ensure UI updates are complete
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                console.log("Restoring scroll position to:", lastScrollPosition);
-
-                window.scrollTo({
-                    top: lastScrollPosition,
-                    behavior: 'smooth' // Instant jump to avoid conflicts
-                });
-
-                // Optional: We can still highlight the row if we want, but scrolling is the priority
-                // const row = document.querySelector(`tr[data-id="${currentlyEditingRowIdManual}"]`); // ID is null now, so we skip highlighting or save ID earlier if needed
-            });
+        window.scrollTo({
+            top: scrollPosToRestore,
+            behavior: 'smooth' 
         });
-
     } else {
         // Auto Scroll OFF
         document.getElementById("itemNameManual").focus();
@@ -6371,15 +6521,23 @@ function editRowManual(id) {
         }
     }
 
-    // --- NEW: SAVE SCROLL POSITION IMMEDIATELY ---
-    // We capture where the user is looking BEFORE we jump to the top
+    // --- SAVE SCROLL POSITION ---
     if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
         lastScrollPosition = window.scrollY || document.documentElement.scrollTop;
-        console.log("Saved scroll position:", lastScrollPosition);
     }
 
     const row = document.querySelector(`#createListManual tr[data-id="${id}"]`);
     if (!row) return;
+
+    // --- VISUAL UPDATE: Highlight the active row ---
+    // First, clear highlight from any other rows (safety)
+    document.querySelectorAll('#createListManual tr').forEach(r => r.style.backgroundColor = '');
+    
+    // Apply Active Highlight
+    row.style.transition = "background-color 0.3s";
+    row.style.backgroundColor = "#eeeeeeff"; 
+    // ----------------------------------------------
+
     currentlyEditingRowIdManual = id;
     const cells = row.children;
     const particularsDiv = cells[1];
@@ -6499,7 +6657,7 @@ function editRowManual(id) {
         document.getElementById('toggleConvertBtn').style.display = 'none'; // Hide convert
     }
     previousConvertUnit = savedConvertUnit;
-
+    
     // --- BUTTON VISIBILITY ---
     document.getElementById("addItemBtnManual").style.display = "none";
     document.getElementById("updateItemBtnManual").style.display = "inline-block";
