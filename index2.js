@@ -9027,69 +9027,79 @@ function closeRegularModal() {
     document.getElementById('regular-details-modal').style.display = 'none';
 }
 
+
 /* ==========================================
-   INITIALIZE BILL TYPES (Fix Duplicates)
+   INITIALIZE BILL TYPES (Fix Duplicates & Default)
    ========================================== */
 /* ==========================================
-   INITIALIZE BILL TYPES (Fix Duplicates)
+   INITIALIZE BILL TYPES (Strict Sort Order)
    ========================================== */
 function initRegBillTypes() {
     const select = document.getElementById('reg-modal-type-select');
     if (!select) return;
 
     // 1. Preserve currently selected value
-    const currentVal = select.value;
+    let currentVal = select.value;
+
+    // Force Invoice as default if the browser sees "Estimate" (HTML default)
+    if (currentVal === 'Estimate') {
+        currentVal = 'Invoice';
+    }
 
     // 2. Clear existing options
     select.innerHTML = '';
 
-    // 3. Get Custom Types first
+    // 3. Define Strict Default Order
+    const defaults = ['Invoice', 'Estimate', 'Quotation', 'Purchase Order', 'Work Order'];
+
+    // 4. Get Custom Types
     const customTypes = JSON.parse(localStorage.getItem('customRegTypes') || '[]');
 
-    // 4. Define Defaults - ENSURE ESTIMATE IS FIRST
-    const defaults = ['Estimate', 'Quotation', 'Purchase Order', 'Work Order'];
-
-    // 5. Filter Defaults: Only keep defaults that are NOT in customTypes
-    const activeDefaults = defaults.filter(defName =>
-        !customTypes.some(custom => custom.name === defName)
-    );
-
-    // 6. Add Remaining Defaults
-    activeDefaults.forEach(type => {
+    // 5. Add Defaults (Strict Order)
+    // We filter out any defaults that might be overridden in customTypes (though usually we just edit prefix)
+    // But per your request, we want defaults first.
+    defaults.forEach(defName => {
+        // Check if this default name exists in custom types (in case user "edited" a default)
+        // If user edited "Estimate", we still want it to appear in the "Estimate" slot, 
+        // but we might want to use the custom label. 
+        // For simplicity and strict order, we just list the names here.
         const opt = document.createElement('option');
-        opt.value = type;
-        opt.textContent = type;
+        opt.value = defName;
+        opt.textContent = defName;
         select.appendChild(opt);
     });
 
-    // 7. Add Custom Types
-    customTypes.forEach(t => {
+    // 6. Add Custom Types (Only those that are NOT in the defaults list)
+    // This ensures "My Custom Bill" appears AFTER "Work Order"
+    const purelyCustomTypes = customTypes.filter(ct => !defaults.includes(ct.name));
+    
+    purelyCustomTypes.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.name;
         opt.textContent = t.name;
         select.appendChild(opt);
     });
 
-    // 8. Add "Custom..." Option
+    // 7. Add "Custom..." Placeholder at the very end
     const customOpt = document.createElement('option');
     customOpt.value = 'Custom';
     customOpt.textContent = 'Custom...';
     select.appendChild(customOpt);
 
-    // 9. Restore Selection or Default to First Option (Estimate)
+    // 8. Restore Selection
+    // We check if the currentVal exists in our new list.
     const options = Array.from(select.options);
     const exists = options.some(o => o.value === currentVal);
 
     if (exists) {
         select.value = currentVal;
-    } else if (currentVal === 'Custom') {
-        select.value = 'Custom';
     } else {
-        // Fallback to the first option (Now guaranteed to be Estimate if not customized)
-        if (select.options.length > 0) {
-            select.selectedIndex = 0;
-        }
+        // Fallback to first option (Invoice)
+        if (select.options.length > 0) select.selectedIndex = 0;
     }
+
+    // 9. Update UI (Hide/Show 3-dots)
+    handleRegTypeChange(true);
 }
 
 function toggleRegTypeMenu() {
@@ -9119,10 +9129,16 @@ async function handleRegTypeChange(preventSync = false) {
     const customPanel = document.getElementById('reg-custom-type-panel');
     const saveBtn = document.getElementById('reg-save-custom-btn');
     const menu = document.getElementById('reg-type-menu');
+    const menuBtn = document.getElementById('reg-type-menu-btn'); // Get the button
 
     if (menu) menu.style.display = 'none';
 
     let labelText = "Invoice No";
+
+    // --- LOGIC: Hide Menu Button if "Invoice" ---
+    if (menuBtn) {
+        menuBtn.style.display = (type === 'Invoice') ? 'none' : 'block';
+    }
 
     // 1. Determine Prefix & Label
     if (type === 'Custom') {
@@ -9130,8 +9146,6 @@ async function handleRegTypeChange(preventSync = false) {
         prefixInput.disabled = false;
         customPanel.style.display = 'block';
         saveBtn.style.display = 'block';
-        // Clear inputs for new entry
-        // ... (keep existing clear logic)
     } else {
         customPanel.style.display = 'none';
         saveBtn.style.display = 'none';
@@ -9144,14 +9158,17 @@ async function handleRegTypeChange(preventSync = false) {
             labelText = foundCustom.label || (type + " No");
         } else {
             const defaults = {
-                'Estimate': '',
+                'Invoice': '',  // No prefix for Invoice
+                'Estimate': 'EST',
                 'Quotation': 'QTN',
                 'Purchase Order': 'PO',
                 'Work Order': 'WO'
             };
+            // Use undefined check to allow empty string as valid prefix
             prefixInput.value = (defaults[type] !== undefined) ? defaults[type] : '';
 
             if (type === 'Estimate') labelText = "Bill No";
+            else if (type === 'Invoice') labelText = "Invoice No";
             else labelText = type + " No";
         }
 
@@ -9163,16 +9180,12 @@ async function handleRegTypeChange(preventSync = false) {
     // 2. Update Label Text
     updateBillLabels(labelText);
 
-    // 3. FIX: Auto-Populate Next Invoice Number (Async)
-    // Only if not Custom AND NOT during initial load (preventSync)
+    // 3. Auto-Populate Next Invoice Number (Async)
     if (type !== 'Custom' && !preventSync) {
         const currentPrefix = prefixInput.value;
-
-        // Call the new Async function
         const nextNo = await getNextInvoiceNumberAsync(type, currentPrefix);
-
         document.getElementById('reg-modal-invoice-no').value = nextNo;
-
+        
         // Sync to view immediately
         syncRegularData('modal');
     }
@@ -9400,9 +9413,25 @@ function copyRegBillToShip() {
 /* ==========================================
    FINAL SAVE FUNCTION (With State Hiding)
    ========================================== */
+/* ==========================================
+   SAVE DETAILS (With Validation)
+   ========================================== */
 async function saveRegularBillDetails(isSilentLoad = false) {
     // 1. Get Data
     const typeEl = document.getElementById('reg-modal-type-select');
+    
+    // --- VALIDATION START ---
+    // Check if user is trying to save the "Custom..." placeholder
+    if (!isSilentLoad && typeEl && typeEl.value === 'Custom') {
+        if (typeof showNotification === 'function') {
+            showNotification('Please fill the custom fields or switch to a valid Bill Type', 'error', 3000);
+        } else {
+            alert('Please fill the custom fields or switch to a valid Bill Type');
+        }
+        return; // STOP EXECUTION
+    }
+    // --- VALIDATION END ---
+
     const prefixEl = document.getElementById('reg-modal-prefix');
     const rawNoEl = document.getElementById('reg-modal-invoice-no');
     const dateEl = document.getElementById('reg-modal-date');
@@ -9412,13 +9441,13 @@ async function saveRegularBillDetails(isSilentLoad = false) {
     const rawNo = rawNoEl ? rawNoEl.value : '';
     const date = dateEl ? dateEl.value : '';
 
-    const formattedInvoiceNo = prefix ? `${prefix}/${rawNo}` : rawNo;
+    // No Separator Logic
+    const formattedInvoiceNo = prefix ? `${prefix}${rawNo}` : rawNo;
 
-    // ---------------------------------------------------------
-    // FIX: Force Label Update based on Type (Standard or Custom)
-    // ---------------------------------------------------------
+    // Force Label Update based on Type
     let labelText = "Invoice No";
     const defaults = {
+        'Invoice': 'Invoice No',
         'Estimate': 'Bill No',
         'Quotation': 'Quotation No',
         'Purchase Order': 'Purchase Order No',
@@ -9428,7 +9457,6 @@ async function saveRegularBillDetails(isSilentLoad = false) {
     if (defaults[type]) {
         labelText = defaults[type];
     } else {
-        // Handle Custom Types
         try {
             const customTypes = JSON.parse(localStorage.getItem('customRegTypes') || '[]');
             const found = customTypes.find(t => t.name === type);
@@ -9439,38 +9467,38 @@ async function saveRegularBillDetails(isSilentLoad = false) {
         }
     }
 
-    // Apply the correct label immediately
     if (typeof updateBillLabels === 'function') {
         updateBillLabels(labelText);
     }
-    // ---------------------------------------------------------
 
-    // 2. Sync Heading (Keep existing just in case)
+    // 2. Sync Heading
     if (typeof syncBillHeadingToSettings === 'function') {
         syncBillHeadingToSettings(type);
     }
 
-    // 3. Update Global Meta (Labels)
+    // 3. Update Global Meta
     const dispNo = document.getElementById('disp-reg-invoice-no');
     const dispDate = document.getElementById('disp-reg-date');
     if (dispNo) dispNo.textContent = formattedInvoiceNo;
     if (dispDate) dispDate.textContent = date;
 
-    // 4. Update Table View (Prefix + Input)
+    // 4. Update Table View
     const prefixSpan = document.getElementById('billPrefixDisplay');
     const numberInput = document.getElementById('billNo');
     if (prefixSpan) {
-        prefixSpan.textContent = prefix ? `${prefix}/` : '';
+        prefixSpan.textContent = prefix ? `${prefix}` : '';
         prefixSpan.style.display = prefix ? 'inline' : 'none';
-        prefixSpan.style.color = '#0f0f0f'; // Ensure visibility
+        prefixSpan.style.color = '#0f0f0f';
     }
     if (numberInput) numberInput.value = rawNo;
 
-    // 5. Handle View Switching (Simple/Advanced logic)
+    // 5. Handle View Switching
     const viewMode = regBillConfig.viewMode;
     const defaultView = document.getElementById('reg-default-view');
     const advancedView = document.getElementById('reg-advanced-view');
     const shipCol = document.getElementById('adv-ship-col');
+
+    let activeCustomerName = ''; 
 
     if (viewMode === 'simple') {
         if (defaultView) defaultView.style.display = 'block';
@@ -9481,7 +9509,10 @@ async function saveRegularBillDetails(isSilentLoad = false) {
         const custAddr = document.getElementById('custAddr');
         const billDate = document.getElementById('billDate');
 
-        if (custName) custName.value = document.getElementById('reg-modal-simple-name').value;
+        const modalSimpleName = document.getElementById('reg-modal-simple-name').value;
+        activeCustomerName = modalSimpleName;
+
+        if (custName) custName.value = modalSimpleName;
         if (custPhone) custPhone.value = document.getElementById('reg-modal-simple-phone').value;
         if (custAddr) custAddr.value = document.getElementById('reg-modal-simple-addr').value;
         if (billDate) billDate.value = date;
@@ -9498,7 +9529,9 @@ async function saveRegularBillDetails(isSilentLoad = false) {
         if (advNo) advNo.textContent = formattedInvoiceNo;
         if (advDate) advDate.textContent = date;
 
-        // --- HELPER 1: Standard Fields ---
+        const modalBillName = document.getElementById('reg-modal-bill-name').value.trim();
+        activeCustomerName = modalBillName;
+
         const updateField = (viewId, modalId, hideParent = false) => {
             const el = document.getElementById(viewId);
             const val = document.getElementById(modalId).value.trim();
@@ -9509,7 +9542,6 @@ async function saveRegularBillDetails(isSilentLoad = false) {
             targetToHide.style.display = isEmpty ? 'none' : (hideParent ? '' : 'block');
         };
 
-        // --- HELPER 2: State Line ---
         const updateStateLine = (viewStateId, viewCodeId, modalStateId, modalCodeId) => {
             const stateVal = document.getElementById(modalStateId).value.trim();
             const codeVal = document.getElementById(modalCodeId).value.trim();
@@ -9541,19 +9573,29 @@ async function saveRegularBillDetails(isSilentLoad = false) {
         }
     }
 
-    // 6. Persist to DB
     await saveRegularModalState();
 
     if (!isSilentLoad) {
         closeRegularModal();
-        // if (typeof showNotification === 'function') showNotification('Bill details updated', 'success');
+        if (activeCustomerName && typeof checkAndApplyCustomerRates === 'function') {
+            await checkAndApplyCustomerRates(activeCustomerName);
+        }
     }
 }
 
-function clearRegularModal() {
-    // 1. Clear Input Fields (but NOT the config dropdowns like Type/Prefix)
+/* ==========================================
+   RESET REGULAR MODAL
+   ========================================== */
+function resetRegularModal() {
+    // 1. Clear Input Fields
     document.getElementById('reg-modal-invoice-no').value = '';
-    document.getElementById('reg-modal-date').value = '';
+    
+    // Set Date to Today (DD-MM-YYYY)
+    const today = new Date();
+    const dd = String(today.getDate()).padStart(2, '0');
+    const mm = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+    const yyyy = today.getFullYear();
+    document.getElementById('reg-modal-date').value = `${dd}-${mm}-${yyyy}`;
 
     // Simple View Inputs
     document.getElementById('reg-modal-simple-name').value = '';
@@ -9579,15 +9621,19 @@ function clearRegularModal() {
     document.getElementById('reg-modal-ship-state').value = 'Maharashtra';
     document.getElementById('reg-modal-ship-code').value = '27';
 
-    // 3. NEW: Auto-Set Next Number based on CURRENT Prefix
-    const currentPrefix = document.getElementById('reg-modal-prefix').value;
-    if (currentPrefix) {
-        const nextNo = getNextInvoiceNumber(currentPrefix);
-        document.getElementById('reg-modal-invoice-no').value = nextNo;
+    // 3. RESET TYPE TO "Invoice"
+    const select = document.getElementById('reg-modal-type-select');
+    if (select) {
+        select.value = 'Invoice';
+        // This triggers: 
+        // 1. Menu Hide
+        // 2. Label Update
+        // 3. Next Invoice Number Fetch
+        handleRegTypeChange(); 
+    } else {
+        // Fallback if select doesn't exist for some reason
+        saveRegularBillDetails();
     }
-
-    // 4. Update View & Save
-    saveRegularBillDetails();
 }
 
 // 5. Saved Bills Filtering
@@ -9756,9 +9802,11 @@ async function applySavedBillsFilter() {
    ========================================== */
 
 /* ==========================================
-   UPDATED SYNC LOGIC (With Auto-Save)
+   UPDATED SYNC LOGIC (With Auto-Save & Auto-Rate)
    ========================================== */
-
+/* ==========================================
+   UPDATED SYNC LOGIC (Fixes Modal Typing)
+   ========================================== */
 async function syncRegularData(source) {
     // 1. Define Elements (Main View)
     const viewName = document.getElementById('custName');
@@ -9783,39 +9831,39 @@ async function syncRegularData(source) {
 
     if (source === 'view') {
         // --- CASE A: User typing in MAIN VIEW ---
-
-        // 1. Push values to Modal Inputs
         if (modalName) modalName.value = viewName.value;
         if (modalPhone) modalPhone.value = viewPhone.value;
         if (modalAddr) modalAddr.value = viewAddr.value;
         if (modalInvoiceNo) modalInvoiceNo.value = viewBillNo.value;
         if (modalDate) modalDate.value = viewDate.value;
 
-        // 2. Push to Advanced Modal fields (backup)
         if (modalBillName) modalBillName.value = viewName.value;
         if (modalBillPhone) modalBillPhone.value = viewPhone.value;
         if (modalBillAddr) modalBillAddr.value = viewAddr.value;
         if (modalBillGST) modalBillGST.value = viewGST.value;
 
-        // 3. NEW: Auto-Save State to DB
         await saveRegularModalState();
 
     } else {
         // --- CASE B: User typing in MODAL ---
-
-        // Push values to Main View Inputs
         if (viewName) viewName.value = modalName.value;
         if (viewPhone) viewPhone.value = modalPhone.value;
         if (viewAddr) viewAddr.value = modalAddr.value;
         if (viewBillNo) viewBillNo.value = modalInvoiceNo.value;
         if (viewDate) viewDate.value = modalDate.value;
 
-        // Trigger existing legacy save logic
         if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
-        if (typeof handleRegularCustomerSearch === 'function') handleRegularCustomerSearch();
+        
+        // --- FIX: Manually Trigger Rate Check ---
+        // Since we are changing values via code, the 'input' listener on main view won't fire.
+        // We must call the rate check manually here.
+        const activeName = modalName.value || modalBillName.value;
+        
+        if (activeName && typeof checkAndApplyCustomerRates === 'function') {
+            checkAndApplyCustomerRates(activeName); // This will respect the 'Invoice' restriction
+        }
     }
 }
-
 
 // Helper Function to Sync & Save Heading
 function syncBillHeadingToSettings(typeVal) {
