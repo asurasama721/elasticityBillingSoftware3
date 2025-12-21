@@ -3188,8 +3188,7 @@
                     <div style="flex: 1; position: relative;">
                         <label>Bill Type</label>
                         <div style="display: flex; gap: 5px;">
-                            <select id="reg-modal-type-select" onchange="handleRegTypeChange()"
-                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <select id="reg-modal-type-select" onchange="handleRegTypeChange()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                 <option value="Estimate">Estimate</option>
                                 <option value="Quotation">Quotation</option>
                                 <option value="Purchase Order">Purchase Order</option>
@@ -3197,8 +3196,7 @@
                                 <option value="Custom">Custom...</option>
                             </select>
 
-                            <button onclick="toggleRegTypeMenu()" class="btn-icon"
-                                style="padding: 5px; border: none; background: transparent; cursor: pointer;">
+                            <button id="reg-type-menu-btn" onclick="toggleRegTypeMenu()" class="btn-icon" style="padding: 5px; border: none; background: transparent; cursor: pointer;">
                                 <span class="material-icons">more_vert</span>
                             </button>
                         </div>
@@ -3270,8 +3268,13 @@
                 <div id="reg-modal-simple-section" style="display: block;">
                     <div class="form-group">
                         <label>Customer Name</label>
-                        <input type="text" id="reg-modal-simple-name" oninput="syncRegularData('modal')"
-                            placeholder="Enter Name">
+                        <div style="position: relative;">
+                            <input type="text" id="reg-modal-simple-name"
+                                oninput="handleRegModalCustomerSearch(this, 'simple'); syncRegularData('modal')"
+                                placeholder="Enter Name" autocomplete="off">
+                            <div class="customer-suggestions" id="reg-modal-simple-suggestions" style="display: none;">
+                            </div>
+                        </div>
                     </div>
                     <div class="form-group">
                         <label>Phone / Contact</label>
@@ -3290,7 +3293,13 @@
 
                         <div style="width: 100%;">
                             <h4 class="column-header">Bill To</h4>
-                            <input type="text" id="reg-modal-bill-name" placeholder="Name" class="mb-2">
+                            <div style="position: relative;">
+                                <input type="text" id="reg-modal-bill-name" placeholder="Name" class="mb-2"
+                                    oninput="handleRegModalCustomerSearch(this, 'bill'); syncRegularData('modal')"
+                                    autocomplete="off">
+                                <div class="customer-suggestions" id="reg-modal-bill-suggestions"
+                                    style="display: none;"></div>
+                            </div>
                             <textarea id="reg-modal-bill-addr" placeholder="Address" rows="2" class="mb-2"></textarea>
                             <input type="text" id="reg-modal-bill-gst" placeholder="GSTIN" class="mb-2">
                             <input type="text" id="reg-modal-bill-phone" placeholder="Contact No" class="mb-2">
@@ -3326,7 +3335,7 @@
 
             </div>
             <div class="modal-footer">
-                <button onclick="clearRegularModal()" class="btn-clear">Clear</button>
+                <button onclick="resetRegularModal()" class="btn-clear">Reset</button>
                 <button onclick="closeRegularModal()" class="btn-cancel">Cancel</button>
                 <button onclick="saveRegularBillDetails()" class="btn-apply">Save Details</button>
             </div>
