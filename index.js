@@ -55,6 +55,9 @@ let currentVendorBillsMode = 'regular'; // 'regular' or 'gst'
 // Add/Update this at the top with other global variables
 let autoScrollEnabled = localStorage.getItem('billApp_autoScroll') === 'true';
 let lastScrollPosition = 0; // Stores scroll position before editing
+let isSavedBillsSortAscending = false; // Default: Descending (Newest First)
+
+let isCustomerSortAscending = true; // Default A-Z
 
 // Add this with other global variables
 let sectionModalState = {
@@ -328,63 +331,96 @@ async function loadAutoApplySetting() {
 }
 
 // Customer Rate Suggestion System
-// Customer Rate & Discount Suggestion System
-// Customer Rate & Discount Suggestion System (Split Logic)
 async function getCustomerRateSuggestion(identifier, itemName) {
-    try {
-        if (!identifier || !itemName) return null;
+    if (!identifier || !itemName) return null;
 
-        let suggestedData = null;
-        let latestTimestamp = 0;
+    try {
+        const searchItem = itemName.toLowerCase().trim();
+        const searchIdentifier = identifier.toLowerCase().trim();
+        
+        let targetBills = [];
 
         if (isGSTMode) {
-            // GST MODE: Search by GSTIN in gstSavedBills
-            const gstBills = await getAllFromDB('gstSavedBills');
-            gstBills.forEach(bill => {
-                // Check both Bill To and Ship To GSTINs
-                const billToGSTIN = bill.value.customer?.billTo?.gstin;
-                const shipToGSTIN = bill.value.customer?.shipTo?.gstin;
-
-                if ((billToGSTIN === identifier || shipToGSTIN === identifier) && bill.value.items) {
-                    bill.value.items.forEach(item => {
-                        if (item.itemName.toLowerCase() === itemName.toLowerCase() &&
-                            item.rate > 0 &&
-                            bill.value.timestamp > latestTimestamp) {
-
-                            suggestedData = {
-                                rate: parseFloat(item.rate),
-                                discountType: item.discountType || 'none',
-                                discountValue: parseFloat(item.discountValue) || 0
-                            };
-                            latestTimestamp = bill.value.timestamp;
-                        }
-                    });
-                }
+            // --- GST MODE: Search by GSTIN in gstSavedBills ---
+            const rawBills = await getAllFromDB('gstSavedBills');
+            
+            // 1. Filter: Match GSTIN (Bill To OR Ship To)
+            targetBills = rawBills.filter(bill => {
+                const val = bill.value;
+                const billTo = val.customer?.billTo?.gstin?.toLowerCase();
+                const shipTo = val.customer?.shipTo?.gstin?.toLowerCase();
+                
+                return billTo === searchIdentifier || shipTo === searchIdentifier;
             });
-        } else {
-            // REGULAR MODE: Search by Name in savedBills
-            const regularBills = await getAllFromDB('savedBills');
-            regularBills.forEach(bill => {
-                if (bill.value.customer?.name === identifier && bill.value.tableStructure) {
-                    bill.value.tableStructure.forEach(row => {
-                        if (row.type === 'item' &&
-                            row.itemName.toLowerCase() === itemName.toLowerCase() &&
-                            row.rate > 0 &&
-                            bill.value.timestamp > latestTimestamp) {
 
-                            suggestedData = {
-                                rate: row.rate,
-                                discountType: row.discountType || 'none',
-                                discountValue: parseFloat(row.discountValue) || 0
-                            };
-                            latestTimestamp = bill.value.timestamp;
-                        }
-                    });
-                }
+        } else {
+            // --- REGULAR MODE: Search by Name in savedBills ---
+            const rawBills = await getAllFromDB('savedBills');
+
+            // 1. Filter: Match Name AND Type is 'Invoice'
+            targetBills = rawBills.filter(bill => {
+                const val = bill.value;
+
+                // STRICT RULE: Only 'Invoice' type (ignore Estimates, Quotes, etc.)
+                // Check new modalState.type or fallback to 'Invoice' for legacy
+                const type = val.modalState?.type || 'Invoice';
+                if (type !== 'Invoice') return false;
+
+                // Check Name (New Modal State OR Legacy Customer Name)
+                const simpleName = val.modalState?.simple?.name?.toLowerCase();
+                const billName = val.modalState?.billTo?.name?.toLowerCase();
+                const legacyName = val.customer?.name?.toLowerCase(); // Fallback for old data
+
+                return simpleName === searchIdentifier || 
+                       billName === searchIdentifier || 
+                       legacyName === searchIdentifier;
             });
         }
 
-        return suggestedData;
+        // 2. SORT: By 'createdAt' Descending (Newest Created First)
+        // This fixes the issue where editing an old bill (updating timestamp) messed up the order.
+        // Fallback to 'timestamp' if createdAt doesn't exist (legacy bills).
+        targetBills.sort((a, b) => {
+            const timeA = a.value.createdAt || a.value.timestamp || 0;
+            const timeB = b.value.createdAt || b.value.timestamp || 0;
+            return timeB - timeA; // Descending (Newest -> Oldest)
+        });
+
+        // 3. TRAVERSE: Stop at the FIRST match (which is the most recent due to sorting)
+        for (const bill of targetBills) {
+            const val = bill.value;
+            
+            // Handle various item structures (Regular 'items', GST 'items', or Legacy 'tableStructure')
+            let itemsList = val.items || [];
+            // Fallback for very old Regular bills that used tableStructure
+            if (itemsList.length === 0 && val.tableStructure) {
+                itemsList = val.tableStructure;
+            }
+
+            for (const item of itemsList) {
+                // Normalize Item Name check
+                // 'itemName' is used in GST/Legacy, 'name' might be in new Regular items, 'particulars' in manual
+                const storedName = (item.itemName || item.name || item.particulars || '').toLowerCase().trim();
+                const storedType = item.type || 'item'; // For legacy tableStructure rows
+
+                // Logic: Match Name AND ensure it's not a header/total row
+                if (storedName === searchItem && storedType === 'item') {
+                    const rate = parseFloat(item.rate || 0);
+                    
+                    if (rate > 0) {
+                        // FOUND THE LATEST RATE! Return immediately.
+                        return {
+                            rate: rate,
+                            discountType: item.discountType || 'none',
+                            discountValue: parseFloat(item.discountValue) || 0
+                        };
+                    }
+                }
+            }
+        }
+
+        return null; // No match found in history
+
     } catch (error) {
         console.error('Error getting customer rate suggestion:', error);
         return null;
@@ -431,7 +467,7 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
         if (!isGSTMode) {
             const billTypeEl = document.getElementById('reg-modal-type-select');
             const currentType = billTypeEl ? billTypeEl.value : 'Invoice';
-            
+
             if (currentType !== 'Invoice') {
                 return; // Abort if not Invoice
             }
@@ -488,9 +524,9 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                     // 3. Recalculate Quantity
                     const baseQuantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent);
                     const dimensionType = row.getAttribute('data-dimension-type') || 'none';
-                    
+
                     let finalQuantity = baseQuantity;
-                    
+
                     const dimValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
                     const dimToggles = JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}');
                     const dimUnit = row.getAttribute('data-dimension-unit') || 'inch';
@@ -541,7 +577,7 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                             }
                         }
                         finalQuantity = baseQuantity * rawResult * conversionFactor;
-                    } 
+                    }
                     else if (dimensionType === 'dozen') {
                         finalQuantity = baseQuantity / 12;
                     }
@@ -1222,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         // Restore Auto Scroll Button State
         const btn = document.getElementById('btn-auto-scroll');
         if (btn) {
-            if(autoScrollEnabled) {
+            if (autoScrollEnabled) {
                 btn.style.backgroundColor = '#80a2c2c4';
                 const label = btn.querySelector('.sidebar-label');
                 if (label) label.textContent = 'Auto Scroll : ON';
@@ -3409,24 +3445,66 @@ async function saveCustomer() {
 async function loadCustomersList() {
     try {
         const customers = await getAllFromDB('savedCustomers');
-        const customersList = document.getElementById('customers-list');
-        customersList.innerHTML = '';
+        const listContainer = document.getElementById('customers-list');
+        const searchInput = document.getElementById('customer-search');
+        const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+        listContainer.innerHTML = '';
 
         if (customers.length === 0) {
-            customersList.innerHTML = '<div class="customer-card">No regular customers saved yet</div>';
+            listContainer.innerHTML = '<div class="customer-card">No regular customers saved yet</div>';
             return;
         }
 
-        customers.forEach(customer => {
+        // 1. FILTER (Search Name, Address, Phone, GSTIN)
+        const filtered = customers.filter(c => {
+            const val = c.value;
+            const name = (val.name || '').toLowerCase();
+            const gstin = (val.gstin || '').toLowerCase();
+            const address = (val.address || '').toLowerCase();
+            const phone = (val.phone || '').toLowerCase();
+
+            return name.includes(searchTerm) || 
+                   gstin.includes(searchTerm) || 
+                   address.includes(searchTerm) || 
+                   phone.includes(searchTerm);
+        });
+
+        if (filtered.length === 0) {
+            listContainer.innerHTML = '<div class="customer-card">No matching customers found</div>';
+            return;
+        }
+
+        // 2. SORT (A-Z / Z-A)
+        filtered.sort((a, b) => {
+            const nameA = (a.value.name || '').toLowerCase();
+            const nameB = (b.value.name || '').toLowerCase();
+            
+            if (isCustomerSortAscending) {
+                return nameA.localeCompare(nameB);
+            } else {
+                return nameB.localeCompare(nameA);
+            }
+        });
+
+        // 3. RENDER
+        filtered.forEach(customer => {
+            const val = customer.value;
             const customerCard = document.createElement('div');
             customerCard.className = 'customer-card';
 
-            const safeName = customer.value.name.replace(/[^a-zA-Z0-9]/g, '-');
+            // Safe Name for ID
+            const safeName = val.name.replace(/[^a-zA-Z0-9]/g, '-');
             const menuId = `menu-cust-${safeName}-${Date.now()}`;
+
+            // Safe Data Display
+            const displayAddr = val.address || 'Not provided';
+            const displayPhone = val.phone || 'Not provided';
+            const displayGstin = val.gstin || 'Not provided';
 
             customerCard.innerHTML = `
                 <div class="card-header-row">
-                    <div class="card-info">${customer.value.name}</div>
+                    <div class="card-info">${val.name}</div>
                     
                     <div class="card-controls">
                         <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
@@ -3438,16 +3516,16 @@ async function loadCustomersList() {
                                 <span class="material-icons">more_vert</span>
                             </button>
                             <div id="${menuId}" class="action-dropdown">
-                                <button class="dropdown-item" onclick="openPaymentDialog('${customer.value.name}', '${customer.value.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}')">
                                     <span class="material-icons">payments</span> Payment & CN
                                 </button>
-                                <button class="dropdown-item" onclick="openLedgerDialog('${customer.value.name}', '${customer.value.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}')">
                                     <span class="material-icons">book</span> Ledger
                                 </button>
-                                <button class="dropdown-item" onclick="editCustomer('${customer.value.name}')">
+                                <button class="dropdown-item" onclick="editCustomer('${val.name}')">
                                     <span class="material-icons">edit</span> Edit
                                 </button>
-                                <button class="dropdown-item delete-item" onclick="deleteCustomer('${customer.value.name}')">
+                                <button class="dropdown-item delete-item" onclick="deleteCustomer('${val.name}')">
                                     <span class="material-icons">delete</span> Delete
                                 </button>
                             </div>
@@ -3456,12 +3534,12 @@ async function loadCustomersList() {
                 </div>
                 
                 <div class="details-section hidden customer-details-text">
-                    <div>Address: ${customer.value.address || 'Not provided'}</div>
-                    <div>Phone: ${customer.value.phone || 'Not provided'}</div>
-                    <div>GSTIN: ${customer.value.gstin || 'Not provided'}</div>
+                    <div>Address: ${displayAddr}</div>
+                    <div>Phone: ${displayPhone}</div>
+                    <div>GSTIN: ${displayGstin}</div>
                 </div>
             `;
-            customersList.appendChild(customerCard);
+            listContainer.appendChild(customerCard);
         });
     } catch (error) {
         console.error('Error loading customers list:', error);
@@ -3470,25 +3548,23 @@ async function loadCustomersList() {
 
 // Search Customers (works for both regular and GST)
 function searchCustomers() {
-    const searchTerm = document.getElementById('customer-search').value.toLowerCase();
-    const customerCards = document.querySelectorAll('#customers-list .customer-card');
-
-    customerCards.forEach(card => {
-        const nameEl = card.querySelector('.card-info');
-        const detailsEl = card.querySelector('.details-section');
-
-        const customerName = nameEl ? nameEl.textContent.toLowerCase() : '';
-        const customerDetails = detailsEl ? detailsEl.textContent.toLowerCase() : '';
-
-        if (customerName.includes(searchTerm) || customerDetails.includes(searchTerm)) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+    // Check which mode is active (Regular or GST)
+    const toggle = document.getElementById('customer-mode-toggle');
+    const isGST = toggle && toggle.checked;
+    
+    if (isGST) {
+        loadGSTCustomersList();
+    } else {
+        loadCustomersList();
+    }
 }
+
 async function handleRegularCustomerSearch() {
     const input = document.getElementById('custName');
+    const addrInput = document.getElementById('custAddr');
+    const phoneInput = document.getElementById('custPhone');
+    const gstInput = document.getElementById('custGSTIN');
+
     const suggestions = document.getElementById('regular-customer-suggestions');
     const searchTerm = input.value.trim();
 
@@ -3500,10 +3576,11 @@ async function handleRegularCustomerSearch() {
     try {
         const allCustomers = await getAllFromDB('savedCustomers');
 
-        // Filter customers
-        const filtered = allCustomers.filter(customer =>
-            customer.value.name.toLowerCase().includes(searchTerm.toLowerCase())
-        ).slice(0, 5);
+        const filtered = allCustomers
+            .filter(customer =>
+                customer.value.name.toLowerCase().includes(searchTerm.toLowerCase())
+            )
+            .slice(0, 5);
 
         suggestions.innerHTML = '';
 
@@ -3511,26 +3588,51 @@ async function handleRegularCustomerSearch() {
             filtered.forEach(customer => {
                 const div = document.createElement('div');
                 div.className = 'customer-suggestion-item';
-                div.textContent = customer.value.name; // Display Name
+                div.textContent = customer.value.name;
 
-                // Click handler
-                div.onclick = () => selectRegularCustomer(customer.value);
+                // ✅ FIXED CLICK HANDLER
+                div.onclick = async () => {
+                    const data = customer.value;
+
+                    // 1️⃣ Fill BILL VIEW inputs
+                    input.value = data.name || '';
+                    if (addrInput) addrInput.value = data.address || '';
+                    if (phoneInput) phoneInput.value = data.phone || '';
+                    if (gstInput) gstInput.value = data.gstin || '';
+
+                    // 2️⃣ Confirm customer ONLY on click
+                    window.currentCustomer = data.name;
+                    window.confirmedRegularCustomer = data.name;
+
+                    // 3️⃣ Hide suggestions
+                    suggestions.innerHTML = '';
+                    suggestions.style.display = 'none';
+
+                    // 4️⃣ Sync BILL VIEW → MODAL
+                    await syncRegularData('view');
+
+                    // 5️⃣ Apply rates if items already exist
+                    if (typeof checkAndApplyCustomerRates === 'function') {
+                        checkAndApplyCustomerRates(data.name);
+                    }
+                };
 
                 suggestions.appendChild(div);
             });
+
             suggestions.style.display = 'block';
         } else {
             suggestions.style.display = 'none';
         }
 
-        // Also trigger the existing logic for rate suggestions
-        window.currentCustomer = searchTerm;
+        // ❌ DO NOT set currentCustomer while typing
 
     } catch (error) {
         console.error('Error searching regular customers:', error);
         suggestions.style.display = 'none';
     }
 }
+
 
 /* =========================================
    REGULAR MODAL CUSTOMER SUGGESTIONS
@@ -3547,25 +3649,25 @@ async function handleRegModalCustomerSearch(input, type) {
 
     try {
         // CORRECTION: Using 'savedCustomers' matching your existing logic
-        const allCustomers = await getAllFromDB('savedCustomers'); 
-        
+        const allCustomers = await getAllFromDB('savedCustomers');
+
         // CORRECTION: Accessing .value.name based on your snippet
-        const filtered = allCustomers.filter(item => 
+        const filtered = allCustomers.filter(item =>
             item.value && item.value.name.toLowerCase().includes(query)
         ).slice(0, 5); // Limit to 5 suggestions
 
         suggestionsBox.innerHTML = '';
-        
+
         if (filtered.length > 0) {
             filtered.forEach(item => {
                 const customer = item.value; // Unwrap the customer object
                 const div = document.createElement('div');
                 div.className = 'customer-suggestion-item';
                 div.textContent = customer.name;
-                
+
                 // Click handler
                 div.onclick = () => selectRegModalCustomer(customer, type);
-                
+
                 suggestionsBox.appendChild(div);
             });
             suggestionsBox.style.display = 'block';
@@ -3580,7 +3682,7 @@ async function handleRegModalCustomerSearch(input, type) {
 
 function selectRegModalCustomer(customer, type) {
     const isSimple = type === 'simple';
-    
+
     // Define inputs based on Simple vs Advanced
     const nameInput = document.getElementById(isSimple ? 'reg-modal-simple-name' : 'reg-modal-bill-name');
     const phoneInput = document.getElementById(isSimple ? 'reg-modal-simple-phone' : 'reg-modal-bill-phone');
@@ -3597,33 +3699,33 @@ function selectRegModalCustomer(customer, type) {
         const gstInput = document.getElementById('reg-modal-bill-gst');
         // Handle potential missing fields gracefully
         if (gstInput) gstInput.value = customer.gstin || '';
-        
+
         // Optional: Fill State/Code if they exist in your customer object
         if (customer.state) {
             const stateInput = document.getElementById('reg-modal-bill-state');
-            if(stateInput) stateInput.value = customer.state;
+            if (stateInput) stateInput.value = customer.state;
         }
         if (customer.stateCode) {
             const codeInput = document.getElementById('reg-modal-bill-code');
-            if(codeInput) codeInput.value = customer.stateCode;
+            if (codeInput) codeInput.value = customer.stateCode;
         }
     }
 
     // 3. Hide Box & Sync
     if (suggestionsBox) suggestionsBox.style.display = 'none';
-    syncRegularData('modal'); 
+    syncRegularData('modal');
 }
 
 // Global Listener to close suggestions when clicking outside (Modal Specific)
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     // Only run if a modal suggestion box is actually open
     const simpleBox = document.getElementById('reg-modal-simple-suggestions');
     const billBox = document.getElementById('reg-modal-bill-suggestions');
-    
+
     if ((simpleBox && simpleBox.style.display === 'block') || (billBox && billBox.style.display === 'block')) {
         if (!e.target.closest('.customer-suggestions') && !e.target.closest('input[id^="reg-modal"]')) {
-             if(simpleBox) simpleBox.style.display = 'none';
-             if(billBox) billBox.style.display = 'none';
+            if (simpleBox) simpleBox.style.display = 'none';
+            if (billBox) billBox.style.display = 'none';
         }
     }
 });
@@ -3648,26 +3750,60 @@ async function selectRegularCustomer(customer) {
     }
 }
 
+function toggleCustomerSort() {
+    isCustomerSortAscending = !isCustomerSortAscending;
+    
+    // Update Button UI
+    const btn = document.getElementById('customer-sort-btn');
+    if (btn) {
+        if (isCustomerSortAscending) {
+            btn.classList.remove('ascending'); // Default icon
+        } else {
+            btn.classList.add('ascending'); // Flip icon
+        }
+    }
+
+    // Refresh List (Triggers searchCustomers -> loadGSTCustomersList)
+    searchCustomers(); 
+}
+
+function toggleSavedBillsSort() {
+    isSavedBillsSortAscending = !isSavedBillsSortAscending;
+    
+    // Update UI
+    const btn = document.getElementById('saved-bills-sort-btn');
+    if (isSavedBillsSortAscending) {
+        btn.classList.add('ascending');
+    } else {
+        btn.classList.remove('ascending');
+    }
+
+    // Re-apply filters with new sort order
+    applySavedBillsFilter();
+}
+
 // Search Bills (works for both regular and GST)
 function searchSavedBills() {
-    const searchTerm = document.getElementById('saved-bills-search').value.toLowerCase();
-    const billCards = document.querySelectorAll('#saved-bills-list .saved-bill-card');
+    // const searchTerm = document.getElementById('saved-bills-search').value.toLowerCase();
+    // const billCards = document.querySelectorAll('#saved-bills-list .saved-bill-card');
 
-    billCards.forEach(card => {
-        const infoEl = card.querySelector('.card-info');
-        const subInfoEl = card.querySelector('.card-sub-info');
-        const detailsEl = card.querySelector('.details-section');
+    // billCards.forEach(card => {
+    //     const infoEl = card.querySelector('.card-info');
+    //     const subInfoEl = card.querySelector('.card-sub-info');
+    //     const detailsEl = card.querySelector('.details-section');
 
-        const billTitle = infoEl ? infoEl.textContent.toLowerCase() : '';
-        const billTotal = subInfoEl ? subInfoEl.textContent.toLowerCase() : '';
-        const billDetails = detailsEl ? detailsEl.textContent.toLowerCase() : '';
+    //     const billTitle = infoEl ? infoEl.textContent.toLowerCase() : '';
+    //     const billTotal = subInfoEl ? subInfoEl.textContent.toLowerCase() : '';
+    //     const billDetails = detailsEl ? detailsEl.textContent.toLowerCase() : '';
 
-        if (billTitle.includes(searchTerm) || billTotal.includes(searchTerm) || billDetails.includes(searchTerm)) {
-            card.style.display = 'block';
-        } else {
-            card.style.display = 'none';
-        }
-    });
+    //     if (billTitle.includes(searchTerm) || billTotal.includes(searchTerm) || billDetails.includes(searchTerm)) {
+    //         card.style.display = 'block';
+    //     } else {
+    //         card.style.display = 'none';
+    //     }
+    // });
+
+    applySavedBillsFilter();
 }
 async function editCustomer(customerName) {
     try {
@@ -3946,7 +4082,7 @@ async function saveCurrentBill() {
     } else {
         // --- REGULAR BILL SAVE LOGIC ---
 
-        // --- FIX: Determine Customer Name & Details based on View Format ---
+        // Determine Customer Name & Details based on View Format
         const viewFormat = document.getElementById('reg-modal-cust-view-select').value;
         let customerName = '';
         let custDataToSave = null;
@@ -4001,11 +4137,10 @@ async function saveCurrentBill() {
             }
         }
 
-        // --- FIX: Auto-save customer with correct details ---
+        // Auto-save customer with correct details
         if (custDataToSave) {
             await autoSaveRegularCustomer(custDataToSave);
         } else if (customerName) {
-            // Fallback for simple name only
             await autoSaveRegularCustomer(customerName);
         }
 
@@ -4053,11 +4188,25 @@ async function saveCurrentBill() {
                 }
             };
 
+            // --- NEW: HANDLE CREATED_AT LOGIC ---
+            let createdAtTimestamp = Date.now();
+            
+            // If editing, try to retrieve the original creation time
+            if (editMode && currentEditingBillId) {
+                const originalBill = await getFromDB('savedBills', currentEditingBillId);
+                if (originalBill) {
+                    // Use existing createdAt, or fallback to timestamp if it's an old legacy bill
+                    createdAtTimestamp = originalBill.createdAt || originalBill.timestamp || Date.now();
+                }
+            }
+            // ------------------------------------
+
             const savedBill = {
                 ...currentData,
                 title: `${customerName} - ${billNo}`,
                 totalAmount: totalAmount,
-                timestamp: Date.now(),
+                timestamp: Date.now(), // Always updates on save (Last Modified)
+                createdAt: createdAtTimestamp, // Remains constant for life of bill
                 date: document.getElementById('billDate').value || new Date().toLocaleDateString(),
                 itemCount: itemCount,
                 modalState: modalState
@@ -5213,15 +5362,40 @@ async function restoreStockFromOriginalBill(billId) {
 
 // Open Saved Bills Modal
 function openSavedBillsModal() {
-    document.getElementById('saved-bills-modal').style.display = 'block';
+    const modal = document.getElementById('saved-bills-modal');
+    if (!modal) return;
+    modal.style.display = 'block';
 
-    // Reset to regular mode by default
-    document.getElementById('bills-mode-toggle').checked = false;
+    // 1. Reset to regular mode by default
+    const toggle = document.getElementById('bills-mode-toggle');
+    if (toggle) toggle.checked = false;
     currentBillsMode = 'regular';
 
-    // LOAD REGULAR BILLS INITIALLY
+    // 2. Reset Sort Button to Default (Descending)
+    isSavedBillsSortAscending = false; 
+    const sortBtn = document.getElementById('saved-bills-sort-btn');
+    if (sortBtn) {
+        sortBtn.classList.remove('ascending');
+    }
+
+    // 3. Ensure Type Filter is Visible (for Regular)
+    const filterSelect = document.getElementById('saved-prefix-filter');
+    if (filterSelect) {
+        filterSelect.style.display = 'inline-block';
+        filterSelect.value = 'all'; // Reset selection
+    }
+    
+    // 4. Reset Search Placeholder & Input
+    const searchInput = document.getElementById('saved-bills-search');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.placeholder = "Search... (/amt/500, /date/23, /month/12)";
+    }
+
+    // 5. Load Regular Bills
     loadSavedBillsList();
-    toggleSettingsSidebar();
+    
+    if (typeof toggleSettingsSidebar === 'function') toggleSettingsSidebar();
 }
 
 
@@ -5255,7 +5429,13 @@ async function loadSavedBillsList() {
             return;
         }
 
-        savedBills.sort((a, b) => b.value.timestamp - a.value.timestamp);
+        // --- UPDATED SORTING LOGIC: CreatedAt Descending (Fallback to Timestamp) ---
+        savedBills.sort((a, b) => {
+            const timeA = a.value.createdAt || a.value.timestamp || 0;
+            const timeB = b.value.createdAt || b.value.timestamp || 0;
+            return timeB - timeA; // Descending (Newest Original Creation First)
+        });
+        // --------------------------------------------------------------------------
 
         savedBills.forEach(bill => {
             const billCard = document.createElement('div');
@@ -5286,7 +5466,7 @@ async function loadSavedBillsList() {
             // --- FIX END ---
 
             // Construct Display Number (Prefix + No)
-            const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
+            const displayBillNo = prefix ? `${prefix}${rawBillNo}` : rawBillNo;
 
             // --- FIX: Card HTML with Prefix and Type ---
             billCard.innerHTML = `
@@ -5324,7 +5504,7 @@ async function loadSavedBillsList() {
                 <div class="details-section hidden saved-bill-details">
                     <div>Date: ${bill.value.date}</div>
                     <div>Items: ${bill.value.items?.length || bill.value.itemCount || 0}</div>
-                   
+                    
                 </div>
             `;
 
@@ -5817,6 +5997,8 @@ async function addRowManual() {
 
     applyColumnVisibility();
     updateGlobalDimensionButtonState();
+    // Auto-apply rates for the newly added item (if applicable)
+    await checkAndApplyCustomerRates();
 }
 
 function cancelUpdateManual() {
@@ -5828,7 +6010,7 @@ function cancelUpdateManual() {
     // Remove background color and transitions from ALL rows immediately
     const allRows = document.querySelectorAll('#createListManual tr');
     allRows.forEach(r => {
-        r.style.backgroundColor = ''; 
+        r.style.backgroundColor = '';
         r.style.transition = 'none'; // Disable transition to clear instantly
     });
 
@@ -5841,7 +6023,7 @@ function cancelUpdateManual() {
     document.getElementById("dimension2").value = "";
     document.getElementById("dimension3").value = "";
     document.getElementById("selectUnit").value = "";
-    
+
     // Clear GST
     const hsnInput = document.getElementById("hsnCodeManual");
     if (hsnInput) hsnInput.value = "";
@@ -5873,18 +6055,18 @@ function cancelUpdateManual() {
     document.getElementById("addItemBtnManual").style.display = "inline-block";
     document.getElementById("updateItemBtnManual").style.display = "none";
     document.getElementById("cancelUpdateBtnManual").style.display = "none";
-    
+
     // 5. Clear Editing State & Blur
     currentlyEditingRowIdManual = null;
     if (document.activeElement) {
-        document.activeElement.blur(); 
+        document.activeElement.blur();
     }
 
     // --- STEP B: RESTORE SCROLL POSITION ---
     if (typeof autoScrollEnabled !== 'undefined' && autoScrollEnabled) {
         window.scrollTo({
             top: scrollPosToRestore,
-            behavior: 'smooth' 
+            behavior: 'smooth'
         });
     } else {
         // Auto Scroll OFF
@@ -6532,10 +6714,10 @@ function editRowManual(id) {
     // --- VISUAL UPDATE: Highlight the active row ---
     // First, clear highlight from any other rows (safety)
     document.querySelectorAll('#createListManual tr').forEach(r => r.style.backgroundColor = '');
-    
+
     // Apply Active Highlight
     row.style.transition = "background-color 0.3s";
-    row.style.backgroundColor = "#eeeeeeff"; 
+    row.style.backgroundColor = "#eeeeeeff";
     // ----------------------------------------------
 
     currentlyEditingRowIdManual = id;
@@ -6657,7 +6839,7 @@ function editRowManual(id) {
         document.getElementById('toggleConvertBtn').style.display = 'none'; // Hide convert
     }
     previousConvertUnit = savedConvertUnit;
-    
+
     // --- BUTTON VISIBILITY ---
     document.getElementById("addItemBtnManual").style.display = "none";
     document.getElementById("updateItemBtnManual").style.display = "inline-block";
@@ -8585,42 +8767,65 @@ async function restoreData() {
         showNotification('Error restoring data. Please try again.');
     }
 }
-function clearCustomerInputs() {
-    // Clear Bill To inputs
-    document.getElementById('consignee-name').value = '';
-    document.getElementById('consignee-address').value = '';
-    document.getElementById('consignee-gst').value = '';
-    document.getElementById('consignee-state').value = 'Maharashtra';
-    document.getElementById('consignee-code').value = '27';
-    document.getElementById('consignee-contact').value = '';
+async function clearCustomerInputs() {
+    // 1. Reset Select to Bill To
+    const custType = document.getElementById('customer-type');
+    if (custType) {
+        custType.value = 'bill-to';
+        if (typeof handleCustomerTypeChange === 'function') handleCustomerTypeChange();
+    }
 
-    // Clear Ship To inputs
-    document.getElementById('buyer-name').value = '';
-    document.getElementById('buyer-address').value = '';
-    document.getElementById('buyer-gst').value = '';
-    document.getElementById('buyer-state').value = 'Maharashtra';
-    document.getElementById('buyer-code').value = '27';
-    document.getElementById('buyer-contact').value = '';
-    document.getElementById('place-of-supply').value = 'Maharashtra';
+    // 2. Clear Bill To inputs
+    if(document.getElementById('consignee-name')) document.getElementById('consignee-name').value = '';
+    if(document.getElementById('consignee-address')) document.getElementById('consignee-address').value = '';
+    if(document.getElementById('consignee-gst')) document.getElementById('consignee-gst').value = '';
+    if(document.getElementById('consignee-state')) document.getElementById('consignee-state').value = 'Maharashtra';
+    if(document.getElementById('consignee-code')) document.getElementById('consignee-code').value = '27';
+    if(document.getElementById('consignee-contact')) document.getElementById('consignee-contact').value = '';
 
-    // Clear invoice details
-    document.getElementById('invoice-no').value = '';
-    document.getElementById('gst-percent-input').value = '18';
+    // 3. Clear Ship To inputs
+    if(document.getElementById('buyer-name')) document.getElementById('buyer-name').value = '';
+    if(document.getElementById('buyer-address')) document.getElementById('buyer-address').value = '';
+    if(document.getElementById('buyer-gst')) document.getElementById('buyer-gst').value = '';
+    if(document.getElementById('buyer-state')) document.getElementById('buyer-state').value = 'Maharashtra';
+    if(document.getElementById('buyer-code')) document.getElementById('buyer-code').value = '27';
+    if(document.getElementById('buyer-contact')) document.getElementById('buyer-contact').value = '';
+    if(document.getElementById('place-of-supply')) document.getElementById('place-of-supply').value = '';
 
-    // Also clear the bill view display
-    document.getElementById('bill-invoice-no').textContent = '';
-    document.getElementById('bill-date-gst').textContent = '';
-    document.getElementById('billToName').textContent = '';
-    document.getElementById('billToAddr').textContent = '';
-    document.getElementById('billToGstin').textContent = 'customer 15-digit GSTIN';
-    document.getElementById('billToContact').textContent = 'Not provided';
-    document.getElementById('shipTo').style.display = 'none';
+    // 4. Clear invoice details & Set Defaults
+    if(document.getElementById('invoice-no')) document.getElementById('invoice-no').value = '';
+    if(document.getElementById('gst-percent-input')) document.getElementById('gst-percent-input').value = '18';
 
-    // Save the cleared state
-    saveCustomerDialogState();
-    saveToLocalStorage();
+    // --- NEW: Set Present Date ---
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const dateStr = `${day}-${month}-${year}`;
+    
+    if (document.getElementById('invoice-date')) {
+        document.getElementById('invoice-date').value = dateStr;
+    }
 
-    showNotification('Customer details cleared successfully!', 'success');
+    // --- NEW: Auto Increment Invoice Number ---
+    if (typeof generateNextInvoiceNumber === 'function') {
+        await generateNextInvoiceNumber();
+    }
+
+    // 5. Clear bill view display
+    if(document.getElementById('bill-invoice-no')) document.getElementById('bill-invoice-no').textContent = document.getElementById('invoice-no').value;
+    if(document.getElementById('bill-date-gst')) document.getElementById('bill-date-gst').textContent = dateStr;
+    if(document.getElementById('billToName')) document.getElementById('billToName').textContent = '';
+    if(document.getElementById('billToAddr')) document.getElementById('billToAddr').textContent = '';
+    if(document.getElementById('billToGstin')) document.getElementById('billToGstin').textContent = 'customer 15-digit GSTIN';
+    if(document.getElementById('billToContact')) document.getElementById('billToContact').textContent = 'Not provided';
+    if(document.getElementById('shipTo')) document.getElementById('shipTo').style.display = 'none';
+
+    // 6. Save the cleared state
+    if(typeof saveCustomerDialogState === 'function') saveCustomerDialogState();
+    if(typeof saveToLocalStorage === 'function') saveToLocalStorage();
+
+    if(typeof showNotification === 'function') showNotification('Customer details cleared & reset!', 'success');
 }
 
 async function clearAllData(silent = false) {
@@ -8633,6 +8838,9 @@ async function clearAllData(silent = false) {
         if (typeof saveStateToHistory === 'function') saveStateToHistory();
         if (typeof saveToHistory === 'function') await saveToHistory();
     }
+
+       window.currentCustomer = null;
+    window.confirmedRegularCustomer = null; // safe even if unused
 
     // ---------------------------------------------------------
     // 2. CLEAR REGULAR BILL DETAILS MODAL INPUTS (Specific Fix)
@@ -9170,16 +9378,41 @@ function toggleCustomerMode() {
 }
 // Toggle between Regular and GST Bills
 function toggleBillsMode() {
-    const toggle = document.getElementById('bills-mode-toggle');
+    const isGST = document.getElementById('bills-mode-toggle').checked;
+    currentBillsMode = isGST ? 'gst' : 'regular';
+    
+    const filterSelect = document.getElementById('saved-prefix-filter');
+    const searchInput = document.getElementById('saved-bills-search');
 
-    if (toggle.checked) {
-        currentBillsMode = 'gst';
-        // LOAD GST BILLS LIST
-        loadGSTSavedBillsList();
+    if (isGST) {
+        // --- GST MODE UI ---
+        // Hide Type Filter
+        if (filterSelect) filterSelect.style.display = 'none';
+        
+        // Update Search Placeholder for GST
+        if (searchInput) {
+            searchInput.value = ''; // Clear previous search
+            // Shows GSTIN, Amt, Date, Month, Year
+            searchInput.placeholder = "Search GST... (/gstin/27.., /amt/500, /date/23, /month/12, /year/2025)";
+        }
+        
+        // Load Data
+        applySavedBillsFilter();
+
     } else {
-        currentBillsMode = 'regular';
-        // LOAD REGULAR BILLS LIST
-        loadSavedBillsList();
+        // --- REGULAR MODE UI ---
+        // Show Type Filter
+        if (filterSelect) filterSelect.style.display = 'inline-block';
+        
+        // Update Search Placeholder for Regular
+        if (searchInput) {
+            searchInput.value = '';
+            // Shows Amt, Date, Month, Year
+            searchInput.placeholder = "Search... (/amt/500, /date/23, /month/12, /year/2025)";
+        }
+
+        // Load Data
+        loadSavedBillsList(); 
     }
 }
 
