@@ -1013,6 +1013,7 @@ body.gst-mode .settings-btn:hover .material-icons {
     margin-bottom: 20px;
 }
 
+
 .search-add-bar input {
     flex: 1;
     padding: 10px;
@@ -1427,9 +1428,9 @@ body.gst-mode .settings-btn:hover .material-icons {
       right: -90%;
   } */
 
-    .search-add-bar {
+    /* .search-add-bar {
         flex-direction: column;
-    }
+    } */
 
     .item-actions,
     .customer-actions {
@@ -5804,4 +5805,15 @@ body {
 .history-item-remove:hover {
     background-color: #ffe5e5;
     color: #d63031;
+}
+
+/* Shared Sort Button Animation */
+#saved-bills-sort-btn .material-icons,
+#customer-sort-btn .material-icons {
+    transition: transform 0.3s ease;
+}
+
+#saved-bills-sort-btn.ascending .material-icons,
+#customer-sort-btn.ascending .material-icons {
+    transform: scaleY(-1);
 }
