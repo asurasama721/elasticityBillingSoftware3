@@ -887,8 +887,15 @@
                 <div class="search-add-bar">
                     <input type="text" id="customer-search" placeholder="Search customers..."
                         oninput="searchCustomers()">
-                    <button onclick="handleAddCustomer()" class="btn-apply" id="add-customer-main-btn">Add New
-                        Customer</button>
+
+                    <button id="customer-sort-btn" onclick="toggleCustomerSort()" class="icon-btn-square"
+                        title="Sort Name"
+                        style="color: black; margin-left: 5px; background: white; border: 1px solid #ddd;">
+                        <span class="material-icons">sort</span>
+                    </button>
+
+                    <button onclick="handleAddCustomer()" class="btn-apply" id="add-customer-main-btn"
+                        style="margin-left: 10px;">Add New GST Customer</button>
                 </div>
                 <!-- Toggle for Regular/GST Customers -->
                 <div class="mode-toggle" style="margin: 15px 0; display: flex; align-items: center; gap: 10px;">
@@ -949,12 +956,19 @@
             </div>
             <div class="modal-body">
                 <div class="search-add-bar">
-                    <input type="text" id="saved-bills-search" placeholder="Search bills..."
+                    <input type="text" id="saved-bills-search"
+                        placeholder="Search... (/amt/500, /date/23, /month/12, /year/2025)"
                         oninput="searchSavedBills()">
+
+                    <button id="saved-bills-sort-btn" onclick="toggleSavedBillsSort()" class="icon-btn-square"
+                        title="Sort Order"
+                        style="color: black;margin-left: 10px; background: white; border: 1px solid #ddd;">
+                        <span class="material-icons">sort</span>
+                    </button>
 
                     <select id="saved-prefix-filter" onchange="applySavedBillsFilter()"
                         style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-left: 10px;">
-                        <option value="all">All Prefixes</option>
+                        <option value="all">All Types</option>
                     </select>
                 </div>
                 <!-- Toggle for Regular/GST Bills -->
@@ -990,56 +1004,56 @@
     </div>
 
     <!-- Add/Edit GST Customer Modal -->
-    <div id="add-gst-customer-modal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 id="add-gst-customer-modal-title">Add New GST Customer</h3>
-                <span class="close" onclick="closeAddGSTCustomerModal()">&times;</span>
+    <div id="add-gst-customer-modal" class="modal" style="display: block;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header">
+            <h3 id="add-gst-customer-modal-title">Add New GST Customer</h3>
+            <span class="close" onclick="closeAddGSTCustomerModal()">×</span>
+        </div>
+        <div class="modal-body">
+            <div class="form-group">
+                <label>Customer Name:</label>
+                <input type="text" id="saved-gst-customer-name" placeholder="Enter customer name">
             </div>
-            <div class="modal-body">
-                <div class="form-group">
-                    <label>Customer Name:</label>
-                    <input type="text" id="saved-gst-customer-name" placeholder="Enter customer name">
-                </div>
 
-                <div class="form-group">
-                    <label>Address:</label>
-                    <textarea id="saved-gst-customer-address" placeholder="Enter address" rows="3"></textarea>
-                </div>
+            <div class="form-group">
+                <label>Address:</label>
+                <textarea id="saved-gst-customer-address" placeholder="Enter address" rows="3"></textarea>
+            </div>
 
-                <div class="form-group">
-                    <label>Phone:</label>
-                    <input type="text" id="saved-gst-customer-phone" placeholder="Enter phone number">
-                </div>
+            <div class="form-group">
+                <label>Phone:</label>
+                <input type="text" id="saved-gst-customer-phone" placeholder="Enter phone number">
+            </div>
 
-                <div class="form-group">
-                    <label>GSTIN:</label>
-                    <input type="text" id="saved-gst-customer-gstin" placeholder="Enter GSTIN">
-                </div>
+            <div class="form-group">
+                <label>GSTIN:</label>
+                <input type="text" id="saved-gst-customer-gstin" placeholder="Enter GSTIN">
+            </div>
 
-                <div class="form-group">
+            <div class="form-group-row" style="display: flex; gap: 10px;">
+                <div style="flex: 2;">
                     <label>State Name:</label>
                     <input type="text" id="saved-gst-customer-state" placeholder="Enter state name" value="Maharashtra">
                 </div>
-
-                <div class="form-group">
+                <div style="flex: 1;">
                     <label>State Code:</label>
-                    <input type="text" id="saved-gst-customer-state-code" placeholder="Enter state code" value="27">
+                    <input type="text" id="saved-gst-customer-state-code" placeholder="Code" value="27">
                 </div>
+            </div>
 
-                <div class="form-group">
-                    <label>Email:</label>
-                    <input type="email" id="saved-gst-customer-email" placeholder="Enter email">
-                </div>
+            <div class="form-group">
+                <label>Email:</label>
+                <input type="email" id="saved-gst-customer-email" placeholder="Enter email">
+            </div>
 
-                <div class="form-actions">
-                    <button onclick="closeAddGSTCustomerModal()" class="btn-cancel">Cancel</button>
-                    <button onclick="saveGSTCustomer()" class="btn-apply" id="save-gst-customer-btn">Save GST
-                        Customer</button>
-                </div>
+            <div class="form-actions">
+                <button onclick="closeAddGSTCustomerModal()" class="btn-cancel">Cancel</button>
+                <button onclick="saveGSTCustomer()" class="btn-apply" id="save-gst-customer-btn">Save GST Customer</button>
             </div>
         </div>
     </div>
+</div>
 
     <!-- GST Saved Bills Modal -->
     <div id="gst-saved-bills-modal" class="modal">
@@ -1642,7 +1656,7 @@
                         <p>Contact : <span id="shipToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
                         <p>State : <span id="shipToState">maharashtra</span>, Code : <span
                                 id="shipToStateCode">27</span></p>
-                        <p>Place Of Supply: : <span id="shipToPOS">pune</span></p>
+                        <p>Place Of Supply: <span id="shipToPOS">pune</span></p>
                     </div>
                 </div>
             </div>
@@ -3188,7 +3202,8 @@
                     <div style="flex: 1; position: relative;">
                         <label>Bill Type</label>
                         <div style="display: flex; gap: 5px;">
-                            <select id="reg-modal-type-select" onchange="handleRegTypeChange()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <select id="reg-modal-type-select" onchange="handleRegTypeChange()"
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
                                 <option value="Estimate">Estimate</option>
                                 <option value="Quotation">Quotation</option>
                                 <option value="Purchase Order">Purchase Order</option>
@@ -3196,7 +3211,8 @@
                                 <option value="Custom">Custom...</option>
                             </select>
 
-                            <button id="reg-type-menu-btn" onclick="toggleRegTypeMenu()" class="btn-icon" style="padding: 5px; border: none; background: transparent; cursor: pointer;">
+                            <button id="reg-type-menu-btn" onclick="toggleRegTypeMenu()" class="btn-icon"
+                                style="padding: 5px; border: none; background: transparent; cursor: pointer;">
                                 <span class="material-icons">more_vert</span>
                             </button>
                         </div>
