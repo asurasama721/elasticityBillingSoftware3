@@ -390,7 +390,7 @@
 
                 <div class="form-group">
                     <label for="company-state">State Name:</label>
-                    <input type="text" id="company-state" value="Maharashtra">
+                    <input type="text" id="company-state" value="">
                 </div>
 
                 <div class="form-group">
@@ -480,7 +480,7 @@
 
                     <div class="form-group">
                         <label for="consignee-state">State Name:</label>
-                        <input type="text" id="consignee-state" value="Maharashtra">
+                        <input type="text" id="consignee-state" value="">
                     </div>
 
                     <div class="form-group">
@@ -518,7 +518,7 @@
 
                     <div class="form-group">
                         <label for="buyer-state">State Name:</label>
-                        <input type="text" id="buyer-state" value="Maharashtra">
+                        <input type="text" id="buyer-state" value="">
                     </div>
 
                     <div class="form-group">
@@ -533,7 +533,7 @@
 
                     <div class="form-group">
                         <label for="place-of-supply">Place Of Supply:</label>
-                        <input type="text" id="place-of-supply" value="Maharashtra">
+                        <input type="text" id="place-of-supply" value="">
                     </div>
                 </div>
 
@@ -1004,56 +1004,58 @@
     </div>
 
     <!-- Add/Edit GST Customer Modal -->
-    <div id="add-gst-customer-modal" class="modal" style="display: block;">
-    <div class="modal-content" style="max-width: 600px;">
-        <div class="modal-header">
-            <h3 id="add-gst-customer-modal-title">Add New GST Customer</h3>
-            <span class="close" onclick="closeAddGSTCustomerModal()">×</span>
-        </div>
-        <div class="modal-body">
-            <div class="form-group">
-                <label>Customer Name:</label>
-                <input type="text" id="saved-gst-customer-name" placeholder="Enter customer name">
+    <div id="add-gst-customer-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="add-gst-customer-modal-title">Add New GST Customer</h3>
+                <span class="close" onclick="closeAddGSTCustomerModal()">×</span>
             </div>
-
-            <div class="form-group">
-                <label>Address:</label>
-                <textarea id="saved-gst-customer-address" placeholder="Enter address" rows="3"></textarea>
-            </div>
-
-            <div class="form-group">
-                <label>Phone:</label>
-                <input type="text" id="saved-gst-customer-phone" placeholder="Enter phone number">
-            </div>
-
-            <div class="form-group">
-                <label>GSTIN:</label>
-                <input type="text" id="saved-gst-customer-gstin" placeholder="Enter GSTIN">
-            </div>
-
-            <div class="form-group-row" style="display: flex; gap: 10px;">
-                <div style="flex: 2;">
-                    <label>State Name:</label>
-                    <input type="text" id="saved-gst-customer-state" placeholder="Enter state name" value="Maharashtra">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Customer Name:</label>
+                    <input type="text" id="saved-gst-customer-name" placeholder="Enter customer name">
                 </div>
-                <div style="flex: 1;">
-                    <label>State Code:</label>
-                    <input type="text" id="saved-gst-customer-state-code" placeholder="Code" value="27">
+
+                <div class="form-group">
+                    <label>Address:</label>
+                    <textarea id="saved-gst-customer-address" placeholder="Enter address" rows="3"></textarea>
                 </div>
-            </div>
 
-            <div class="form-group">
-                <label>Email:</label>
-                <input type="email" id="saved-gst-customer-email" placeholder="Enter email">
-            </div>
+                <div class="form-group">
+                    <label>Phone:</label>
+                    <input type="text" id="saved-gst-customer-phone" placeholder="Enter phone number">
+                </div>
 
-            <div class="form-actions">
-                <button onclick="closeAddGSTCustomerModal()" class="btn-cancel">Cancel</button>
-                <button onclick="saveGSTCustomer()" class="btn-apply" id="save-gst-customer-btn">Save GST Customer</button>
+                <div class="form-group">
+                    <label>GSTIN:</label>
+                    <input type="text" id="saved-gst-customer-gstin" placeholder="Enter GSTIN">
+                </div>
+
+                <div class="form-row" style="display: flex; gap: 10px;">
+                    <div class="form-group" style="flex: 2;">
+                        <label>State Name:</label>
+                        <input type="text" id="saved-gst-customer-state" placeholder="Enter state name"
+                            value="">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>State Code:</label>
+                        <input type="text" id="saved-gst-customer-state-code" placeholder="Code" value="">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Email:</label>
+                    <input type="email" id="saved-gst-customer-email" placeholder="Enter email">
+                </div>
+
+                <div class="form-actions">
+                    <button onclick="closeAddGSTCustomerModal()" class="btn-cancel">Cancel</button>
+                    <button onclick="saveGSTCustomer()" class="btn-apply" id="save-gst-customer-btn">Save GST
+                        Customer</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
 
     <!-- GST Saved Bills Modal -->
     <div id="gst-saved-bills-modal" class="modal">
@@ -3320,7 +3322,7 @@
                             <input type="text" id="reg-modal-bill-gst" placeholder="GSTIN" class="mb-2">
                             <input type="text" id="reg-modal-bill-phone" placeholder="Contact No" class="mb-2">
                             <div style="display: flex; gap: 5px;">
-                                <input type="text" id="reg-modal-bill-state" value="Maharashtra" placeholder="State"
+                                <input type="text" id="reg-modal-bill-state" value="" placeholder="State"
                                     style="flex: 2;">
                                 <input type="text" id="reg-modal-bill-code" value="27" placeholder="Code"
                                     style="flex: 1;">
@@ -3338,12 +3340,12 @@
                             <input type="text" id="reg-modal-ship-gst" placeholder="GSTIN" class="mb-2">
                             <input type="text" id="reg-modal-ship-phone" placeholder="Contact No" class="mb-2">
                             <div style="display: flex; gap: 5px;">
-                                <input type="text" id="reg-modal-ship-state" value="Maharashtra" placeholder="State"
+                                <input type="text" id="reg-modal-ship-state" value="" placeholder="State"
                                     style="flex: 2;">
                                 <input type="text" id="reg-modal-ship-code" value="27" placeholder="Code"
                                     style="flex: 1;">
                             </div>
-                            <input type="text" id="reg-modal-ship-pos" value="Maharashtra" placeholder="Place of Supply"
+                            <input type="text" id="reg-modal-ship-pos" value="" placeholder="Place of Supply"
                                 class="mt-2">
                         </div>
                     </div>
