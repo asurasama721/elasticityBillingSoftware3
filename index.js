@@ -57,6 +57,12 @@ let autoScrollEnabled = localStorage.getItem('billApp_autoScroll') === 'true';
 let lastScrollPosition = 0; // Stores scroll position before editing
 let isSavedBillsSortAscending = false; // Default: Descending (Newest First)
 
+// State to hold draft inputs when toggling
+let paymentDraftState = {
+    payment: {},
+    'credit-note': {}
+};
+
 let isCustomerSortAscending = true; // Default A-Z
 
 // Add this with other global variables
@@ -258,22 +264,23 @@ async function removeFromDB(storeName, key) {
 
 // Save payment/credit note
 async function savePaymentRecord(customerName, gstin, paymentData, type = 'payment') {
+    console.log(`[SAVE] Saving ${type} for ${customerName}`, paymentData);
+    
     const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
     const recordId = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
+    // FIXED: Using spread (...paymentData) to ensure receiptNo and ref fields are saved
     const record = {
         id: recordId,
         customerName: customerName,
         gstin: gstin,
-        date: paymentData.date,
-        method: paymentData.method,
-        amount: parseFloat(paymentData.amount),
-        notes: paymentData.notes || '',
+        type: type,
         timestamp: Date.now(),
-        type: type
+        ...paymentData // <--- CRITICAL FIX: Saves receiptNo, refType, refBillNo etc.
     };
 
     await setInDB(storeName, recordId, record);
+    console.log(`[SAVE] Success. ID: ${recordId}`);
     return recordId;
 }
 // Toggle auto-apply customer rates
@@ -636,101 +643,115 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
     }
 }
 
-// Get customer payments/credit notes
+/* 3. GET PAYMENTS (Fixed for Ledger - Case Insensitive) */
 async function getCustomerPayments(customerName, gstin, type = 'payment', filters = {}) {
     const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+    if(!customerName) return [];
 
     try {
         const allRecords = await getAllFromDB(storeName);
+        if (!allRecords || allRecords.length === 0) return [];
 
-        // If no records exist yet, return empty array
-        if (!allRecords || allRecords.length === 0) {
-            return [];
-        }
+        const searchName = customerName.toLowerCase().trim();
+        const searchGST = gstin ? gstin.toLowerCase().trim() : '';
 
         let records = allRecords.filter(record => {
-            // Match by GSTIN if available, otherwise by name
-            if (gstin && record.value.gstin) {
-                return record.value.gstin === gstin && record.value.type === type;
-            } else {
-                return record.value.customerName === customerName && record.value.type === type;
-            }
-        }).map(record => record.value);
+            const rVal = record.value || record; // Handle wrapped vs raw objects
+            
+            // 1. Check GSTIN match
+            if (searchGST && rVal.gstin) {
+                return rVal.gstin.toLowerCase().trim() === searchGST;
+            } 
+            
+            // 2. Check Name Match (Case Insensitive)
+            const recName = (rVal.customerName || '').toLowerCase().trim();
+            return recName === searchName;
+        }).map(r => r.value || r);
 
-        // Apply filters
-        records = applyPaymentFilters(records, filters);
+        // Apply filters if function exists
+        if (typeof applyPaymentFilters === 'function') {
+            records = applyPaymentFilters(records, filters);
+        }
 
+        console.log(`[PAYMENTS] Found ${records.length} ${type}s`);
         return records;
+
     } catch (error) {
-        console.error(`Error getting ${type} records:`, error);
+        console.error(`[PAYMENTS] Error fetching ${type}:`, error);
         return [];
     }
 }
 
-// Apply filters to payments/credit notes
+/* 2. SEARCH FILTER (Added Receipt No & Ref No Support) */
 function applyPaymentFilters(records, filters) {
+    if (!filters) return records;
+
     let filtered = [...records];
 
-    // Search filter
+    // 1. Search Filter
     if (filters.search) {
-        const searchTerm = filters.search.toLowerCase();
-        filtered = filtered.filter(record =>
-            record.method.toLowerCase().includes(searchTerm) ||
-            record.amount.toString().includes(searchTerm) ||
-            record.date.includes(searchTerm) ||
-            (record.notes && record.notes.toLowerCase().includes(searchTerm))
-        );
+        const term = filters.search.toLowerCase().trim();
+        filtered = filtered.filter(item => {
+            // Existing checks
+            const method = (item.method || '').toLowerCase();
+            const amount = (item.amount || '').toString();
+            const notes = (item.notes || '').toLowerCase();
+            const date = (item.date || '').toLowerCase();
+            
+            // NEW: Receipt Number Check
+            const receipt = (item.receiptNo || '').toString();
+            
+            // NEW: Reference Check (Construct the string to search against)
+            const type = item.refType || '';
+            const prefix = item.refPrefix || '';
+            const billNo = item.refBillNo || '';
+            const refDisplay = item.refDisplay || '';
+            const fullRef = `${type} ${prefix}${billNo} ${refDisplay}`.toLowerCase();
+
+            return method.includes(term) || 
+                   amount.includes(term) || 
+                   notes.includes(term) || 
+                   date.includes(term) ||
+                   receipt.includes(term) || // Search by "1", "2"
+                   fullRef.includes(term);   // Search by "Invoice", "001"
+        });
     }
 
-    // Date range filter
-    if (filters.startDate && filters.endDate) {
-        filtered = filtered.filter(record =>
-            record.date >= filters.startDate && record.date <= filters.endDate
-        );
+    // 2. Sort Filter
+    if (filters.sortBy) {
+        filtered.sort((a, b) => {
+            let valA, valB;
+            
+            if (filters.sortBy === 'date') {
+                valA = new Date(convertDateToISO(a.date));
+                valB = new Date(convertDateToISO(b.date));
+            } else if (filters.sortBy === 'amount') {
+                valA = parseFloat(a.amount);
+                valB = parseFloat(b.amount);
+            }
+
+            if (filters.sortOrder === 'asc') {
+                return valA > valB ? 1 : -1;
+            } else {
+                return valA < valB ? 1 : -1;
+            }
+        });
     }
 
-    // Statement period filter
+    // 3. Period Filter
     if (filters.period && filters.period !== 'all') {
         const today = new Date();
-        let startDate = new Date();
+        const cutoffDate = new Date();
+        
+        if (filters.period === '1month') cutoffDate.setMonth(today.getMonth() - 1);
+        if (filters.period === '3months') cutoffDate.setMonth(today.getMonth() - 3);
+        if (filters.period === '6months') cutoffDate.setMonth(today.getMonth() - 6);
 
-        switch (filters.period) {
-            case '1month':
-                startDate.setMonth(today.getMonth() - 1);
-                break;
-            case '3months':
-                startDate.setMonth(today.getMonth() - 3);
-                break;
-            case '6months':
-                startDate.setMonth(today.getMonth() - 6);
-                break;
-        }
-
-        const startDateStr = startDate.toISOString().split('T')[0];
-        filtered = filtered.filter(record => record.date >= startDateStr);
+        filtered = filtered.filter(item => {
+            const itemDate = new Date(convertDateToISO(item.date));
+            return itemDate >= cutoffDate;
+        });
     }
-
-    // Sort
-    const sortBy = filters.sortBy || 'date';
-    const sortOrder = filters.sortOrder || 'desc';
-
-    filtered.sort((a, b) => {
-        let aValue, bValue;
-
-        if (sortBy === 'date') {
-            aValue = new Date(a.date);
-            bValue = new Date(b.date);
-        } else if (sortBy === 'amount') {
-            aValue = parseFloat(a.amount);
-            bValue = parseFloat(b.amount);
-        }
-
-        if (sortOrder === 'asc') {
-            return aValue - bValue;
-        } else {
-            return bValue - aValue;
-        }
-    });
 
     return filtered;
 }
