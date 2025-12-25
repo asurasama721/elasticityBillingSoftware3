@@ -73,26 +73,53 @@
 
                 <!-- Add New Payment/Credit Note Form -->
                 <div class="add-payment-form">
-                    <h4>Add New <span id="form-type-label">Payment</span></h4>
-                    <div class="form-group">
-                        <label for="payment-date">Date:</label>
-                        <input type="text" id="payment-date" oninput="saveToLocalStorage()" />
-                        <!-- <input type="date" id="payment-date" value=""> -->
-                    </div>
-                    <div class="form-group">
-                        <label for="payment-method">Payment Method:</label>
-                        <select id="payment-method" onchange="handlePaymentMethodChange()">
-                            <option value="Cash">Cash</option>
-                            <option value="UPI">UPI</option>
-                            <option value="Bank Transfer">Bank Transfer</option>
-                            <option value="Cheque">Cheque</option>
-                            <option value="Card">Card</option>
-                            <option value="Other">Other</option>
-                        </select>
-                        <div id="custom-method-container" style="display: none; margin-top: 5px;">
-                            <input type="text" id="custom-payment-method" placeholder="Enter custom payment method">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="margin: 0;">Add New <span id="form-type-label">Payment</span></h4>
+                        <div class="receipt-display" style="font-size: 0.9em; color: #666;">
+                            Receipt No: <strong id="payment-receipt-no-display"
+                                style="color: var(--primary-color);">...</strong>
                         </div>
                     </div>
+
+                    <div class="form-group-row" style="display: flex; gap: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="payment-date">Date:</label>
+                            <input type="text" id="payment-date" placeholder="DD-MM-YYYY">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="payment-method">Method:</label>
+                            <select id="payment-method" onchange="handlePaymentMethodChange()">
+                                <option value="Cash">Cash</option>
+                                <option value="UPI">UPI</option>
+                                <option value="Bank Transfer">Bank Transfer</option>
+                                <option value="Cheque">Cheque</option>
+                                <option value="Card">Card</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div id="custom-method-container" style="display: none; margin-top: 5px;">
+                                <input type="text" id="custom-payment-method" placeholder="Enter custom method">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group-row" style="display: flex; gap: 10px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label>Bill Type (Ref):</label>
+                            <select id="payment-ref-type" onchange="handlePaymentRefTypeChange()">
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1; position: relative;">
+                            <label>Ref No (Optional):</label>
+                            <input type="text" id="payment-ref-no" placeholder="Type to search..." autocomplete="off"
+                                oninput="handlePaymentRefInput(this)">
+                            <div class="customer-suggestions" id="payment-ref-suggestions" style="display: none;"></div>
+
+                            <input type="hidden" id="payment-ref-prefix">
+                            <input type="hidden" id="payment-ref-billno">
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label for="payment-amount">Amount (₹):</label>
                         <input type="number" id="payment-amount" placeholder="Enter amount" step="0.01">
@@ -101,9 +128,8 @@
                         <label for="payment-notes">Notes (Optional):</label>
                         <textarea id="payment-notes" placeholder="Additional notes"></textarea>
                     </div>
-                    <button class="action-btn" id="add-payment-btn">
-                        <i class="material-icons">add</i> Add <span id="add-btn-label">Payment</span>
-                    </button>
+                    <button class="action-btn" id="add-payment-btn"><i class="material-icons">add</i> Add <span
+                            id="add-btn-label">Payment</span></button>
                 </div>
 
                 <!-- Payments/Credit Notes List -->
@@ -112,7 +138,9 @@
                     <table class="payments-table">
                         <thead>
                             <tr>
+                                <th>Receipt No</th>
                                 <th>Date</th>
+                                <th>Ref No</th>
                                 <th>Method</th>
                                 <th>Amount (₹)</th>
                                 <th>Notes</th>
@@ -132,17 +160,24 @@
     <div class="ledger-dialog" id="ledger-dialog">
         <div class="ledger-dialog-content">
             <div class="ledger-dialog-header">
-                <h3 id="ledger-dialog-title">Ledger - Customer Name</h3>
+                <h3 id="ledger-dialog-title" style="margin: 0;">Ledger - Customer Name</h3>
                 <button class="close-ledger-dialog" id="close-ledger-dialog">×</button>
             </div>
             <div class="ledger-dialog-body">
                 <!-- Date Range Selector -->
                 <div class="ledger-controls">
-                    <div class="period-selector">
+                    <div class="period-selector" style="display: flex; align-items: center;">
+                        <select id="ledger-bill-type-filter" onchange="loadLedgerData()"
+                            style="margin-right: 15px; padding: 5px; border-radius: 4px; border: 1px solid #ddd;">
+                            <option value="all">All Types</option>
+                            <option value="Invoice">Invoice</option>
+                        </select>
+
                         <label>
-                            <input type="checkbox" id="select-all-dates" checked> Select All
+                            <input type="checkbox" id="select-all-dates" checked=""> Select All
                         </label>
-                        <div class="period-inputs" id="period-inputs" style="display: none;">
+
+                        <div class="period-inputs" id="period-inputs" style="display: none; margin-left: 10px;">
                             <select id="period-select" onchange="handlePeriodChange()">
                                 <option value="1month">Last 1 Month</option>
                                 <option value="3months">Last 3 Months</option>
@@ -1034,8 +1069,7 @@
                 <div class="form-row" style="display: flex; gap: 10px;">
                     <div class="form-group" style="flex: 2;">
                         <label>State Name:</label>
-                        <input type="text" id="saved-gst-customer-state" placeholder="Enter state name"
-                            value="">
+                        <input type="text" id="saved-gst-customer-state" placeholder="Enter state name" value="">
                     </div>
                     <div class="form-group" style="flex: 1;">
                         <label>State Code:</label>
