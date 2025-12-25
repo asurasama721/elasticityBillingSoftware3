@@ -1604,7 +1604,7 @@ body.gst-mode .settings-btn:hover .material-icons {
         max-height: calc(90vh - 120px);
     }
 
-    .modal-body {
+    .modal-body , .payment-dialog-body{
         zoom: 0.8;
     }
 }
@@ -2099,8 +2099,8 @@ input:checked+.toggle-slider:before {
 
 .payments-table th,
 .payments-table td {
-    padding: 10px;
-    text-align: left;
+    padding: 5px;
+    text-align: center;
     border-bottom: 1px solid var(--border-color);
 }
 
@@ -2128,13 +2128,13 @@ input:checked+.toggle-slider:before {
 }
 
 .edit-payment-btn {
-    background: #f39c12;
-    color: white;
+    background: inherit;
+    color: rgb(44, 44, 44);
 }
 
 .delete-payment-btn {
-    background: #e74c3c;
-    color: white;
+    background: inherit;
+     color: rgb(235, 12, 12);
 }
 
 /* Ledger Styles */
@@ -2863,7 +2863,7 @@ tr[data-id] .dimensions span[style*="color: red"] {
 }
 
 .unified-ledger-table .highlight {
-    background: #e8ffd8;
+    background: #f5f5f5;
     font-weight: bold;
 }
 
