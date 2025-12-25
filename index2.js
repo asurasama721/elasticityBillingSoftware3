@@ -2582,18 +2582,189 @@ function toggleSection(sectionId) {
 let currentPaymentCustomer = null;
 let currentPaymentType = 'payment'; // 'payment' or 'credit-note'
 
+//new payment fuctions start
+/* ==========================================================================
+   GLOBAL RECEIPT & REFERENCE LOGIC
+   ========================================================================== */
+
+// Helper: Populate Bill Types in Payment Form (same as Saved Bills filter)
+// Helper: Populate Bill Types in Payment Form
+async function populatePaymentBillTypes() {
+    const typeSelect = document.getElementById('payment-ref-type');
+    if (!typeSelect) return;
+
+    const currentVal = typeSelect.value;
+    typeSelect.innerHTML = '<option value="">-- Select Type --</option>';
+
+    try {
+        const savedBills = await getAllFromDB('savedBills');
+        const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
+        
+        types.forEach(type => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.textContent = type;
+            typeSelect.appendChild(opt);
+        });
+
+        if (currentVal) typeSelect.value = currentVal;
+    } catch (e) {
+        console.error("Error populating bill types", e);
+    }
+}
+
+// Helper: Calculate Next Receipt Number (Max + 1 Logic)
+async function updateNextReceiptNo() {
+    const displayEl = document.getElementById('payment-receipt-no-display');
+    if (!displayEl) return;
+
+    // If we are currently editing, do NOT show the "Next" number
+    if (currentlyEditingPaymentId) {
+        // The edit function handles the display text
+        return; 
+    }
+
+    try {
+        const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        const allRecords = await getAllFromDB(storeName);
+        
+        let maxNo = 0;
+        if (allRecords && allRecords.length > 0) {
+            allRecords.forEach(rec => {
+                // Handle both wrapped (.value) and raw objects
+                const data = rec.value || rec;
+                const val = data.receiptNo;
+                const num = parseInt(val || 0);
+                if (!isNaN(num) && num > maxNo) maxNo = num;
+            });
+        }
+        
+        // Update the UI immediately
+        displayEl.textContent = maxNo + 1;
+        
+    } catch (e) {
+        console.error("Error updating receipt no:", e);
+        displayEl.textContent = "1";
+    }
+}
+
+function handlePaymentRefTypeChange() {
+    // Only clear inputs if not in edit mode
+    if (!currentlyEditingPaymentId && document.activeElement === document.getElementById('payment-ref-type')) {
+        document.getElementById('payment-ref-no').value = '';
+        document.getElementById('payment-ref-prefix').value = '';
+        document.getElementById('payment-ref-billno').value = '';
+    }
+}
+
+// FIXED: Smart Suggestions for All View Formats
+async function handlePaymentRefInput(input) {
+    const query = input.value.toLowerCase().trim();
+    const suggestionsBox = document.getElementById('payment-ref-suggestions');
+    const typeSelect = document.getElementById('payment-ref-type');
+    const selectedType = typeSelect ? typeSelect.value : '';
+
+    if (!query || !currentPaymentCustomer || !selectedType) {
+        suggestionsBox.style.display = 'none';
+        return;
+    }
+
+    try {
+        const allBills = await getAllFromDB('savedBills');
+        const currentCustName = currentPaymentCustomer.name.toLowerCase().trim();
+
+        const matches = allBills.filter(bill => {
+            const state = bill.value.modalState || {};
+            
+            // 1. Resolve Customer Name from any view format
+            let billCustName = '';
+            const viewFormat = state.viewFormat || 'simple';
+
+            if (viewFormat === 'simple') {
+                billCustName = state.simple?.name;
+            } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
+                billCustName = state.billTo?.name;
+            }
+            if (!billCustName) billCustName = bill.value.customer?.name;
+
+            // 2. Match Name and Type
+            const nameMatch = (billCustName || '').toLowerCase().trim() === currentCustName;
+            const typeMatch = (state.type || 'Invoice') === selectedType;
+
+            return nameMatch && typeMatch;
+        });
+
+        const suggestions = matches.filter(bill => {
+            const state = bill.value.modalState || {};
+            const fullStr = `${state.prefix || ''}${state.invoiceNo}`.toLowerCase();
+            return fullStr.includes(query);
+        });
+
+        suggestionsBox.innerHTML = '';
+        if (suggestions.length > 0) {
+            suggestionsBox.style.display = 'block';
+            suggestions.forEach(bill => {
+                const state = bill.value.modalState || {};
+                const prefix = state.prefix || '';
+                const no = state.invoiceNo || '';
+                const displayNo = `${prefix}${no}`;
+                
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.style.padding = '8px';
+                div.style.cursor = 'pointer';
+                div.style.borderBottom = '1px solid #eee';
+                div.innerHTML = `<strong>${displayNo}</strong> <span style="font-size:0.8em; float:right;">₹${bill.value.totalAmount}</span>`;
+                
+                div.onclick = () => {
+                    input.value = displayNo;
+                    document.getElementById('payment-ref-prefix').value = prefix;
+                    document.getElementById('payment-ref-billno').value = no;
+                    suggestionsBox.style.display = 'none';
+                };
+                suggestionsBox.appendChild(div);
+            });
+        } else {
+            suggestionsBox.style.display = 'none';
+        }
+
+    } catch (e) {
+        console.error("Error ref suggestions", e);
+    }
+}
+
+// Close suggestions when clicking outside
+document.addEventListener('click', function(e) {
+    const suggestions = document.getElementById('payment-ref-suggestions');
+    if (suggestions && e.target.id !== 'payment-ref-no') {
+        suggestions.style.display = 'none';
+    }
+});
+//new payment functions end
+
 // Open Payment Dialog
 function openPaymentDialog(customerName, gstin) {
     currentPaymentCustomer = { name: customerName, gstin: gstin };
-    currentPaymentType = 'payment';
+    currentPaymentType = 'payment'; // Default
+
+    // Clear Drafts on Open
+    paymentDraftState = { payment: {}, 'credit-note': {} };
+    currentlyEditingPaymentId = null;
 
     document.getElementById('payment-dialog-title').textContent = `Payments - ${customerName}`;
     document.getElementById('payment-dialog').classList.add('active');
 
-    // Set today's date as default using initializeDateInputs
-    initializeDateInputs();
+    // Reset UI Toggle
+    const toggleBtns = document.querySelectorAll('.toggle-btn');
+    toggleBtns.forEach(btn => btn.classList.remove('active'));
+    if(toggleBtns[0]) toggleBtns[0].classList.add('active');
 
-    loadPaymentsAndCreditNotes();
+    // Init Logic
+    resetPaymentForm(true); // true = force default date
+    populatePaymentBillTypes();
+    updateNextReceiptNo();
+    updatePaymentUI();
+    loadPaymentsAndCreditNotesWithFilters();
 }
 
 function initializePeriodSelector() {
@@ -2615,13 +2786,44 @@ function initializePeriodSelector() {
         fromDateInput.style.display = 'none';
     }
 }
+/* 1. HELPER: Populate Ledger Bill Types */
+async function populateLedgerBillTypes() {
+    const select = document.getElementById('ledger-bill-type-filter');
+    if (!select) return;
 
-function openLedgerDialog(customerName, gstin) {
-    console.log('Opening ledger dialog for:', customerName, gstin);
+    try {
+        const savedBills = await getAllFromDB('savedBills');
+        const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
+        
+        // Reset options
+        select.innerHTML = '<option value="all">All Types</option>';
+        
+        let hasInvoice = false;
+        types.forEach(type => {
+            const opt = document.createElement('option');
+            opt.value = type;
+            opt.textContent = type;
+            select.appendChild(opt);
+            if (type === 'Invoice') hasInvoice = true;
+        });
 
-    // FIX: Ensure customer data is properly set
+        // Set default to Invoice if it exists
+        if (hasInvoice) {
+            select.value = 'Invoice';
+        } else {
+            select.value = 'all';
+        }
+    } catch (e) {
+        console.error("Error populating ledger types", e);
+    }
+}
+
+/* 2. OPEN LEDGER (Updated to Init Dropdown) */
+async function openLedgerDialog(customerName, gstin) {
+    console.log('[LEDGER] Opening for:', customerName, gstin);
+
     if (!customerName) {
-        console.error('No customer name provided to openLedgerDialog');
+        console.error('[LEDGER] No customer name provided');
         return;
     }
 
@@ -2630,25 +2832,27 @@ function openLedgerDialog(customerName, gstin) {
         gstin: (gstin || '').trim()
     };
 
-    // FIX: Safe element access
     const ledgerDialog = document.getElementById('ledger-dialog');
     const ledgerTitle = document.getElementById('ledger-dialog-title');
 
-    if (!ledgerDialog) {
-        console.error('Ledger dialog element not found');
-        return;
-    }
+    if (!ledgerDialog) return;
 
     if (ledgerTitle) {
         ledgerTitle.textContent = `Ledger - ${customerName}`;
     }
 
+    // Initialize Dropdown FIRST
+    await populateLedgerBillTypes();
+
     ledgerDialog.classList.add('active');
 
-    // FIX: Initialize period selector
-    initializePeriodSelector();
+    // Reset Date Filters
+    const selectAll = document.getElementById('select-all-dates');
+    const periodInputs = document.getElementById('period-inputs');
+    if (selectAll) selectAll.checked = true;
+    if (periodInputs) periodInputs.style.display = 'none';
 
-    // FIX: Load data with the stored customer
+    // Load Data
     loadLedgerData(currentPaymentCustomer.name, currentPaymentCustomer.gstin);
 }
 
@@ -2662,176 +2866,205 @@ function closeLedgerDialog() {
     document.getElementById('ledger-dialog').classList.remove('active');
 }
 
-// Setup payment type toggle
+function saveFormToDraft(type) {
+    paymentDraftState[type] = {
+        date: document.getElementById('payment-date').value,
+        method: document.getElementById('payment-method').value,
+        amount: document.getElementById('payment-amount').value,
+        notes: document.getElementById('payment-notes').value,
+        customMethod: document.getElementById('custom-payment-method').value,
+        refType: document.getElementById('payment-ref-type').value,
+        refNo: document.getElementById('payment-ref-no').value,
+        refPrefix: document.getElementById('payment-ref-prefix').value,
+        refBillNo: document.getElementById('payment-ref-billno').value
+    };
+}
+
+function restoreFormFromDraft(type) {
+    const draft = paymentDraftState[type];
+    // Set Date: Draft or Today
+    document.getElementById('payment-date').value = draft.date || getTodayDateStr();
+    document.getElementById('payment-method').value = draft.method || 'Cash';
+    document.getElementById('payment-amount').value = draft.amount || '';
+    document.getElementById('payment-notes').value = draft.notes || '';
+    
+    // Custom Method
+    document.getElementById('custom-payment-method').value = draft.customMethod || '';
+    if(draft.method === 'Other') {
+        document.getElementById('custom-method-container').style.display = 'block';
+    } else {
+        document.getElementById('custom-method-container').style.display = 'none';
+    }
+
+    // Refs
+    document.getElementById('payment-ref-type').value = draft.refType || '';
+    document.getElementById('payment-ref-no').value = draft.refNo || '';
+    document.getElementById('payment-ref-prefix').value = draft.refPrefix || '';
+    document.getElementById('payment-ref-billno').value = draft.refBillNo || '';
+
+    // Reset Button
+    const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
+    document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">add</i> Add <span id="add-btn-label">${typeLabel}</span>`;
+}
+
+
+function getTodayDateStr() {
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    return `${day}-${month}-${year}`;
+}
+
+/* 3. TOGGLE HANDLER (Triggers Receipt Update) */
 function setupPaymentTypeToggle() {
     const toggleBtns = document.querySelectorAll('.toggle-btn');
     toggleBtns.forEach(btn => {
-        btn.addEventListener('click', function () {
-            // Remove active class from all buttons
+        btn.addEventListener('click', async function () { // Made async
+            // 1. Save Draft
+            saveFormToDraft(currentPaymentType);
+
+            // 2. UI Switch
             toggleBtns.forEach(b => b.classList.remove('active'));
-            // Add active class to clicked button
             this.classList.add('active');
 
+            // 3. Update State
             currentPaymentType = this.dataset.type;
+            currentlyEditingPaymentId = null;
+
+            // 4. Restore Draft
+            restoreFormFromDraft(currentPaymentType);
+
+            // 5. Update UI Labels
             updatePaymentUI();
+            
+            // 6. CRITICAL: Update Receipt Number for the new type
+            await updateNextReceiptNo(); 
+            
+            // 7. Reload Table
             loadPaymentsAndCreditNotesWithFilters();
         });
     });
 }
 
+// FIXED: Edit Population (Awaiting Options)
 async function editPaymentRecord(recordId, recordType = null) {
     try {
-        // Use provided type or fall back to currentPaymentType
         const type = recordType || currentPaymentType;
         const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
-
-        // Get the record from database
         const record = await getFromDB(storeName, recordId);
 
-        if (!record) {
-            showNotification('Record not found', 'error');
-            return;
-        }
+        if (!record) { showNotification('Record not found', 'error'); return; }
 
-        // Store the currently editing ID and type
         currentlyEditingPaymentId = recordId;
-        currentPaymentType = type; // Ensure we're in the correct mode
+        currentPaymentType = type;
 
-        // Populate the form with record data
+        // Ensure Options Loaded
+        await populatePaymentBillTypes();
+
         document.getElementById('payment-date').value = record.date;
         document.getElementById('payment-method').value = record.method;
         document.getElementById('payment-amount').value = record.amount;
         document.getElementById('payment-notes').value = record.notes || '';
 
-        // Safe element updates
-        const formTypeLabel = document.getElementById('form-type-label');
-        const addBtnLabel = document.getElementById('add-btn-label');
-        const addPaymentBtn = document.getElementById('add-payment-btn');
+        // Fill Refs
+        document.getElementById('payment-ref-type').value = record.refType || '';
+        document.getElementById('payment-ref-no').value = record.refDisplay || '';
+        document.getElementById('payment-ref-prefix').value = record.refPrefix || '';
+        document.getElementById('payment-ref-billno').value = record.refBillNo || '';
+
+        // Custom Method
+        if (['Cash','UPI','Bank Transfer','Cheque','Card'].indexOf(record.method) === -1) {
+             document.getElementById('payment-method').value = 'Other';
+             document.getElementById('custom-method-container').style.display = 'block';
+             document.getElementById('custom-payment-method').value = record.method;
+        } else {
+             document.getElementById('custom-method-container').style.display = 'none';
+        }
 
         const typeLabel = type === 'payment' ? 'Payment' : 'Credit Note';
-        if (formTypeLabel) formTypeLabel.textContent = typeLabel;
-        if (addBtnLabel) addBtnLabel.textContent = typeLabel;
-        if (addPaymentBtn) addPaymentBtn.innerHTML = `<i class="material-icons">save</i> Update ${typeLabel}`;
-
-        showNotification(`${typeLabel} loaded for editing`, 'info');
+        document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">save</i> Update ${typeLabel}`;
+        
+        // Correct Editing Label
+        document.getElementById('payment-receipt-no-display').textContent = `Editing #${record.receiptNo || 'N/A'}`;
+        document.getElementById('form-type-label').textContent = typeLabel;
 
     } catch (error) {
-        console.error('Error loading record for editing:', error);
-        showNotification('Error loading record', 'error');
+        console.error('Error editing:', error);
     }
 }
 
-function resetPaymentForm() {
-    // Clear form fields
-    document.getElementById('payment-date').value = '';
+/* 4. RESET FORM (Triggers Receipt Update) */
+function resetPaymentForm(setDate = false) {
+    if (setDate) document.getElementById('payment-date').value = getTodayDateStr();
+    
     document.getElementById('payment-method').value = 'Cash';
     document.getElementById('payment-amount').value = '';
     document.getElementById('payment-notes').value = '';
-
-    // Clear custom method input and hide container
     document.getElementById('custom-payment-method').value = '';
     document.getElementById('custom-method-container').style.display = 'none';
+    
+    document.getElementById('payment-ref-type').value = '';
+    document.getElementById('payment-ref-no').value = '';
+    document.getElementById('payment-ref-prefix').value = '';
+    document.getElementById('payment-ref-billno').value = '';
 
-    // Reset UI to add mode
-    document.getElementById('add-payment-btn').innerHTML = '<i class="material-icons">add</i> Add <span id="add-btn-label">Payment</span>';
-
-    // Clear editing state
+    const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
+    document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">add</i> Add <span id="add-btn-label">${typeLabel}</span>`;
+    
     currentlyEditingPaymentId = null;
+    
+    // CRITICAL: Update Receipt Number whenever form is reset (after add/update)
+    updateNextReceiptNo();
 }
-async function updatePaymentRecord() {
-    if (!currentlyEditingPaymentId) {
-        showNotification('No record selected for editing', 'error');
-        return;
-    }
 
-    // Handle payment method (including custom methods)
+// FIXED: Update Record Logic
+async function updatePaymentRecord() {
+    if (!currentlyEditingPaymentId) return;
+
     const methodSelect = document.getElementById('payment-method');
     let finalMethod = methodSelect.value;
-
-    if (finalMethod === 'Other') {
-        const customMethod = document.getElementById('custom-payment-method').value.trim();
-        if (!customMethod) {
-            showNotification('Please enter custom payment method name');
-            return;
-        }
-        finalMethod = customMethod;
-        await saveCustomPaymentMethod(customMethod);
-        await loadCustomPaymentMethods(); // Refresh dropdown
-    }
+    if (finalMethod === 'Other') finalMethod = document.getElementById('custom-payment-method').value.trim();
 
     const date = document.getElementById('payment-date').value;
     const amount = parseFloat(document.getElementById('payment-amount').value);
     const notes = document.getElementById('payment-notes').value;
 
-    // Different validation for Payments vs Credit Notes
-    if (!date || !finalMethod || isNaN(amount)) {
-        showNotification('Please fill all required fields with valid values', 'error');
-        return;
-    }
-
-    // Payment-specific validation (only positive)
-    if (currentPaymentType === 'payment' && amount <= 0) {
-        showNotification('Payment amount must be greater than 0', 'error');
-        return;
-    }
-
-    // Credit Note validation (any non-zero value)
-    if (currentPaymentType === 'credit-note' && amount === 0) {
-        showNotification('Credit Note amount cannot be zero', 'error');
-        return;
-    }
+    const refType = document.getElementById('payment-ref-type').value;
+    const refPrefix = document.getElementById('payment-ref-prefix').value;
+    const refBillNo = document.getElementById('payment-ref-billno').value;
+    const refDisplay = document.getElementById('payment-ref-no').value;
 
     try {
         const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
-
-        // Get the existing record to preserve other data
         const existingRecord = await getFromDB(storeName, currentlyEditingPaymentId);
 
-        if (!existingRecord) {
-            showNotification('Record not found', 'error');
-            return;
-        }
-
-        // Update the record
         const updatedRecord = {
             ...existingRecord,
-            date: date,
-            method: finalMethod, // Use the final method (could be custom)
-            amount: amount,
-            notes: notes,
+            date, method: finalMethod, amount, notes,
+            refType, refPrefix, refBillNo, refDisplay,
             updatedAt: Date.now()
         };
 
-        // Save updated record
         await setInDB(storeName, currentlyEditingPaymentId, updatedRecord);
-
-        // Reset form and UI
-        resetPaymentForm();
-
-        // Reload the list
+        
+        paymentDraftState[currentPaymentType] = {}; // Clear draft
+        resetPaymentForm(true);
         loadPaymentsAndCreditNotesWithFilters();
-
-        const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
-        showNotification(`${typeLabel} updated successfully!`, 'success');
+        showNotification('Updated successfully!', 'success');
 
     } catch (error) {
-        console.error('Error updating record:', error);
-        showNotification('Error updating record', 'error');
+        console.error(error);
     }
 }
 
 function updatePaymentUI() {
     const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
-
-    // Safe element access with null checks
-    const formTypeLabel = document.getElementById('form-type-label');
-    const addBtnLabel = document.getElementById('add-btn-label');
-    const listTypeLabel = document.getElementById('list-type-label');
-
-    if (formTypeLabel) formTypeLabel.textContent = typeLabel;
-    if (addBtnLabel) addBtnLabel.textContent = typeLabel;
-    if (listTypeLabel) listTypeLabel.textContent = typeLabel;
+    if(document.getElementById('form-type-label')) document.getElementById('form-type-label').textContent = typeLabel;
+    if(document.getElementById('add-btn-label')) document.getElementById('add-btn-label').textContent = typeLabel;
+    if(document.getElementById('list-type-label')) document.getElementById('list-type-label').textContent = typeLabel;
 }
+
 // Load payments and credit notes
 async function loadPaymentsAndCreditNotes() {
     if (!currentPaymentCustomer) return;
@@ -2840,28 +3073,38 @@ async function loadPaymentsAndCreditNotes() {
     displayPayments(payments);
 }
 
+
+// FIXED: Display with Receipt No Column
 function displayPayments(payments) {
     const tbody = document.getElementById('payments-tbody');
     tbody.innerHTML = '';
 
     if (payments.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">No records found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">No records found</td></tr>';
         return;
     }
 
     payments.forEach(payment => {
+        let refText = '-';
+        if (payment.refType && (payment.refBillNo || payment.refDisplay)) {
+            const num = payment.refDisplay || `${payment.refPrefix || ''}${payment.refBillNo}`;
+            refText = `${payment.refType} - ${num}`;
+        }
+
         const row = document.createElement('tr');
         row.innerHTML = `
+            <td style="font-weight:bold; color:var(--primary-color);">#${payment.receiptNo || 'N/A'}</td>
             <td>${convertToDisplayFormat(payment.date)}</td>
+            <td style="font-size: 0.9em; color: var(--secondary-color); font-weight:500;">${refText}</td>
             <td>${payment.method}</td>
             <td>₹${parseFloat(payment.amount).toFixed(2)}</td>
             <td>${payment.notes || ''}</td>
             <td class="payment-actions">
                 <button class="edit-payment-btn" data-id="${payment.id}" data-type="${currentPaymentType}">
-                    <i class="material-icons">edit</i> Edit
+                    <i class="material-icons">edit</i>
                 </button>
                 <button class="delete-payment-btn" data-id="${payment.id}" data-type="${currentPaymentType}">
-                    <i class="material-icons">delete</i> Delete
+                    <i class="material-icons">delete</i>
                 </button>
             </td>
         `;
@@ -3002,50 +3245,57 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
+/* 2. GET BILLS (Fixed for Ledger - Finds Customer Deeply) */
 async function getCustomerBills(customerName, gstin) {
     let bills = [];
+    if(!customerName) return [];
 
     try {
-        console.log('Fetching bills for:', customerName, 'GSTIN:', gstin);
+        console.log('[BILLS] Fetching for:', customerName, 'GSTIN:', gstin);
+        const searchName = customerName.toLowerCase().trim();
+        const searchGST = gstin ? gstin.toLowerCase().trim() : '';
 
-        // Check GST bills first if GSTIN is provided
+        // 1. GST BILLS
         if (gstin) {
             const gstBills = await getAllFromDB('gstSavedBills');
-            console.log('All GST bills:', gstBills.length);
-
             const filteredGstBills = gstBills.filter(bill => {
-                const billGSTIN = bill.value.customer?.billTo?.gstin || bill.value.customer?.shipTo?.gstin;
-                return billGSTIN === gstin;
+                const bVal = bill.value;
+                const billGST = (bVal.customer?.billTo?.gstin || bVal.customer?.shipTo?.gstin || '').toLowerCase();
+                const shipGST = (bVal.customer?.shipTo?.gstin || '').toLowerCase();
+                return billGST === searchGST || shipGST === searchGST;
             });
-
-            console.log('Filtered GST bills:', filteredGstBills.length);
+            
             bills = bills.concat(filteredGstBills.map(bill => ({
-                ...bill.value,
-                source: 'gst',
-                id: bill.id
+                ...bill.value, source: 'gst', id: bill.id
             })));
         }
 
-        // Check regular bills by customer name
+        // 2. REGULAR BILLS (Deep Search in Modal State)
         const regularBills = await getAllFromDB('savedBills');
-        console.log('All regular bills:', regularBills.length);
+        
+        const filteredRegular = regularBills.filter(bill => {
+            const bVal = bill.value;
+            const state = bVal.modalState || {}; 
+            
+            // Check Simple Name (e.g., from Saved Bill 001 JSON)
+            const simpleName = (bVal.customer?.name || state.simple?.name || '').toLowerCase().trim();
+            // Check Bill To Name
+            const billToName = (state.billTo?.name || '').toLowerCase().trim();
+            // Check Ship To Name
+            const shipToName = (state.shipTo?.name || '').toLowerCase().trim();
 
-        const regularCustomerBills = regularBills.filter(bill => {
-            const billCustomerName = bill.value.customer?.name;
-            return billCustomerName === customerName;
-        }).map(bill => ({
-            ...bill.value,
-            source: 'regular',
-            id: bill.id
-        }));
+            return simpleName === searchName || billToName === searchName || shipToName === searchName;
+        });
 
-        console.log('Filtered regular bills:', regularCustomerBills.length);
-        bills = bills.concat(regularCustomerBills);
+        bills = bills.concat(filteredRegular.map(bill => ({
+            ...bill.value, source: 'regular', id: bill.id
+        })));
 
-        console.log('Total bills found:', bills.length);
+        console.log(`[BILLS] Found ${bills.length} total bills matching "${searchName}"`);
         return bills;
+
     } catch (error) {
-        console.error('Error getting customer bills:', error);
+        console.error('[BILLS] Error fetching:', error);
         return [];
     }
 }
@@ -3100,51 +3350,74 @@ async function getCustomerFinancialData(customerName, gstin, dateRange = null) {
     return filteredData;
 }
 
+/* 5. SETUP DIALOG LISTENER (Ensures button click works) */
 function setupPaymentDialog() {
-    // Add payment button
-    document.getElementById('add-payment-btn').addEventListener('click', addNewPayment);
+    console.log("[SETUP] setupPaymentDialog initialized");
+    
+    // Remove old listeners to prevent duplicates (cloning trick)
+    const oldBtn = document.getElementById('add-payment-btn');
+    if (oldBtn) {
+        const newBtn = oldBtn.cloneNode(true);
+        oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+        
+        // Add new listener
+        newBtn.addEventListener('click', function(e) {
+            console.log("[CLICK] Add/Update button clicked");
+            e.preventDefault(); // Prevent form submission if inside a form tag
+            addNewPayment();
+        });
+    }
 
     // Search functionality
-    document.getElementById('payment-search').addEventListener('input', function () {
-        loadPaymentsAndCreditNotesWithFilters();
-    });
+    const searchInput = document.getElementById('payment-search');
+    if(searchInput) {
+        searchInput.addEventListener('input', function () {
+            loadPaymentsAndCreditNotesWithFilters();
+        });
+    }
 
-    // Sort order toggle
-    document.getElementById('sort-order-btn').addEventListener('click', function () {
-        const currentOrder = this.dataset.order;
-        const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
-        this.dataset.order = newOrder;
-        this.querySelector('.material-icons').textContent = newOrder === 'asc' ? 'arrow_upward' : 'arrow_downward';
-        loadPaymentsAndCreditNotesWithFilters();
-    });
+    // Sort buttons
+    const sortBtn = document.getElementById('sort-order-btn');
+    if(sortBtn) {
+        sortBtn.addEventListener('click', function () {
+            const currentOrder = this.dataset.order;
+            const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
+            this.dataset.order = newOrder;
+            this.querySelector('.material-icons').textContent = newOrder === 'asc' ? 'arrow_upward' : 'arrow_downward';
+            loadPaymentsAndCreditNotesWithFilters();
+        });
+    }
 
-    // Sort by select
-    document.getElementById('sort-by-select').addEventListener('change', function () {
-        loadPaymentsAndCreditNotesWithFilters();
-    });
+    const sortSelect = document.getElementById('sort-by-select');
+    if(sortSelect) {
+        sortSelect.addEventListener('change', () => loadPaymentsAndCreditNotesWithFilters());
+    }
 
-    // Statement period
-    document.getElementById('statement-period').addEventListener('change', function () {
-        loadPaymentsAndCreditNotesWithFilters();
-    });
+    const periodSelect = document.getElementById('statement-period');
+    if(periodSelect) {
+        periodSelect.addEventListener('change', () => loadPaymentsAndCreditNotesWithFilters());
+    }
 
-    // Setup edit and delete button event delegation
-    document.getElementById('payments-tbody').addEventListener('click', function (e) {
-        const editBtn = e.target.closest('.edit-payment-btn');
-        const deleteBtn = e.target.closest('.delete-payment-btn');
+    // Table Actions (Edit/Delete)
+    const tbody = document.getElementById('payments-tbody');
+    if(tbody) {
+        tbody.addEventListener('click', function (e) {
+            const editBtn = e.target.closest('.edit-payment-btn');
+            const deleteBtn = e.target.closest('.delete-payment-btn');
 
-        if (editBtn) {
-            const recordId = editBtn.dataset.id;
-            const recordType = editBtn.dataset.type;
-            editPaymentRecord(recordId, recordType);
-        }
+            if (editBtn) {
+                const recordId = editBtn.dataset.id;
+                const recordType = editBtn.dataset.type;
+                editPaymentRecord(recordId, recordType);
+            }
 
-        if (deleteBtn) {
-            const recordId = deleteBtn.dataset.id;
-            const recordType = deleteBtn.dataset.type;
-            deletePaymentRecordConfirm(recordId, recordType);
-        }
-    });
+            if (deleteBtn) {
+                const recordId = deleteBtn.dataset.id;
+                const recordType = deleteBtn.dataset.type;
+                deletePaymentRecordConfirm(recordId, recordType);
+            }
+        });
+    }
 }
 
 async function deletePaymentRecordConfirm(recordId, recordType = null) {
@@ -3185,82 +3458,85 @@ async function loadPaymentsAndCreditNotesWithFilters() {
     displayPayments(payments);
 }
 
+/* 3. ADD NEW PAYMENT (Default to Invoice if empty) */
 async function addNewPayment() {
+    console.log("[ADD] addNewPayment called");
+    
     if (!currentPaymentCustomer) return;
 
-    // Handle payment method (including custom methods)
     const methodSelect = document.getElementById('payment-method');
     let finalMethod = methodSelect.value;
-
-    if (finalMethod === 'Other') {
-        const customMethod = document.getElementById('custom-payment-method').value.trim();
-        if (!customMethod) {
-            showNotification('Please enter custom payment method name');
-            return;
-        }
-        finalMethod = customMethod;
-        await saveCustomPaymentMethod(customMethod);
-        await loadCustomPaymentMethods(); // Refresh dropdown
-    }
+    if (finalMethod === 'Other') finalMethod = document.getElementById('custom-payment-method').value.trim();
 
     const date = document.getElementById('payment-date').value;
     const amount = parseFloat(document.getElementById('payment-amount').value);
     const notes = document.getElementById('payment-notes').value;
 
-    // Different validation for Payments vs Credit Notes
+    // Ref Fields
+    let refType = document.getElementById('payment-ref-type').value;
+    const refPrefix = document.getElementById('payment-ref-prefix').value;
+    const refBillNo = document.getElementById('payment-ref-billno').value;
+    const refDisplay = document.getElementById('payment-ref-no').value;
+
+    // DEFAULT LOGIC: If no type selected, assume 'Invoice'
+    if (!refType || refType === '') {
+        refType = 'Invoice';
+    }
+
     if (!date || !finalMethod || isNaN(amount)) {
-        showNotification('Please fill all required fields with valid values', 'error');
-        return;
+        showNotification('Please fill required fields', 'error'); return;
     }
-
-    // Payment-specific validation (only positive)
+    
     if (currentPaymentType === 'payment' && amount <= 0) {
-        showNotification('Payment amount must be greater than 0', 'error');
-        return;
+        showNotification('Amount must be positive', 'error'); return;
     }
-
-    // Credit Note validation (any non-zero value)
     if (currentPaymentType === 'credit-note' && amount === 0) {
-        showNotification('Credit Note amount cannot be zero', 'error');
-        return;
+        showNotification('Amount cannot be zero', 'error'); return;
     }
 
-    // If we're in edit mode, update instead of add new
     if (currentlyEditingPaymentId) {
         await updatePaymentRecord();
         return;
     }
 
-    const paymentData = {
-        date,
-        method: finalMethod, // Use the final method (could be custom)
-        amount,
-        notes
-    };
-
     try {
-        await savePaymentRecord(
-            currentPaymentCustomer.name,
-            currentPaymentCustomer.gstin,
-            paymentData,
-            currentPaymentType
-        );
+        const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        const allRecords = await getAllFromDB(storeName);
+        
+        let maxNo = 0;
+        allRecords.forEach(rec => {
+            const val = rec.receiptNo || rec.value?.receiptNo;
+            const num = parseInt(val || 0);
+            if (!isNaN(num) && num > maxNo) maxNo = num;
+        });
+        const newReceiptNo = maxNo + 1;
 
-        // Clear form
-        resetPaymentForm();
+        const paymentData = {
+            date: date,
+            method: finalMethod,
+            amount: amount,
+            notes: notes,
+            receiptNo: newReceiptNo,
+            refType: refType, // Will be 'Invoice' or selected type
+            refPrefix: refPrefix || '',
+            refBillNo: refBillNo || '', 
+            refDisplay: refDisplay || ''
+        };
 
-        // Reload list
+        await savePaymentRecord(currentPaymentCustomer.name, currentPaymentCustomer.gstin, paymentData, currentPaymentType);
+
+        showNotification(`${currentPaymentType === 'payment' ? 'Payment' : 'Credit Note'} added!`, 'success');
+        
+        paymentDraftState[currentPaymentType] = {}; 
+        resetPaymentForm(true); 
         loadPaymentsAndCreditNotesWithFilters();
 
-        // Show success message
-        const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
-        showNotification(`${typeLabel} added successfully!`, 'success');
-
     } catch (error) {
-        console.error('Error adding payment:', error);
-        showNotification('Error adding payment. Please try again.', 'error');
+        console.error('[ADD] Error adding payment:', error);
+        showNotification('Error adding payment', 'error');
     }
 }
+
 // Profit Calculation System - Complete Recalculation
 let missingPurchaseItems = [];
 let isProfitViewActive = false;
@@ -4450,27 +4726,51 @@ async function loadCustomPaymentMethods() {
     }
 }
 
-// New Ledger Data Loading Function
-async function loadLedgerData(customerName, gstin) {
-    if (!customerName) {
-        if (currentPaymentCustomer && currentPaymentCustomer.name) {
-            customerName = currentPaymentCustomer.name;
-            gstin = currentPaymentCustomer.gstin;
-        } else {
-            console.error('No customer selected for ledger');
-            return;
-        }
-    }
+/* 4. LOAD LEDGER DATA (Applies Filter) */
+async function loadLedgerData(customerName = currentPaymentCustomer?.name, gstin = currentPaymentCustomer?.gstin) {
+    if (!customerName) return;
 
     try {
         const dateRange = getDateRangeForPeriod();
+        
+        // 1. Get Selected Bill Type Filter
+        const filterSelect = document.getElementById('ledger-bill-type-filter');
+        const selectedType = filterSelect ? filterSelect.value : 'all';
+
+        // 2. Get Data
+        let openingBalance = { amount: 0, type: 'debit', date: 'Opening' };
+        if (typeof calculateOpeningBalance === 'function') {
+            openingBalance = await calculateOpeningBalance(customerName, gstin, dateRange);
+        }
+        
         const financialData = await getCustomerFinancialData(customerName, gstin, dateRange);
-        // In loadLedgerData function, update this line:
-        const openingBalance = await calculateOpeningBalance(customerName, gstin, dateRange);
+        
+        // 3. APPLY FILTER
+        if (selectedType !== 'all') {
+            // Filter Bills
+            financialData.bills = financialData.bills.filter(bill => {
+                const type = bill.modalState?.type || 'Invoice';
+                return type === selectedType;
+            });
+
+            // Filter Payments
+            financialData.payments = financialData.payments.filter(pay => {
+                // If refType is missing, assume Invoice (legacy support)
+                const type = pay.refType || 'Invoice'; 
+                return type === selectedType;
+            });
+
+            // Filter Credit Notes
+            financialData.creditNotes = financialData.creditNotes.filter(cn => {
+                const type = cn.refType || 'Invoice';
+                return type === selectedType;
+            });
+        }
 
         displayUnifiedLedgerTable(financialData, openingBalance, dateRange);
+
     } catch (error) {
-        console.error('Error loading ledger data:', error);
+        console.error("[LEDGER] Error loading:", error);
     }
 }
 
@@ -4637,6 +4937,30 @@ function isDateBefore(dateStr, compareDateStr) {
     }
 }
 
+/* Helper: Convert DD-MM-YYYY to YYYY-MM-DD for sorting */
+function convertDateToISO(dateStr) {
+    if (!dateStr) return new Date().toISOString().split('T')[0];
+    
+    // If already in YYYY-MM-DD format (ISO), return as is
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
+    
+    // Handle DD-MM-YYYY or DD/MM/YYYY
+    if (dateStr.includes('-')) {
+        const parts = dateStr.split('-');
+        if (parts[0].length === 2) {
+            // dd-mm-yyyy -> yyyy-mm-dd
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    } else if (dateStr.includes('/')) {
+        const parts = dateStr.split('/');
+        if (parts[0].length === 2) {
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+    }
+    
+    return dateStr;
+}
+
 // FIX: Improved date conversion function
 function convertToComparableDate(dateStr) {
     try {
@@ -4654,180 +4978,148 @@ function convertToComparableDate(dateStr) {
         return new Date(); // Return current date as fallback
     }
 }
+/* 5. DISPLAY LEDGER TABLE (Fixed Footer Calculation & Layout) */
 function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
     const tbody = document.getElementById('ledger-tbody');
+    const tfoot = document.querySelector('.unified-ledger-table tfoot');
+    
+    if (!tbody) return;
     tbody.innerHTML = '';
 
-    console.log('Displaying ledger table:', {
-        openingBalance,
-        billsCount: financialData.bills.length,
-        paymentsCount: financialData.payments.length,
-        creditNotesCount: financialData.creditNotes.length,
-        dateRange
-    });
+    console.log('[LEDGER] Rendering table...');
 
-    // CORRECTED: Start with NET opening balance
-    let runningBalance = 0;
-    if (openingBalance.type === 'debit') {
-        runningBalance = openingBalance.amount;  // Positive balance
-    } else {
-        runningBalance = -openingBalance.amount; // Negative balance
-    }
-
+    // 1. Initialize Totals with Opening Balance
     let totalDebit = 0;
     let totalCredit = 0;
 
-    // INCLUDE OPENING BALANCE IN TOTALS
-    if (openingBalance.type === 'debit' && openingBalance.amount > 0) {
+    if (openingBalance.type === 'debit') {
         totalDebit += openingBalance.amount;
-    } else if (openingBalance.type === 'credit' && openingBalance.amount > 0) {
+    } else {
         totalCredit += openingBalance.amount;
     }
 
-    // Add Opening Balance Row
+    // 2. Render Opening Row
     const openingRow = document.createElement('tr');
-    const openingBalanceDate = openingBalance.date || (dateRange ? getPreviousPeriodEndDate(dateRange.startDate) : 'Opening');
-
-    console.log('Opening balance display:', {
-        amount: openingBalance.amount,
-        type: openingBalance.type,
-        date: openingBalanceDate
-    });
-
-
-    // Show in ONLY ONE column based on net balance
-    if (openingBalance.type === 'debit' && openingBalance.amount > 0) {
-        openingRow.innerHTML = `
-            <td>${openingBalanceDate}</td>
-            <td class="bold">Opening Balance</td>
-            <td class="right">${openingBalance.amount.toFixed(2)}</td>
-            <td class="right"></td>
-        `;
-    } else if (openingBalance.type === 'credit' && openingBalance.amount > 0) {
-        openingRow.innerHTML = `
-            <td>${openingBalanceDate}</td>
-            <td class="bold">Opening Balance</td>
-            <td class="right"></td>
-            <td class="right">${openingBalance.amount.toFixed(2)}</td>
-        `;
-    } else {
-        // Zero balance
-        openingRow.innerHTML = `
-            <td>${openingBalanceDate}</td>
-            <td class="bold">Opening Balance</td>
-            <td class="right">0.00</td>
-            <td class="right"></td>
-        `;
-    }
+    // Handle date display safely
+    const opDate = openingBalance.date === 'Opening' ? 'Opening' : (typeof convertToDisplayFormat === 'function' ? convertToDisplayFormat(openingBalance.date) : openingBalance.date);
+    
+    openingRow.innerHTML = `
+        <td>${opDate}</td>
+        <td class="bold">Opening Balance</td>
+        <td class="right">${openingBalance.type === 'debit' && openingBalance.amount > 0 ? openingBalance.amount.toFixed(2) : '0.00'}</td>
+        <td class="right">${openingBalance.type === 'credit' && openingBalance.amount > 0 ? openingBalance.amount.toFixed(2) : ''}</td>
+    `;
     tbody.appendChild(openingRow);
 
-    // Combine and sort all transactions by date
-    const allTransactions = [];
+    // 3. Process All Transactions
+    let allTransactions = [];
 
-    // Add bills as debit transactions
-    financialData.bills.forEach(bill => {
-        const invoiceNo = bill.source === 'gst' ?
-            bill.invoiceDetails?.number : bill.customer?.billNo;
-        const amount = bill.source === 'gst' ?
-            parseFloat(bill.totals?.grandTotal || 0) :
-            calculateRegularBillTotal(bill);
+    // BILLS (Debit)
+    if (financialData.bills) {
+        financialData.bills.forEach(bill => {
+            const state = bill.modalState || {};
+            const prefix = state.prefix || '';
+            const no = state.invoiceNo || bill.invoiceDetails?.invoiceNo || bill.invoiceDetails?.number || '';
+            const type = state.type || 'Invoice';
+            
+            // Calculate Amount
+            let amount = 0;
+            if(bill.source === 'gst') {
+                amount = parseFloat(bill.totals?.grandTotal || 0);
+            } else {
+                amount = parseFloat(bill.totalAmount || bill.grandTotal || 0);
+            }
 
-        allTransactions.push({
-            date: bill.date || bill.invoiceDetails?.date,
-            particulars: `By Sale A/c (Invoice No- ${invoiceNo})`,
-            debit: amount,
-            credit: 0,
-            type: 'bill'
+            allTransactions.push({
+                date: bill.date || bill.invoiceDetails?.date,
+                particulars: `By Sale A/c (${type} - ${prefix}${no})`,
+                debit: amount,
+                credit: 0,
+                timestamp: new Date(convertDateToISO(bill.date || bill.invoiceDetails?.date)).getTime()
+            });
         });
-        totalDebit += amount;
+    }
 
-        console.log('Added bill transaction:', bill.date, amount);
-    });
+    // PAYMENTS (Credit)
+    if (financialData.payments) {
+        financialData.payments.forEach(pay => {
+            let suffix = '';
+            // Display Logic: (Type - Ref) or (Type)
+            const type = pay.refType || 'Invoice';
+            if (pay.refBillNo || pay.refDisplay) {
+                const num = pay.refDisplay || `${pay.refPrefix || ''}${pay.refBillNo}`;
+                suffix = ` (${type} - ${num})`;
+            } else {
+                suffix = ` (${type})`;
+            }
 
-    // Add payments as credit transactions
-    financialData.payments.forEach(payment => {
-        const paymentAmount = parseFloat(payment.amount);
-        allTransactions.push({
-            date: payment.date,
-            particulars: `To ${payment.method} A/c${payment.notes ? `<br>${payment.notes}` : ''}`,
-            debit: 0,
-            credit: paymentAmount,
-            type: 'payment'
+            allTransactions.push({
+                date: pay.date,
+                particulars: `Receipt : To ${pay.method} A/c${suffix}`,
+                debit: 0,
+                credit: parseFloat(pay.amount),
+                timestamp: new Date(convertDateToISO(pay.date)).getTime()
+            });
         });
-        totalCredit += paymentAmount;
+    }
 
-        console.log('Added payment transaction:', payment.date, paymentAmount);
-    });
+    // CREDIT NOTES (Credit)
+    if (financialData.creditNotes) {
+        financialData.creditNotes.forEach(cn => {
+            let suffix = '';
+            const type = cn.refType || 'Invoice';
+            if (cn.refBillNo || cn.refDisplay) {
+                const num = cn.refDisplay || `${cn.refPrefix || ''}${cn.refBillNo}`;
+                suffix = ` (${type} - ${num})`;
+            } else {
+                suffix = ` (${type})`;
+            }
 
-    // Add credit notes as credit transactions
-    financialData.creditNotes.forEach(creditNote => {
-        const cnAmount = parseFloat(creditNote.amount);
-        allTransactions.push({
-            date: creditNote.date,
-            particulars: `To ${creditNote.method} A/c (Credit Note)${creditNote.notes ? `<br>${creditNote.notes}` : ''}`,
-            debit: 0,
-            credit: cnAmount,
-            type: 'credit-note'
+            allTransactions.push({
+                date: cn.date,
+                particulars: `Credit Note : To ${cn.method} A/c${suffix}`,
+                debit: 0,
+                credit: parseFloat(cn.amount),
+                timestamp: new Date(convertDateToISO(cn.date)).getTime()
+            });
         });
-        totalCredit += cnAmount;
+    }
 
-        console.log('Added credit note transaction:', creditNote.date, cnAmount);
-    });
+    // Sort Transactions
+    allTransactions.sort((a, b) => a.timestamp - b.timestamp);
 
-    // Sort transactions by date
-    allTransactions.sort((a, b) => {
-        const dateA = new Date(a.date.split('-').reverse().join('-'));
-        const dateB = new Date(b.date.split('-').reverse().join('-'));
-        return dateA - dateB;
-    });
-
-    console.log('Sorted transactions:', allTransactions);
-
-    // Add transactions to table and calculate running balance
-    allTransactions.forEach(transaction => {
-        // Update running balance
-        runningBalance += transaction.debit - transaction.credit;
-
-        console.log('Processing transaction:', {
-            date: transaction.date,
-            debit: transaction.debit,
-            credit: transaction.credit,
-            runningBalance: runningBalance
-        });
+    // 4. Render Transactions & Accumulate Totals
+    allTransactions.forEach(tx => {
+        totalDebit += tx.debit;
+        totalCredit += tx.credit;
 
         const row = document.createElement('tr');
         row.innerHTML = `
-            <td>${transaction.date}</td>
-            <td>${transaction.particulars}</td>
-            <td class="right">${transaction.debit > 0 ? transaction.debit.toFixed(2) : ''}</td>
-            <td class="right">${transaction.credit > 0 ? transaction.credit.toFixed(2) : ''}</td>
+            <td>${convertToDisplayFormat(tx.date)}</td>
+            <td>${tx.particulars}</td>
+            <td class="right">${tx.debit > 0 ? tx.debit.toFixed(2) : ''}</td>
+            <td class="right">${tx.credit > 0 ? tx.credit.toFixed(2) : ''}</td>
         `;
         tbody.appendChild(row);
     });
 
-    // NEW: Calculate net amount for footer
+    // 5. Calculate Footer Values
     const netAmount = totalDebit - totalCredit;
-
-    // Determine what to show in Balance Amount and Advance Deposit
     let balanceAmount = 0;
     let advanceDeposit = 0;
 
     if (netAmount > 0) {
-        // Debit > Credit: Show positive balance amount
-        balanceAmount = netAmount;
-        advanceDeposit = 0;
-    } else if (netAmount < 0) {
-        // Credit > Debit: Show advance deposit
-        balanceAmount = 0;
-        advanceDeposit = Math.abs(netAmount);
+        balanceAmount = netAmount; // Debit Side Heavy
     } else {
-        // Equal: Show zero for both
-        balanceAmount = 0;
-        advanceDeposit = 0;
+        advanceDeposit = Math.abs(netAmount); // Credit Side Heavy
     }
 
-    // UPDATE: New footer structure with correct logic
-    const tfoot = document.querySelector('.unified-ledger-table tfoot');
+    // Closing Date
+    const closingDate = allTransactions.length > 0 ? 
+        convertToDisplayFormat(allTransactions[allTransactions.length-1].date) : 
+        (dateRange ? dateRange.endDate : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
+
+    // 6. Update Footer HTML
     if (tfoot) {
         tfoot.innerHTML = `
             <tr class="total-row highlight">
@@ -4837,33 +5129,28 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
             </tr>
             <tr class="total-row highlight">
                 <td colspan="2" class="right bold">Balance Amount</td>
-                <td style="text-align:center;" class="right bold" colspan="2">${balanceAmount > 0 ? `₹${balanceAmount.toFixed(2)}` : '0.00'}</td>
+                <td style="text-align:center;" class="right bold" colspan="2">
+                    ${balanceAmount > 0 ? '₹' + balanceAmount.toFixed(2) : '0.00'}
+                </td>
             </tr>
-            ${advanceDeposit > 0 ? `
             <tr class="total-row highlight">
                 <td colspan="2" class="right bold">Advance Deposit</td>
-                <td style="text-align:center;" class="right bold" colspan="2">₹${advanceDeposit.toFixed(2)}</td>
+                <td style="text-align:center;" class="right bold" colspan="2">
+                    ${advanceDeposit > 0 ? '₹' + advanceDeposit.toFixed(2) : '0.00'}
+                </td>
             </tr>
-            ` : ''}
             <tr class="closing-balance-row">
-                <td id="closing-balance-date">${allTransactions.length > 0 ? allTransactions[allTransactions.length - 1].date : (dateRange ? dateRange.endDate : new Date().toLocaleDateString('en-IN'))}</td>
+                <td id="closing-balance-date">${closingDate}</td>
                 <td class="bold">Closing Balance</td>
-                <td class="right bold" id="closing-balance-debit">${runningBalance > 0 ? `₹${runningBalance.toFixed(2)}` : ''}</td>
-                <td class="right bold" id="closing-balance-credit">${runningBalance < 0 ? `₹${Math.abs(runningBalance).toFixed(2)}` : ''}</td>
+                <td class="right bold" id="closing-balance-debit">
+                    ${netAmount > 0 ? '₹' + netAmount.toFixed(2) : ''}
+                </td>
+                <td class="right bold" id="closing-balance-credit">
+                    ${netAmount < 0 ? '₹' + Math.abs(netAmount).toFixed(2) : ''}
+                </td>
             </tr>
         `;
     }
-
-    console.log('Footer calculations:', {
-        totalDebit,
-        totalCredit,
-        netAmount,
-        balanceAmount,
-        advanceDeposit,
-        runningBalance
-    });
-
-    console.log('Ledger table display completed with new footer structure');
 }
 
 // Helper function to get previous period end date
