@@ -16,30 +16,30 @@ async function loadCompanyInfo() {
             companyInfo = info;
 
             // 1. Populate Modal Inputs
-            if(document.getElementById('company-name')) document.getElementById('company-name').value = info.name || '';
-            if(document.getElementById('company-address')) document.getElementById('company-address').value = info.address || '';
-            if(document.getElementById('company-gst')) document.getElementById('company-gst').value = info.gstin || '';
-            if(document.getElementById('company-mobile')) document.getElementById('company-mobile').value = info.mobile || '';
-            if(document.getElementById('company-email')) document.getElementById('company-email').value = info.email || '';
-            if(document.getElementById('company-state')) document.getElementById('company-state').value = info.state || 'Maharashtra';
-            if(document.getElementById('company-code')) document.getElementById('company-code').value = info.stateCode || '27';
-            if(document.getElementById('account-number')) document.getElementById('account-number').value = info.accountNumber || '';
-            if(document.getElementById('ifsc-code')) document.getElementById('ifsc-code').value = info.ifscCode || '';
-            if(document.getElementById('branch')) document.getElementById('branch').value = info.branch || '';
-            if(document.getElementById('bank-name')) document.getElementById('bank-name').value = info.bankName || '';
-            if(document.getElementById('account-holder')) document.getElementById('account-holder').value = info.accountHolder || '';
+            if (document.getElementById('company-name')) document.getElementById('company-name').value = info.name || '';
+            if (document.getElementById('company-address')) document.getElementById('company-address').value = info.address || '';
+            if (document.getElementById('company-gst')) document.getElementById('company-gst').value = info.gstin || '';
+            if (document.getElementById('company-mobile')) document.getElementById('company-mobile').value = info.mobile || '';
+            if (document.getElementById('company-email')) document.getElementById('company-email').value = info.email || '';
+            if (document.getElementById('company-state')) document.getElementById('company-state').value = info.state || 'Maharashtra';
+            if (document.getElementById('company-code')) document.getElementById('company-code').value = info.stateCode || '27';
+            if (document.getElementById('account-number')) document.getElementById('account-number').value = info.accountNumber || '';
+            if (document.getElementById('ifsc-code')) document.getElementById('ifsc-code').value = info.ifscCode || '';
+            if (document.getElementById('branch')) document.getElementById('branch').value = info.branch || '';
+            if (document.getElementById('bank-name')) document.getElementById('bank-name').value = info.bankName || '';
+            if (document.getElementById('account-holder')) document.getElementById('account-holder').value = info.accountHolder || '';
 
             // --- SAFELY PRESERVED EXISTING CALLS ---
-            if(typeof updateGSTBillCompanyInfo === 'function') updateGSTBillCompanyInfo();
-            if(typeof updateRegularFooterInfo === 'function') updateRegularFooterInfo();
+            if (typeof updateGSTBillCompanyInfo === 'function') updateGSTBillCompanyInfo();
+            if (typeof updateRegularFooterInfo === 'function') updateRegularFooterInfo();
 
             // --- NEW: UPDATE GST BILL HEADER DISPLAY & HIDE EMPTY LINES ---
             // Name
-            if(document.getElementById('gstCompanyName')) {
+            if (document.getElementById('gstCompanyName')) {
                 document.getElementById('gstCompanyName').textContent = info.name || 'COMPANY NAME';
             }
             // Address
-            if(document.getElementById('gstCompanyAddr')) {
+            if (document.getElementById('gstCompanyAddr')) {
                 document.getElementById('gstCompanyAddr').textContent = info.address || '';
             }
 
@@ -253,45 +253,45 @@ async function handleCustomerSearch(type) {
 
 function fillCustomerDetails(type, customer) {
     // type is 'consignee' (Bill To) or 'buyer' (Ship To)
-    
+
     // 1. Name & Address
-    if(document.getElementById(`${type}-name`)) document.getElementById(`${type}-name`).value = customer.name || '';
-    if(document.getElementById(`${type}-address`)) document.getElementById(`${type}-address`).value = customer.address || '';
-    
+    if (document.getElementById(`${type}-name`)) document.getElementById(`${type}-name`).value = customer.name || '';
+    if (document.getElementById(`${type}-address`)) document.getElementById(`${type}-address`).value = customer.address || '';
+
     // 2. GSTIN
-    if(document.getElementById(`${type}-gst`)) document.getElementById(`${type}-gst`).value = customer.gstin || '';
-    
+    if (document.getElementById(`${type}-gst`)) document.getElementById(`${type}-gst`).value = customer.gstin || '';
+
     // 3. State & Code (Default to Maharashtra/27 if missing)
-    if(document.getElementById(`${type}-state`)) document.getElementById(`${type}-state`).value = customer.state || 'Maharashtra';
-    if(document.getElementById(`${type}-code`)) document.getElementById(`${type}-code`).value = customer.stateCode || '27';
-    
+    if (document.getElementById(`${type}-state`)) document.getElementById(`${type}-state`).value = customer.state || 'Maharashtra';
+    if (document.getElementById(`${type}-code`)) document.getElementById(`${type}-code`).value = customer.stateCode || '27';
+
     // 4. Contact/Phone (Check multiple property names)
     const phoneVal = customer.phone || customer.contact || '';
-    if(document.getElementById(`${type}-contact`)) {
+    if (document.getElementById(`${type}-contact`)) {
         document.getElementById(`${type}-contact`).value = phoneVal;
     }
-    
+
     // 5. Email (Safely check if input exists)
     const emailVal = customer.email || '';
-    if(document.getElementById(`${type}-email`)) {
+    if (document.getElementById(`${type}-email`)) {
         document.getElementById(`${type}-email`).value = emailVal;
     }
 
     // 6. Hide Suggestions
     const suggestions = document.getElementById(`${type}-suggestions`);
-    if(suggestions) suggestions.style.display = 'none';
+    if (suggestions) suggestions.style.display = 'none';
 
     // 7. Auto-detect transaction type (Interstate vs Intrastate)
     if (typeof companyInfo !== 'undefined' && companyInfo && customer.stateCode) {
         const transTypeEl = document.getElementById('transaction_type');
-        if(transTypeEl) {
+        if (transTypeEl) {
             if (String(customer.stateCode) !== String(companyInfo.stateCode)) {
                 transTypeEl.value = 'interstate';
             } else {
                 transTypeEl.value = 'intrastate';
             }
             // Trigger change handler if it exists
-            if(typeof handleTransactionTypeChange === 'function') handleTransactionTypeChange();
+            if (typeof handleTransactionTypeChange === 'function') handleTransactionTypeChange();
         }
     }
 }
@@ -725,7 +725,7 @@ async function saveGSTCustomer() {
     }
 }
 
-// Load GST Customers
+/* 2. LOAD GST CUSTOMERS (Passes 'gst' mode explicitly) */
 async function loadGSTCustomersList() {
     try {
         const customers = await getAllFromDB('gstCustomers');
@@ -740,7 +740,6 @@ async function loadGSTCustomersList() {
             return;
         }
 
-        // 1. FILTER (Search Name, GSTIN, Address, Phone, Email)
         const filtered = customers.filter(c => {
             const val = c.value;
             const name = (val.name || '').toLowerCase();
@@ -750,42 +749,29 @@ async function loadGSTCustomersList() {
             const email = (val.email || '').toLowerCase();
             const state = (val.state || '').toLowerCase();
 
-            return name.includes(searchTerm) || 
-                   gstin.includes(searchTerm) || 
-                   address.includes(searchTerm) || 
-                   phone.includes(searchTerm) || 
-                   email.includes(searchTerm) ||
-                   state.includes(searchTerm);
+            return name.includes(searchTerm) ||
+                gstin.includes(searchTerm) ||
+                address.includes(searchTerm) ||
+                phone.includes(searchTerm) ||
+                email.includes(searchTerm) ||
+                state.includes(searchTerm);
         });
 
-        if (filtered.length === 0) {
-            listContainer.innerHTML = '<div class="customer-card">No matching customers found</div>';
-            return;
-        }
-
-        // 2. SORT (A-Z / Z-A)
         filtered.sort((a, b) => {
             const nameA = (a.value.name || '').toLowerCase();
             const nameB = (b.value.name || '').toLowerCase();
-            
-            if (isCustomerSortAscending) {
-                return nameA.localeCompare(nameB); // Ascending
-            } else {
-                return nameB.localeCompare(nameA); // Descending
-            }
+            return isCustomerSortAscending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
         });
 
-        // 3. RENDER
         filtered.forEach(c => {
             const val = c.value;
             const customerCard = document.createElement('div');
             customerCard.className = 'customer-card';
             const menuId = `menu-gstcust-${c.id}-${Date.now()}`;
 
-            // Safe Data Display
-            const displayPhone = (val.phone || val.contact || 'Not provided');
-            const displayEmail = (val.email || 'Not provided');
-            const displayAddr = (val.address || 'Not provided');
+            const displayPhone = val.phone || val.contact || 'Not provided';
+            const displayEmail = val.email || 'Not provided';
+            const displayAddr = val.address || 'Not provided';
             const displayState = val.state ? `${val.state} (${val.stateCode || '-'})` : 'Not provided';
 
             customerCard.innerHTML = `
@@ -794,21 +780,19 @@ async function loadGSTCustomersList() {
                         <span>${val.name}</span>
                         <span class="card-sub-info">${val.gstin || 'No GSTIN'}</span>
                     </div>
-                    
                     <div class="card-controls">
                         <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
                             <span class="material-icons">keyboard_arrow_down</span>
                         </button>
-                        
                         <div class="action-menu-container">
                             <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
                                 <span class="material-icons">more_vert</span>
                             </button>
                             <div id="${menuId}" class="action-dropdown">
-                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}', 'gst')">
                                     <span class="material-icons">payments</span> Payment & CN
                                 </button>
-                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}', 'gst')">
                                     <span class="material-icons">book</span> Ledger
                                 </button>
                                 <button class="dropdown-item" onclick="editGSTCustomer('${c.id}')">
@@ -821,7 +805,6 @@ async function loadGSTCustomersList() {
                         </div>
                     </div>
                 </div>
-                
                 <div class="details-section hidden customer-details-text">
                     <div>Address: ${displayAddr}</div>
                     <div>Phone: ${displayPhone}</div>
@@ -913,7 +896,7 @@ async function autoSaveGSTCustomer() {
     let state = document.getElementById('consignee-state') ? document.getElementById('consignee-state').value.trim() : 'Maharashtra';
     let stateCode = document.getElementById('consignee-code') ? document.getElementById('consignee-code').value.trim() : '27';
     let phone = document.getElementById('consignee-contact') ? document.getElementById('consignee-contact').value.trim() : '';
-    
+
     // Check for Email input (safely)
     let email = '';
     if (document.getElementById('consignee-email')) {
@@ -925,14 +908,14 @@ async function autoSaveGSTCustomer() {
     if (!name) {
         const nameEl = document.getElementById('billToName');
         if (nameEl) name = nameEl.textContent.trim();
-        
+
         const gstinEl = document.getElementById('billToGstin');
         if (gstinEl) gstin = gstinEl.textContent.trim();
-        if(gstin === 'customer 15-digit GSTIN' || gstin === 'N/A') gstin = '';
+        if (gstin === 'customer 15-digit GSTIN' || gstin === 'N/A') gstin = '';
 
         const addrEl = document.getElementById('billToAddr');
         if (addrEl) address = addrEl.textContent.trim();
-        
+
         // Note: View usually doesn't show State Code/Phone in the main header text, 
         // so we rely on defaults or what was previously loaded.
     }
@@ -942,10 +925,10 @@ async function autoSaveGSTCustomer() {
 
     try {
         const existingCustomers = await getAllFromDB('gstCustomers');
-        
+
         // Check if customer exists by GSTIN (Strong match) or Name (Weak match)
-        const existingIndex = existingCustomers.findIndex(c => 
-            (gstin && c.value.gstin === gstin) || 
+        const existingIndex = existingCustomers.findIndex(c =>
+            (gstin && c.value.gstin === gstin) ||
             (!gstin && c.value.name.toLowerCase() === name.toLowerCase())
         );
 
@@ -963,7 +946,7 @@ async function autoSaveGSTCustomer() {
         if (existingIndex >= 0) {
             // --- UPDATE EXISTING (Merge Data) ---
             const oldData = existingCustomers[existingIndex];
-            
+
             // Merge strategy: New data overrides old data, but keep old if new is empty
             const mergedData = {
                 ...oldData.value,
@@ -1278,7 +1261,7 @@ async function loadGSTSavedBill(billId) {
 
         // FIX: Persist GST Mode to DB so it stays in GST Mode after refresh
         await setInDB('gstMode', 'isGSTMode', true);
-        
+
 
         // 1. Load company info
         if (savedBill.companyInfo) {
@@ -1924,7 +1907,7 @@ async function saveCustomerDetails() {
     }
 
     // 5. Update Global Variables
-    if(document.getElementById('transaction_type')) {
+    if (document.getElementById('transaction_type')) {
         transactionType = document.getElementById('transaction_type').value;
     }
     currentGSTPercent = gstPercent;
@@ -1943,18 +1926,18 @@ async function saveCustomerDetails() {
     }
 
     // 7. Save states
-    if(typeof saveCustomerDialogState === 'function') await saveCustomerDialogState();
-    if(typeof saveGSTCustomerDataToLocalStorage === 'function') await saveGSTCustomerDataToLocalStorage();
+    if (typeof saveCustomerDialogState === 'function') await saveCustomerDialogState();
+    if (typeof saveGSTCustomerDataToLocalStorage === 'function') await saveGSTCustomerDataToLocalStorage();
 
     closeCustomerDetailsModal();
 
     // 8. Refresh Calculations & UI
     // Force Table Regeneration (Handles display:none logic based on new transactionType)
-    if(typeof updateTotal === 'function') updateTotal();
+    if (typeof updateTotal === 'function') updateTotal();
 
     // Update breakdown table
-    if(typeof updateGSTTaxCalculation === 'function') updateGSTTaxCalculation();
-    if(typeof saveGSTStateToDB === 'function') await saveGSTStateToDB();
+    if (typeof updateGSTTaxCalculation === 'function') updateGSTTaxCalculation();
+    if (typeof saveGSTStateToDB === 'function') await saveGSTStateToDB();
 
     showNotification('Customer details saved successfully!', 'success');
 }
@@ -2588,28 +2571,46 @@ let currentPaymentType = 'payment'; // 'payment' or 'credit-note'
    ========================================================================== */
 
 // Helper: Populate Bill Types in Payment Form (same as Saved Bills filter)
-// Helper: Populate Bill Types in Payment Form
+/* 1. HELPER: Populate Payment Types (Customer Specific) */
 async function populatePaymentBillTypes() {
-    const typeSelect = document.getElementById('payment-ref-type');
-    if (!typeSelect) return;
-
-    const currentVal = typeSelect.value;
-    typeSelect.innerHTML = '<option value="">-- Select Type --</option>';
+    const select = document.getElementById('payment-ref-type');
+    if (!select || !currentPaymentCustomer) return;
 
     try {
         const savedBills = await getAllFromDB('savedBills');
-        const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
-        
+        const searchName = currentPaymentCustomer.name.toLowerCase().trim();
+
+        // 1. Filter bills ONLY for the current customer
+        const customerBills = savedBills.filter(bill => {
+            const bVal = bill.value;
+            const state = bVal.modalState || {};
+
+            // Deep Search Match
+            const simpleName = (bVal.customer?.name || state.simple?.name || '').toLowerCase().trim();
+            const billToName = (state.billTo?.name || '').toLowerCase().trim();
+
+            return simpleName === searchName || billToName === searchName;
+        });
+
+        // 2. Extract unique types from THIS customer's bills
+        const types = new Set(customerBills.map(b => b.value.modalState?.type || 'Invoice').filter(t => t));
+
+        // 3. Fallback: If customer has NO bills, default to 'Invoice'
+        if (types.size === 0) {
+            types.add('Invoice');
+        }
+
+        // 4. Render Options
+        select.innerHTML = '<option value="">-- Select Type --</option>';
         types.forEach(type => {
             const opt = document.createElement('option');
             opt.value = type;
             opt.textContent = type;
-            typeSelect.appendChild(opt);
+            select.appendChild(opt);
         });
 
-        if (currentVal) typeSelect.value = currentVal;
     } catch (e) {
-        console.error("Error populating bill types", e);
+        console.error("Error populating payment types", e);
     }
 }
 
@@ -2621,13 +2622,13 @@ async function updateNextReceiptNo() {
     // If we are currently editing, do NOT show the "Next" number
     if (currentlyEditingPaymentId) {
         // The edit function handles the display text
-        return; 
+        return;
     }
 
     try {
         const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
         const allRecords = await getAllFromDB(storeName);
-        
+
         let maxNo = 0;
         if (allRecords && allRecords.length > 0) {
             allRecords.forEach(rec => {
@@ -2638,10 +2639,10 @@ async function updateNextReceiptNo() {
                 if (!isNaN(num) && num > maxNo) maxNo = num;
             });
         }
-        
+
         // Update the UI immediately
         displayEl.textContent = maxNo + 1;
-        
+
     } catch (e) {
         console.error("Error updating receipt no:", e);
         displayEl.textContent = "1";
@@ -2657,69 +2658,114 @@ function handlePaymentRefTypeChange() {
     }
 }
 
-// FIXED: Smart Suggestions for All View Formats
+/* 2. HANDLE REF INPUT (Updated: Shows Latest Bills First) */
 async function handlePaymentRefInput(input) {
     const query = input.value.toLowerCase().trim();
     const suggestionsBox = document.getElementById('payment-ref-suggestions');
-    const typeSelect = document.getElementById('payment-ref-type');
-    const selectedType = typeSelect ? typeSelect.value : '';
 
-    if (!query || !currentPaymentCustomer || !selectedType) {
+    // Determine context
+    const mode = currentPaymentCustomer?.mode || 'regular';
+    let selectedType = 'Invoice'; // Default
+
+    if (mode === 'regular') {
+        const typeSelect = document.getElementById('payment-ref-type');
+        if (typeSelect && typeSelect.value) {
+            selectedType = typeSelect.value;
+        }
+    }
+
+    if (!currentPaymentCustomer) {
         suggestionsBox.style.display = 'none';
         return;
     }
 
     try {
-        const allBills = await getAllFromDB('savedBills');
-        const currentCustName = currentPaymentCustomer.name.toLowerCase().trim();
+        let suggestions = [];
 
-        const matches = allBills.filter(bill => {
-            const state = bill.value.modalState || {};
-            
-            // 1. Resolve Customer Name from any view format
-            let billCustName = '';
-            const viewFormat = state.viewFormat || 'simple';
+        // --- SORTING HELPER (Newest First) ---
+        const sortByLatest = (a, b) => {
+            const timeA = a.value.createdAt || a.value.timestamp || 0;
+            const timeB = b.value.createdAt || b.value.timestamp || 0;
+            return timeB - timeA; // Descending Order
+        };
 
-            if (viewFormat === 'simple') {
-                billCustName = state.simple?.name;
-            } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
-                billCustName = state.billTo?.name;
-            }
-            if (!billCustName) billCustName = bill.value.customer?.name;
+        if (mode === 'gst') {
+            // --- GST Search ---
+            const allGstBills = await getAllFromDB('gstSavedBills');
+            const searchGSTIN = (currentPaymentCustomer.gstin || '').toLowerCase();
 
-            // 2. Match Name and Type
-            const nameMatch = (billCustName || '').toLowerCase().trim() === currentCustName;
-            const typeMatch = (state.type || 'Invoice') === selectedType;
+            suggestions = allGstBills
+                .sort(sortByLatest) // <--- FIX: Sort Latest First
+                .filter(bill => {
+                    const bVal = bill.value;
+                    const billGST = (bVal.customer?.billTo?.gstin || '').toLowerCase();
+                    const shipGST = (bVal.customer?.shipTo?.gstin || '').toLowerCase();
 
-            return nameMatch && typeMatch;
-        });
+                    // Match Customer
+                    if (billGST !== searchGSTIN && shipGST !== searchGSTIN) return false;
 
-        const suggestions = matches.filter(bill => {
-            const state = bill.value.modalState || {};
-            const fullStr = `${state.prefix || ''}${state.invoiceNo}`.toLowerCase();
-            return fullStr.includes(query);
-        });
+                    // Match Query (if typed)
+                    if (query) {
+                        const invNo = (bVal.invoiceDetails?.number || '').toLowerCase();
+                        return invNo.includes(query);
+                    }
+                    return true;
+                }).map(bill => ({
+                    display: bill.value.invoiceDetails?.number,
+                    amount: bill.value.totals?.grandTotal || bill.value.totalAmount,
+                    prefix: '',
+                    no: bill.value.invoiceDetails?.number
+                }));
 
+        } else {
+            // --- Regular Search ---
+            const allBills = await getAllFromDB('savedBills');
+            const searchName = currentPaymentCustomer.name.toLowerCase().trim();
+
+            suggestions = allBills
+                .sort(sortByLatest) // <--- FIX: Sort Latest First
+                .filter(bill => {
+                    const state = bill.value.modalState || {};
+
+                    // 1. Match Customer
+                    const simpleName = (bill.value.customer?.name || state.simple?.name || '').toLowerCase();
+                    const billToName = (state.billTo?.name || '').toLowerCase();
+                    if (simpleName !== searchName && billToName !== searchName) return false;
+
+                    // 2. Match Selected Type
+                    const billType = state.type || 'Invoice';
+                    if (billType !== selectedType) return false;
+
+                    // 3. Match Query (if typed)
+                    if (query) {
+                        const fullStr = `${state.prefix || ''}${state.invoiceNo}`.toLowerCase();
+                        return fullStr.includes(query);
+                    }
+                    return true;
+                }).map(bill => ({
+                    display: `${bill.value.modalState?.prefix || ''}${bill.value.modalState?.invoiceNo}`,
+                    amount: bill.value.totalAmount,
+                    prefix: bill.value.modalState?.prefix || '',
+                    no: bill.value.modalState?.invoiceNo
+                }));
+        }
+
+        // Render
         suggestionsBox.innerHTML = '';
         if (suggestions.length > 0) {
             suggestionsBox.style.display = 'block';
-            suggestions.forEach(bill => {
-                const state = bill.value.modalState || {};
-                const prefix = state.prefix || '';
-                const no = state.invoiceNo || '';
-                const displayNo = `${prefix}${no}`;
-                
+            suggestions.forEach(item => {
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
                 div.style.padding = '8px';
                 div.style.cursor = 'pointer';
                 div.style.borderBottom = '1px solid #eee';
-                div.innerHTML = `<strong>${displayNo}</strong> <span style="font-size:0.8em; float:right;">₹${bill.value.totalAmount}</span>`;
-                
+                div.innerHTML = `<strong>${item.display}</strong> <span style="font-size:0.8em; float:right;">₹${parseFloat(item.amount).toFixed(2)}</span>`;
+
                 div.onclick = () => {
-                    input.value = displayNo;
-                    document.getElementById('payment-ref-prefix').value = prefix;
-                    document.getElementById('payment-ref-billno').value = no;
+                    input.value = item.display;
+                    document.getElementById('payment-ref-prefix').value = item.prefix;
+                    document.getElementById('payment-ref-billno').value = item.no;
                     suggestionsBox.style.display = 'none';
                 };
                 suggestionsBox.appendChild(div);
@@ -2729,12 +2775,12 @@ async function handlePaymentRefInput(input) {
         }
 
     } catch (e) {
-        console.error("Error ref suggestions", e);
+        console.error("Error getting ref suggestions", e);
     }
 }
 
 // Close suggestions when clicking outside
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     const suggestions = document.getElementById('payment-ref-suggestions');
     if (suggestions && e.target.id !== 'payment-ref-no') {
         suggestions.style.display = 'none';
@@ -2742,26 +2788,83 @@ document.addEventListener('click', function(e) {
 });
 //new payment functions end
 
-// Open Payment Dialog
-function openPaymentDialog(customerName, gstin) {
-    currentPaymentCustomer = { name: customerName, gstin: gstin };
-    currentPaymentType = 'payment'; // Default
+/* 1. OPEN PAYMENT DIALOG (Updated: Sort Option & Focus Event) */
+function openPaymentDialog(customerName, gstin, explicitMode) {
+    resetPaymentForm();
 
-    // Clear Drafts on Open
-    paymentDraftState = { payment: {}, 'credit-note': {} };
-    currentlyEditingPaymentId = null;
+    // --- MODE DETERMINATION ---
+    let mode = 'regular'; // Default
+
+    if (explicitMode) {
+        mode = explicitMode;
+    } else {
+        // Fallback: Guess based on GSTIN string
+        const cleanGST = (gstin || '').toLowerCase().trim();
+        const seemsLikeGST = cleanGST.length > 5 &&
+            !cleanGST.includes('not provided') &&
+            !cleanGST.includes('n/a') &&
+            !cleanGST.includes('15-digit');
+        mode = seemsLikeGST ? 'gst' : 'regular';
+    }
+
+    currentPaymentCustomer = {
+        name: customerName,
+        gstin: gstin,
+        mode: mode
+    };
+    currentPaymentType = 'payment';
 
     document.getElementById('payment-dialog-title').textContent = `Payments - ${customerName}`;
     document.getElementById('payment-dialog').classList.add('active');
 
-    // Reset UI Toggle
+    // Reset Toggle UI
     const toggleBtns = document.querySelectorAll('.toggle-btn');
     toggleBtns.forEach(btn => btn.classList.remove('active'));
     if(toggleBtns[0]) toggleBtns[0].classList.add('active');
 
-    // Init Logic
-    resetPaymentForm(true); // true = force default date
-    populatePaymentBillTypes();
+    // Set Date
+    const today = new Date();
+    const day = String(today.getDate()).padStart(2, '0');
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const year = today.getFullYear();
+    const dateInput = document.getElementById('payment-date');
+    if(dateInput) dateInput.value = `${day}-${month}-${year}`;
+
+    // --- UI TOGGLE BASED ON MODE ---
+    const refContainer = document.getElementById('payment-ref-type').parentNode;
+
+    if (mode === 'gst') {
+        // GST Mode: Hide Select
+        refContainer.innerHTML = `
+            <label>Bill Type (Ref):</label>
+            <input type="text" value="TAX INVOICE" disabled style="background: #f0f0f0; border: 1px solid #ddd; color: #555;">
+            <select id="payment-ref-type" style="display:none;"><option value="Tax Invoice" selected>Tax Invoice</option></select>
+        `;
+    } else {
+        // Regular Mode: Show Select
+        refContainer.innerHTML = `
+            <label>Bill Type (Ref):</label>
+            <select id="payment-ref-type" onchange="handlePaymentRefTypeChange()"></select>
+        `;
+        populatePaymentBillTypes(); // Fill Regular Options
+    }
+
+    // --- ADDED "Receipt No" Option to Sort ---
+    const sortSelect = document.getElementById('sort-by-select');
+    if (sortSelect) {
+        sortSelect.innerHTML = `
+            <option value="date">Date</option>
+            <option value="receipt">Receipt No</option>
+            <option value="amount">Amount</option>
+        `;
+    }
+
+    // --- ADDED "onfocus" to Ref Input ---
+    const refInput = document.getElementById('payment-ref-no');
+    if (refInput) {
+        refInput.setAttribute('onfocus', 'handlePaymentRefInput(this)');
+    }
+
     updateNextReceiptNo();
     updatePaymentUI();
     loadPaymentsAndCreditNotesWithFilters();
@@ -2786,19 +2889,41 @@ function initializePeriodSelector() {
         fromDateInput.style.display = 'none';
     }
 }
-/* 1. HELPER: Populate Ledger Bill Types */
+/* 2. HELPER: Populate Ledger Filter Types (Customer Specific) */
 async function populateLedgerBillTypes() {
     const select = document.getElementById('ledger-bill-type-filter');
-    if (!select) return;
+    if (!select || !currentPaymentCustomer) return;
 
     try {
         const savedBills = await getAllFromDB('savedBills');
-        const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
-        
-        // Reset options
+        const searchName = currentPaymentCustomer.name.toLowerCase().trim();
+
+        // 1. Filter bills ONLY for the current customer
+        const customerBills = savedBills.filter(bill => {
+            const bVal = bill.value;
+            const state = bVal.modalState || {};
+
+            // Deep Search Match
+            const simpleName = (bVal.customer?.name || state.simple?.name || '').toLowerCase().trim();
+            const billToName = (state.billTo?.name || '').toLowerCase().trim();
+
+            return simpleName === searchName || billToName === searchName;
+        });
+
+        // 2. Extract unique types
+        const types = new Set(customerBills.map(b => b.value.modalState?.type || 'Invoice').filter(t => t));
+
+        // 3. Fallback
+        if (types.size === 0) {
+            types.add('Invoice');
+        }
+
+        // 4. Render Options
         select.innerHTML = '<option value="all">All Types</option>';
-        
+
+        // Auto-select 'Invoice' if it exists, otherwise default to 'all'
         let hasInvoice = false;
+
         types.forEach(type => {
             const opt = document.createElement('option');
             opt.value = type;
@@ -2807,42 +2932,56 @@ async function populateLedgerBillTypes() {
             if (type === 'Invoice') hasInvoice = true;
         });
 
-        // Set default to Invoice if it exists
+        // Set default selection logic
         if (hasInvoice) {
             select.value = 'Invoice';
         } else {
             select.value = 'all';
         }
+
     } catch (e) {
         console.error("Error populating ledger types", e);
     }
 }
+/* 4. OPEN LEDGER DIALOG (Accepts & Prioritizes Explicit Mode) */
+async function openLedgerDialog(customerName, gstin, explicitMode) {
+    console.log('[LEDGER] Opening for:', customerName, 'Mode:', explicitMode);
 
-/* 2. OPEN LEDGER (Updated to Init Dropdown) */
-async function openLedgerDialog(customerName, gstin) {
-    console.log('[LEDGER] Opening for:', customerName, gstin);
+    if (!customerName) return;
 
-    if (!customerName) {
-        console.error('[LEDGER] No customer name provided');
-        return;
+    // --- MODE DETERMINATION ---
+    let mode = 'regular';
+
+    if (explicitMode) {
+        mode = explicitMode;
+    } else {
+        const cleanGST = (gstin || '').toLowerCase().trim();
+        const seemsLikeGST = cleanGST.length > 5 && !cleanGST.includes('not provided');
+        mode = seemsLikeGST ? 'gst' : 'regular';
     }
 
     currentPaymentCustomer = {
         name: customerName.trim(),
-        gstin: (gstin || '').trim()
+        gstin: (gstin || '').trim(),
+        mode: mode
     };
 
     const ledgerDialog = document.getElementById('ledger-dialog');
     const ledgerTitle = document.getElementById('ledger-dialog-title');
 
-    if (!ledgerDialog) return;
+    if (ledgerTitle) ledgerTitle.textContent = `Ledger - ${customerName}`;
 
-    if (ledgerTitle) {
-        ledgerTitle.textContent = `Ledger - ${customerName}`;
+    // --- UI TOGGLE ---
+    const filterSelect = document.getElementById('ledger-bill-type-filter');
+
+    if (mode === 'gst') {
+        if (filterSelect) filterSelect.style.display = 'none';
+    } else {
+        if (filterSelect) {
+            filterSelect.style.display = 'inline-block';
+            await populateLedgerBillTypes(); // Fill Regular Options
+        }
     }
-
-    // Initialize Dropdown FIRST
-    await populateLedgerBillTypes();
 
     ledgerDialog.classList.add('active');
 
@@ -2852,7 +2991,7 @@ async function openLedgerDialog(customerName, gstin) {
     if (selectAll) selectAll.checked = true;
     if (periodInputs) periodInputs.style.display = 'none';
 
-    // Load Data
+    // Load Data using the correct mode
     loadLedgerData(currentPaymentCustomer.name, currentPaymentCustomer.gstin);
 }
 
@@ -2887,10 +3026,10 @@ function restoreFormFromDraft(type) {
     document.getElementById('payment-method').value = draft.method || 'Cash';
     document.getElementById('payment-amount').value = draft.amount || '';
     document.getElementById('payment-notes').value = draft.notes || '';
-    
+
     // Custom Method
     document.getElementById('custom-payment-method').value = draft.customMethod || '';
-    if(draft.method === 'Other') {
+    if (draft.method === 'Other') {
         document.getElementById('custom-method-container').style.display = 'block';
     } else {
         document.getElementById('custom-method-container').style.display = 'none';
@@ -2937,10 +3076,10 @@ function setupPaymentTypeToggle() {
 
             // 5. Update UI Labels
             updatePaymentUI();
-            
+
             // 6. CRITICAL: Update Receipt Number for the new type
-            await updateNextReceiptNo(); 
-            
+            await updateNextReceiptNo();
+
             // 7. Reload Table
             loadPaymentsAndCreditNotesWithFilters();
         });
@@ -2974,17 +3113,17 @@ async function editPaymentRecord(recordId, recordType = null) {
         document.getElementById('payment-ref-billno').value = record.refBillNo || '';
 
         // Custom Method
-        if (['Cash','UPI','Bank Transfer','Cheque','Card'].indexOf(record.method) === -1) {
-             document.getElementById('payment-method').value = 'Other';
-             document.getElementById('custom-method-container').style.display = 'block';
-             document.getElementById('custom-payment-method').value = record.method;
+        if (['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Card'].indexOf(record.method) === -1) {
+            document.getElementById('payment-method').value = 'Other';
+            document.getElementById('custom-method-container').style.display = 'block';
+            document.getElementById('custom-payment-method').value = record.method;
         } else {
-             document.getElementById('custom-method-container').style.display = 'none';
+            document.getElementById('custom-method-container').style.display = 'none';
         }
 
         const typeLabel = type === 'payment' ? 'Payment' : 'Credit Note';
         document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">save</i> Update ${typeLabel}`;
-        
+
         // Correct Editing Label
         document.getElementById('payment-receipt-no-display').textContent = `Editing #${record.receiptNo || 'N/A'}`;
         document.getElementById('form-type-label').textContent = typeLabel;
@@ -2997,13 +3136,13 @@ async function editPaymentRecord(recordId, recordType = null) {
 /* 4. RESET FORM (Triggers Receipt Update) */
 function resetPaymentForm(setDate = false) {
     if (setDate) document.getElementById('payment-date').value = getTodayDateStr();
-    
+
     document.getElementById('payment-method').value = 'Cash';
     document.getElementById('payment-amount').value = '';
     document.getElementById('payment-notes').value = '';
     document.getElementById('custom-payment-method').value = '';
     document.getElementById('custom-method-container').style.display = 'none';
-    
+
     document.getElementById('payment-ref-type').value = '';
     document.getElementById('payment-ref-no').value = '';
     document.getElementById('payment-ref-prefix').value = '';
@@ -3011,9 +3150,9 @@ function resetPaymentForm(setDate = false) {
 
     const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
     document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">add</i> Add <span id="add-btn-label">${typeLabel}</span>`;
-    
+
     currentlyEditingPaymentId = null;
-    
+
     // CRITICAL: Update Receipt Number whenever form is reset (after add/update)
     updateNextReceiptNo();
 }
@@ -3047,7 +3186,7 @@ async function updatePaymentRecord() {
         };
 
         await setInDB(storeName, currentlyEditingPaymentId, updatedRecord);
-        
+
         paymentDraftState[currentPaymentType] = {}; // Clear draft
         resetPaymentForm(true);
         loadPaymentsAndCreditNotesWithFilters();
@@ -3060,9 +3199,9 @@ async function updatePaymentRecord() {
 
 function updatePaymentUI() {
     const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
-    if(document.getElementById('form-type-label')) document.getElementById('form-type-label').textContent = typeLabel;
-    if(document.getElementById('add-btn-label')) document.getElementById('add-btn-label').textContent = typeLabel;
-    if(document.getElementById('list-type-label')) document.getElementById('list-type-label').textContent = typeLabel;
+    if (document.getElementById('form-type-label')) document.getElementById('form-type-label').textContent = typeLabel;
+    if (document.getElementById('add-btn-label')) document.getElementById('add-btn-label').textContent = typeLabel;
+    if (document.getElementById('list-type-label')) document.getElementById('list-type-label').textContent = typeLabel;
 }
 
 // Load payments and credit notes
@@ -3074,7 +3213,7 @@ async function loadPaymentsAndCreditNotes() {
 }
 
 
-// FIXED: Display with Receipt No Column
+/* 4. DISPLAY PAYMENTS (Updated: Show Type if Ref No missing) */
 function displayPayments(payments) {
     const tbody = document.getElementById('payments-tbody');
     tbody.innerHTML = '';
@@ -3085,11 +3224,16 @@ function displayPayments(payments) {
     }
 
     payments.forEach(payment => {
-        let refText = '-';
-        if (payment.refType && (payment.refBillNo || payment.refDisplay)) {
+        // --- LOGIC CHANGE: Default to Bill Type, append No if exists ---
+        let refText = payment.refType || 'Invoice'; 
+        
+        if (payment.refBillNo || payment.refDisplay) {
             const num = payment.refDisplay || `${payment.refPrefix || ''}${payment.refBillNo}`;
-            refText = `${payment.refType} - ${num}`;
+            refText = `${refText} - ${num}`;
         }
+        
+        // Only show dash if absolutely no info exists (legacy data)
+        if (!payment.refType && !payment.refBillNo) refText = '-';
 
         const row = document.createElement('tr');
         row.innerHTML = `
@@ -3245,123 +3389,115 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-/* 2. GET BILLS (Fixed for Ledger - Finds Customer Deeply) */
-async function getCustomerBills(customerName, gstin) {
+/* 1. GET BILLS (Fixed: Logic for Regular Bills) */
+async function getCustomerBills(customerName, gstin, mode = 'regular') {
     let bills = [];
-    if(!customerName) return [];
+    if (!customerName) return [];
 
     try {
-        console.log('[BILLS] Fetching for:', customerName, 'GSTIN:', gstin);
         const searchName = customerName.toLowerCase().trim();
         const searchGST = gstin ? gstin.toLowerCase().trim() : '';
 
-        // 1. GST BILLS
-        if (gstin) {
+        // --- GST MODE ---
+        // Only look in 'gstSavedBills'
+        if (mode === 'gst') {
             const gstBills = await getAllFromDB('gstSavedBills');
             const filteredGstBills = gstBills.filter(bill => {
                 const bVal = bill.value;
-                const billGST = (bVal.customer?.billTo?.gstin || bVal.customer?.shipTo?.gstin || '').toLowerCase();
+                const billGST = (bVal.customer?.billTo?.gstin || '').toLowerCase();
                 const shipGST = (bVal.customer?.shipTo?.gstin || '').toLowerCase();
-                return billGST === searchGST || shipGST === searchGST;
+
+                // Primary: Match GSTIN
+                if (searchGST.length > 2) {
+                    return billGST === searchGST || shipGST === searchGST;
+                }
+                // Fallback: Match Name (only if GSTIN is missing/short)
+                const custName = (bVal.customer?.billTo?.name || '').toLowerCase().trim();
+                return custName === searchName;
             });
-            
-            bills = bills.concat(filteredGstBills.map(bill => ({
+
+            bills = filteredGstBills.map(bill => ({
                 ...bill.value, source: 'gst', id: bill.id
-            })));
+            }));
+        }
+        // --- REGULAR MODE ---
+        // Only look in 'savedBills' (The store separation is the filter)
+        else {
+            const regularBills = await getAllFromDB('savedBills');
+
+            const filteredRegular = regularBills.filter(bill => {
+                const bVal = bill.value;
+                const state = bVal.modalState || {};
+
+                // Deep Search for Name matches
+                const simpleName = (bVal.customer?.name || state.simple?.name || '').toLowerCase().trim();
+                const billToName = (state.billTo?.name || '').toLowerCase().trim();
+                const shipToName = (state.shipTo?.name || '').toLowerCase().trim();
+
+                return simpleName === searchName || billToName === searchName || shipToName === searchName;
+            });
+
+            bills = filteredRegular.map(bill => ({
+                ...bill.value, source: 'regular', id: bill.id
+            }));
         }
 
-        // 2. REGULAR BILLS (Deep Search in Modal State)
-        const regularBills = await getAllFromDB('savedBills');
-        
-        const filteredRegular = regularBills.filter(bill => {
-            const bVal = bill.value;
-            const state = bVal.modalState || {}; 
-            
-            // Check Simple Name (e.g., from Saved Bill 001 JSON)
-            const simpleName = (bVal.customer?.name || state.simple?.name || '').toLowerCase().trim();
-            // Check Bill To Name
-            const billToName = (state.billTo?.name || '').toLowerCase().trim();
-            // Check Ship To Name
-            const shipToName = (state.shipTo?.name || '').toLowerCase().trim();
-
-            return simpleName === searchName || billToName === searchName || shipToName === searchName;
-        });
-
-        bills = bills.concat(filteredRegular.map(bill => ({
-            ...bill.value, source: 'regular', id: bill.id
-        })));
-
-        console.log(`[BILLS] Found ${bills.length} total bills matching "${searchName}"`);
         return bills;
-
     } catch (error) {
         console.error('[BILLS] Error fetching:', error);
         return [];
     }
 }
 
-async function getCustomerFinancialData(customerName, gstin, dateRange = null) {
-    console.log('Getting financial data for:', customerName, 'with dateRange:', dateRange);
+/* 3. FINANCIAL DATA AGGREGATOR (Passes Mode) */
+async function getCustomerFinancialData(customerName, gstin, dateRange = null, mode = 'regular') {
+    console.log(`[FINANCE] Getting data for ${customerName} (Mode: ${mode})`);
 
-    const bills = await getCustomerBills(customerName, gstin);
-    const payments = await getCustomerPayments(customerName, gstin, 'payment');
-    const creditNotes = await getCustomerPayments(customerName, gstin, 'credit-note');
+    const bills = await getCustomerBills(customerName, gstin, mode);
+    const payments = await getCustomerPayments(customerName, gstin, 'payment', {}, mode);
+    const creditNotes = await getCustomerPayments(customerName, gstin, 'credit-note', {}, mode);
 
-    console.log('Raw data - Bills:', bills.length, 'Payments:', payments.length, 'Credit Notes:', creditNotes.length);
-
-    // If no date range (Select All checked), return all data
+    // Filter by Date Range
     if (!dateRange) {
-        console.log('No date range - returning all data');
         return { bills, payments, creditNotes };
     }
 
-    // Filter data based on date range
     const filterByDateRange = (items) => {
         return items.filter(item => {
             const itemDate = item.date || item.invoiceDetails?.date;
             if (!itemDate) return false;
-
             try {
-                // Convert dd-mm-yyyy to comparable format
-                const [itemDay, itemMonth, itemYear] = itemDate.split('-');
-                const itemDateObj = new Date(`${itemYear}-${itemMonth}-${itemDay}`);
-
-                const [startDay, startMonth, startYear] = dateRange.startDate.split('-');
-                const startDateObj = new Date(`${startYear}-${startMonth}-${startDay}`);
-
-                const [endDay, endMonth, endYear] = dateRange.endDate.split('-');
-                const endDateObj = new Date(`${endYear}-${endMonth}-${endDay}`);
-
-                return itemDateObj >= startDateObj && itemDateObj <= endDateObj;
-            } catch (error) {
-                console.error('Error filtering date:', error, 'itemDate:', itemDate);
-                return false;
-            }
+                // Custom date check logic
+                if (typeof isDateBefore === 'function') {
+                    // Start <= Item <= End
+                    return !isDateBefore(itemDate, dateRange.startDate) &&
+                        (isDateBefore(itemDate, dateRange.endDate) || itemDate === dateRange.endDate);
+                }
+                // Fallback string compare if helper missing
+                return true;
+            } catch (e) { return true; }
         });
     };
 
-    const filteredData = {
+    return {
         bills: filterByDateRange(bills),
         payments: filterByDateRange(payments),
         creditNotes: filterByDateRange(creditNotes)
     };
-
-    console.log('Filtered data:', filteredData);
-    return filteredData;
 }
 
 /* 5. SETUP DIALOG LISTENER (Ensures button click works) */
 function setupPaymentDialog() {
     console.log("[SETUP] setupPaymentDialog initialized");
-    
+
     // Remove old listeners to prevent duplicates (cloning trick)
     const oldBtn = document.getElementById('add-payment-btn');
     if (oldBtn) {
         const newBtn = oldBtn.cloneNode(true);
         oldBtn.parentNode.replaceChild(newBtn, oldBtn);
-        
+
         // Add new listener
-        newBtn.addEventListener('click', function(e) {
+        newBtn.addEventListener('click', function (e) {
             console.log("[CLICK] Add/Update button clicked");
             e.preventDefault(); // Prevent form submission if inside a form tag
             addNewPayment();
@@ -3370,7 +3506,7 @@ function setupPaymentDialog() {
 
     // Search functionality
     const searchInput = document.getElementById('payment-search');
-    if(searchInput) {
+    if (searchInput) {
         searchInput.addEventListener('input', function () {
             loadPaymentsAndCreditNotesWithFilters();
         });
@@ -3378,7 +3514,7 @@ function setupPaymentDialog() {
 
     // Sort buttons
     const sortBtn = document.getElementById('sort-order-btn');
-    if(sortBtn) {
+    if (sortBtn) {
         sortBtn.addEventListener('click', function () {
             const currentOrder = this.dataset.order;
             const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
@@ -3389,18 +3525,18 @@ function setupPaymentDialog() {
     }
 
     const sortSelect = document.getElementById('sort-by-select');
-    if(sortSelect) {
+    if (sortSelect) {
         sortSelect.addEventListener('change', () => loadPaymentsAndCreditNotesWithFilters());
     }
 
     const periodSelect = document.getElementById('statement-period');
-    if(periodSelect) {
+    if (periodSelect) {
         periodSelect.addEventListener('change', () => loadPaymentsAndCreditNotesWithFilters());
     }
 
     // Table Actions (Edit/Delete)
     const tbody = document.getElementById('payments-tbody');
-    if(tbody) {
+    if (tbody) {
         tbody.addEventListener('click', function (e) {
             const editBtn = e.target.closest('.edit-payment-btn');
             const deleteBtn = e.target.closest('.delete-payment-btn');
@@ -3437,7 +3573,7 @@ async function deletePaymentRecordConfirm(recordId, recordType = null) {
     }
 }
 
-// Load payments with filters
+/* 4. LOAD PAYMENT LIST (Passes Correct Mode) */
 async function loadPaymentsAndCreditNotesWithFilters() {
     if (!currentPaymentCustomer) return;
 
@@ -3448,20 +3584,22 @@ async function loadPaymentsAndCreditNotesWithFilters() {
         period: document.getElementById('statement-period').value
     };
 
+    // Use the mode detected during openPaymentDialog
+    const mode = currentPaymentCustomer.mode || 'regular';
+
     const payments = await getCustomerPayments(
         currentPaymentCustomer.name,
         currentPaymentCustomer.gstin,
         currentPaymentType,
-        filters
+        filters,
+        mode // <--- CRITICAL FIX: Pass the mode explicitly
     );
 
     displayPayments(payments);
 }
 
-/* 3. ADD NEW PAYMENT (Default to Invoice if empty) */
+/* 1. ADD NEW PAYMENT (Strict Type Saving) */
 async function addNewPayment() {
-    console.log("[ADD] addNewPayment called");
-    
     if (!currentPaymentCustomer) return;
 
     const methodSelect = document.getElementById('payment-method');
@@ -3472,21 +3610,28 @@ async function addNewPayment() {
     const amount = parseFloat(document.getElementById('payment-amount').value);
     const notes = document.getElementById('payment-notes').value;
 
-    // Ref Fields
-    let refType = document.getElementById('payment-ref-type').value;
+    // --- CRITICAL: DETERMINE REF TYPE ---
+    let refType = '';
+    const mode = currentPaymentCustomer.mode || 'regular'; // Rely on explicit mode
+
+    if (mode === 'gst') {
+        refType = 'Tax Invoice'; // Always enforce for GST
+    } else {
+        // Regular: Get from dropdown
+        const selectEl = document.getElementById('payment-ref-type');
+        refType = selectEl ? selectEl.value : '';
+        // Default to Invoice if dropdown is empty or not selected
+        if (!refType || refType === '') refType = 'Invoice';
+    }
+
     const refPrefix = document.getElementById('payment-ref-prefix').value;
     const refBillNo = document.getElementById('payment-ref-billno').value;
     const refDisplay = document.getElementById('payment-ref-no').value;
 
-    // DEFAULT LOGIC: If no type selected, assume 'Invoice'
-    if (!refType || refType === '') {
-        refType = 'Invoice';
-    }
-
     if (!date || !finalMethod || isNaN(amount)) {
         showNotification('Please fill required fields', 'error'); return;
     }
-    
+
     if (currentPaymentType === 'payment' && amount <= 0) {
         showNotification('Amount must be positive', 'error'); return;
     }
@@ -3502,7 +3647,7 @@ async function addNewPayment() {
     try {
         const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
         const allRecords = await getAllFromDB(storeName);
-        
+
         let maxNo = 0;
         allRecords.forEach(rec => {
             const val = rec.receiptNo || rec.value?.receiptNo;
@@ -3512,28 +3657,21 @@ async function addNewPayment() {
         const newReceiptNo = maxNo + 1;
 
         const paymentData = {
-            date: date,
-            method: finalMethod,
-            amount: amount,
-            notes: notes,
+            date, method: finalMethod, amount, notes,
             receiptNo: newReceiptNo,
-            refType: refType, // Will be 'Invoice' or selected type
-            refPrefix: refPrefix || '',
-            refBillNo: refBillNo || '', 
-            refDisplay: refDisplay || ''
+            refType, refPrefix, refBillNo, refDisplay
         };
 
         await savePaymentRecord(currentPaymentCustomer.name, currentPaymentCustomer.gstin, paymentData, currentPaymentType);
 
         showNotification(`${currentPaymentType === 'payment' ? 'Payment' : 'Credit Note'} added!`, 'success');
-        
-        paymentDraftState[currentPaymentType] = {}; 
-        resetPaymentForm(true); 
+
+        paymentDraftState[currentPaymentType] = {};
+        resetPaymentForm(true);
         loadPaymentsAndCreditNotesWithFilters();
 
     } catch (error) {
-        console.error('[ADD] Error adding payment:', error);
-        showNotification('Error adding payment', 'error');
+        console.error('Error adding payment:', error);
     }
 }
 
@@ -3549,6 +3687,231 @@ function toggleProfitView() {
     } else {
         calculateProfit();
     }
+}
+
+/* ==========================================================================
+   PDF DOWNLOAD LOGIC (LEDGER)
+   ========================================================================== */
+/* PDF DOWNLOAD (Fixed: 60% Width for Addresses) */
+/* PDF DOWNLOAD (Fixed: Date/Period Alignment & 60% Address Width) */
+async function downloadLedgerPDF() {
+    if (!currentPaymentCustomer) {
+        showNotification("No customer selected", "error");
+        return;
+    }
+
+    try {
+        showNotification("Generating PDF...", "info");
+
+        // 1. Get Company Info
+        const company = await getFromDB('companyInfo', 'companyInfo') || {};
+        
+        // 2. Get Ledger Table Data (Scrape from DOM)
+        const tableBody = [];
+        
+        // Header Row
+        tableBody.push([
+            { text: 'Date', style: 'tableHeader' },
+            { text: 'Particulars', style: 'tableHeader' },
+            { text: 'Debit (₹)', style: 'tableHeader', alignment: 'right' },
+            { text: 'Credit (₹)', style: 'tableHeader', alignment: 'right' }
+        ]);
+
+        // Scrape Body Rows
+        const rows = document.querySelectorAll('#ledger-tbody tr');
+        let startDate = '';
+        let endDate = '';
+
+        rows.forEach((row, index) => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 4) {
+                const date = cells[0].innerText.trim();
+                const part = cells[1].innerText.trim();
+                const debit = cells[2].innerText.trim();
+                const credit = cells[3].innerText.trim();
+
+                if(index === 0) startDate = date;
+                if(index === rows.length - 1) endDate = date;
+
+                tableBody.push([
+                    { text: date, style: index === 0 ? 'boldRow' : 'bodyText' },
+                    { text: part, style: index === 0 ? 'boldRow' : 'bodyText' },
+                    { text: debit, alignment: 'right', style: index === 0 ? 'boldRow' : 'bodyText' },
+                    { text: credit, alignment: 'right', style: index === 0 ? 'boldRow' : 'bodyText' }
+                ]);
+            }
+        });
+
+        // Scrape Footer Rows
+        const footRows = document.querySelectorAll('.unified-ledger-table tfoot tr');
+        footRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            
+            if (cells.length === 3) {
+                const label = cells[0].innerText.trim();
+                const val1 = cells[1].innerText.trim();
+                const val2 = cells[2].innerText.trim();
+                
+                tableBody.push([
+                    { text: label, colSpan: 2, style: 'footerBold', alignment: 'right' },
+                    {}, 
+                    { text: val1, style: 'footerBold', alignment: 'right' },
+                    { text: val2, style: 'footerBold', alignment: 'right' }
+                ]);
+            } 
+            else if (cells.length === 2) {
+                const label = cells[0].innerText.trim();
+                const value = cells[1].innerText.trim();
+                
+                if (label.toLowerCase().includes('advance deposit')) {
+                    const numVal = parseFloat(value.replace(/[^\d.-]/g, '')) || 0;
+                    if (numVal === 0) return;
+                }
+                
+                tableBody.push([
+                    { text: label, colSpan: 2, style: 'footerBold', alignment: 'right' },
+                    {}, 
+                    { text: value, colSpan: 2, style: 'footerBold', alignment: 'center' },
+                    {}
+                ]);
+            }
+            else if (cells.length === 4) {
+                tableBody.push([
+                    { text: cells[0].innerText.trim(), style: 'footerBold' },
+                    { text: cells[1].innerText.trim(), style: 'footerBold' },
+                    { text: cells[2].innerText.trim(), style: 'footerBold', alignment: 'right' },
+                    { text: cells[3].innerText.trim(), style: 'footerBold', alignment: 'right' }
+                ]);
+            }
+        });
+
+        // 3. Define Document Definition
+        const docDefinition = {
+            content: [
+                // Header: Customer Details
+                {
+                    columns: [
+                        {
+                            width: '55%', // Customer Address takes 60%
+                            stack: [
+                                { text: 'LEDGER STATEMENT', style: 'mainHeader' },
+                                { text: currentPaymentCustomer.name.toUpperCase(), style: 'customerName' },
+                                { text: await getCustomerAddressStr(currentPaymentCustomer), style: 'subText' },
+                                { text: `GSTIN: ${currentPaymentCustomer.gstin || 'N/A'}`, style: 'subText' }
+                            ]
+                        },
+                        {
+                            width: '*', // FIX: Changed from 'auto' to '*' to push it to the right edge
+                            stack: [
+                                { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, alignment: 'right', style: 'metaText' },
+                                { text: `Period: ${startDate} to ${endDate}`, alignment: 'right', style: 'metaText' }
+                            ]
+                        }
+                    ],
+                    margin: [0, 0, 0, 20]
+                },
+
+                // Table
+                {
+                    table: {
+                        headerRows: 1,
+                        widths: ['15%', '45%', '20%', '20%'],
+                        body: tableBody
+                    },
+                    layout: {
+                        paddingLeft: function(i) { return 5; },
+                        paddingRight: function(i) { return 5; },
+                        paddingTop: function(i) { return 5; },
+                        paddingBottom: function(i) { return 5; },
+                        vLineWidth: function(i, node) { return 0; },
+                        hLineWidth: function(i, node) {
+                            if (i === 0) return 0; 
+                            if (i === 1) return 2; 
+                            return 1;
+                        },
+                        hLineColor: function(i, node) { return '#444444'; }
+                    }
+                },
+
+                // Footer: Company Details (Wrapped in 60% column)
+                {
+                    columns: [
+                        {
+                            width: '60%', // Company Address takes 60%
+                            stack: [
+                                {
+                                    text: 'Regards,',
+                                    margin: [0, 30, 0, 5],
+                                    bold: true
+                                },
+                                {
+                                    text: (company.name || 'Company Name').toUpperCase(),
+                                    bold: true,
+                                    fontSize: 11
+                                },
+                                {
+                                    text: [
+                                        company.address || '',
+                                        company.gstin ? `\nGSTIN: ${company.gstin}` : '',
+                                        company.email ? `\nEmail: ${company.email}` : ''
+                                    ],
+                                    style: 'subText',
+                                    color: '#555'
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
+            styles: {
+                mainHeader: { fontSize: 16, bold: true, margin: [0, 0, 0, 5], color: '#2c3e50' },
+                customerName: { fontSize: 14, bold: true, margin: [0, 0, 0, 2] },
+                subText: { fontSize: 9, color: '#555' },
+                metaText: { fontSize: 9, color: '#555' },
+                tableHeader: { bold: true, fontSize: 10, color: 'black', fillColor: '#f2f2f2' },
+                bodyText: { fontSize: 10 },
+                boldRow: { fontSize: 10, bold: true },
+                footerBold: { fontSize: 10, bold: true, fillColor: '#f9f9f9' }
+            }
+        };
+
+        // 4. Generate Filename
+        const safeName = currentPaymentCustomer.name.replace(/[^a-zA-Z0-9]/g, '_');
+        const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+        const modeStr = currentPaymentCustomer.mode || 'regular';
+        
+        const fileName = `Ledger_${safeName}_${dateStr}_${modeStr}.pdf`;
+
+        pdfMake.createPdf(docDefinition).download(fileName);
+        showNotification("PDF Downloaded", "success");
+
+    } catch (e) {
+        console.error("PDF Error:", e);
+        showNotification("Error generating PDF", "error");
+    }
+}
+
+// Helper to get address string safely (Checking GST customers then Regular)
+async function getCustomerAddressStr(custObj) {
+    // 1. Try GST Customers first
+    const gstCusts = await getAllFromDB('gstCustomers');
+    const gstMatch = gstCusts.find(c => c.value.name === custObj.name && c.value.gstin === custObj.gstin);
+    if (gstMatch) {
+        let addr = gstMatch.value.address || '';
+        if (gstMatch.value.phone) addr += `\nPh: ${gstMatch.value.phone}`;
+        return addr;
+    }
+
+    // 2. Try Regular Customers
+    const regCusts = await getAllFromDB('savedCustomers');
+    const regMatch = regCusts.find(c => c.value.name === custObj.name);
+    if (regMatch) {
+        let addr = regMatch.value.address || '';
+        if (regMatch.value.phone) addr += `\nPh: ${regMatch.value.phone}`;
+        return addr;
+    }
+
+    return 'Address Not Found';
 }
 
 // Update the profit button in sidebar to use toggle:
@@ -4726,45 +5089,33 @@ async function loadCustomPaymentMethods() {
     }
 }
 
-/* 4. LOAD LEDGER DATA (Applies Filter) */
+/* 3. LOAD LEDGER DATA (Passes Correct Mode) */
 async function loadLedgerData(customerName = currentPaymentCustomer?.name, gstin = currentPaymentCustomer?.gstin) {
     if (!customerName) return;
 
     try {
         const dateRange = getDateRangeForPeriod();
-        
-        // 1. Get Selected Bill Type Filter
-        const filterSelect = document.getElementById('ledger-bill-type-filter');
-        const selectedType = filterSelect ? filterSelect.value : 'all';
 
-        // 2. Get Data
+        // Use the mode detected during openLedgerDialog
+        const mode = currentPaymentCustomer?.mode || 'regular';
+
+        console.log(`[LEDGER] Loading for ${customerName} in ${mode} mode`);
+
+        // Pass mode to calculation functions
         let openingBalance = { amount: 0, type: 'debit', date: 'Opening' };
         if (typeof calculateOpeningBalance === 'function') {
-            openingBalance = await calculateOpeningBalance(customerName, gstin, dateRange);
+            openingBalance = await calculateOpeningBalance(customerName, gstin, dateRange, mode);
         }
-        
-        const financialData = await getCustomerFinancialData(customerName, gstin, dateRange);
-        
-        // 3. APPLY FILTER
-        if (selectedType !== 'all') {
-            // Filter Bills
-            financialData.bills = financialData.bills.filter(bill => {
-                const type = bill.modalState?.type || 'Invoice';
-                return type === selectedType;
-            });
 
-            // Filter Payments
-            financialData.payments = financialData.payments.filter(pay => {
-                // If refType is missing, assume Invoice (legacy support)
-                const type = pay.refType || 'Invoice'; 
-                return type === selectedType;
-            });
+        const financialData = await getCustomerFinancialData(customerName, gstin, dateRange, mode);
 
-            // Filter Credit Notes
-            financialData.creditNotes = financialData.creditNotes.filter(cn => {
-                const type = cn.refType || 'Invoice';
-                return type === selectedType;
-            });
+        // Filter by Bill Type (Only for Regular)
+        const filterSelect = document.getElementById('ledger-bill-type-filter');
+        if (mode === 'regular' && filterSelect && filterSelect.style.display !== 'none' && filterSelect.value !== 'all') {
+            const type = filterSelect.value;
+            financialData.bills = financialData.bills.filter(b => (b.modalState?.type || 'Invoice') === type);
+            financialData.payments = financialData.payments.filter(p => (p.refType || 'Invoice') === type);
+            financialData.creditNotes = financialData.creditNotes.filter(c => (c.refType || 'Invoice') === type);
         }
 
         displayUnifiedLedgerTable(financialData, openingBalance, dateRange);
@@ -4774,150 +5125,46 @@ async function loadLedgerData(customerName = currentPaymentCustomer?.name, gstin
     }
 }
 
-// FIX: Correct date comparison for opening balance
-async function calculateOpeningBalance(customerName, gstin, dateRange) {
+/* 4. OPENING BALANCE (Passes Mode) */
+async function calculateOpeningBalance(customerName, gstin, dateRange, mode = 'regular') {
     if (!dateRange) return { amount: 0, type: 'debit', date: 'Opening' };
 
     try {
-        console.log('Calculating opening balance for date range:', dateRange);
-
-        // Get all transactions
-        const allPreviousData = await getCustomerFinancialData(customerName, gstin, null);
+        // Fetch ALL previous data using correct MODE
+        const allPreviousData = await getCustomerFinancialData(customerName, gstin, null, mode);
 
         let totalDebit = 0;
         let totalCredit = 0;
-        let lastTransactionDate = 'Opening';
+        let lastDate = 'Opening';
+        const filterStartObj = convertToComparableDate(dateRange.startDate);
 
-        // Convert filter start date to comparable format
-        const filterStartDate = convertToComparableDate(dateRange.startDate);
-        console.log('Filter start date:', dateRange.startDate, 'as:', filterStartDate);
+        const processItem = (item, type) => {
+            const dateStr = item.date || item.invoiceDetails?.date;
+            if (!dateStr) return;
 
-        // Process all transactions and find the latest one before filter
-        const allTransactions = [];
+            const itemDateObj = convertToComparableDate(dateStr);
 
-        // Add bills
-        allPreviousData.bills.forEach(bill => {
-            const billDate = bill.date || bill.invoiceDetails?.date;
-            if (billDate) {
-                let billTotal = 0;
-
-                if (bill.source === 'gst') {
-                    billTotal = parseFloat(bill.totals?.grandTotal || 0);
-                } else {
-                    const subtotal = parseFloat(bill.totalAmount || 0);
-                    const discountPercent = bill.taxSettings?.discountPercent || 0;
-                    const discountAmount = subtotal * (discountPercent / 100);
-                    const gstPercent = bill.taxSettings?.gstPercent || 0;
-                    const gstAmount = (subtotal - discountAmount) * (gstPercent / 100);
-                    billTotal = subtotal - discountAmount + gstAmount;
-                }
-
-                const transactionDate = convertToComparableDate(billDate);
-                const isBeforeFilter = transactionDate < filterStartDate;
-
-                allTransactions.push({
-                    date: billDate,
-                    comparableDate: transactionDate,
-                    amount: billTotal,
-                    type: 'bill',
-                    isBeforeFilter: isBeforeFilter
-                });
-
-                console.log('Bill:', billDate, 'Comparable:', transactionDate, 'Before filter:', isBeforeFilter);
+            // Check if BEFORE start date
+            if (itemDateObj < filterStartObj) {
+                let amount = parseFloat(item.amount || item.totalAmount || item.totals?.grandTotal || 0);
+                if (type === 'debit') totalDebit += amount;
+                else totalCredit += amount;
+                lastDate = dateStr; // Track last transaction date
             }
-        });
+        };
 
-        // Add payments
-        allPreviousData.payments.forEach(payment => {
-            const paymentDate = payment.date;
-            if (paymentDate) {
-                const paymentAmount = parseFloat(payment.amount);
-                const transactionDate = convertToComparableDate(paymentDate);
-                const isBeforeFilter = transactionDate < filterStartDate;
+        allPreviousData.bills.forEach(b => processItem(b, 'debit'));
+        allPreviousData.payments.forEach(p => processItem(p, 'credit'));
+        allPreviousData.creditNotes.forEach(c => processItem(c, 'credit'));
 
-                allTransactions.push({
-                    date: paymentDate,
-                    comparableDate: transactionDate,
-                    amount: paymentAmount,
-                    type: 'payment',
-                    isBeforeFilter: isBeforeFilter
-                });
-
-                console.log('Payment:', paymentDate, 'Comparable:', transactionDate, 'Before filter:', isBeforeFilter);
-            }
-        });
-
-        // Add credit notes
-        allPreviousData.creditNotes.forEach(creditNote => {
-            const cnDate = creditNote.date;
-            if (cnDate) {
-                const cnAmount = parseFloat(creditNote.amount);
-                const transactionDate = convertToComparableDate(cnDate);
-                const isBeforeFilter = transactionDate < filterStartDate;
-
-                allTransactions.push({
-                    date: cnDate,
-                    comparableDate: transactionDate,
-                    amount: cnAmount,
-                    type: 'credit-note',
-                    isBeforeFilter: isBeforeFilter
-                });
-
-                console.log('Credit Note:', cnDate, 'Comparable:', transactionDate, 'Before filter:', isBeforeFilter);
-            }
-        });
-
-        // Sort all transactions by date (newest first)
-        allTransactions.sort((a, b) => b.comparableDate - a.comparableDate);
-
-        console.log('All transactions sorted (newest first):', allTransactions);
-
-        // Find the latest transaction before filter period
-        let foundLatest = false;
-
-        for (const transaction of allTransactions) {
-            if (transaction.isBeforeFilter) {
-                // This is the latest transaction before filter
-                if (!foundLatest) {
-                    lastTransactionDate = transaction.date;
-                    foundLatest = true;
-                    console.log('Found latest transaction before filter:', transaction.date);
-                }
-
-                // Add to totals
-                if (transaction.type === 'bill') {
-                    totalDebit += transaction.amount;
-                } else {
-                    totalCredit += transaction.amount;
-                }
-
-                console.log('Included in opening balance:', transaction.date, transaction.amount, transaction.type);
-            }
-        }
-
-        // CORRECTED LOGIC: Calculate NET balance
-        const netBalance = totalDebit - totalCredit;
-
-        console.log('Final opening balance calculation:', {
-            totalDebit,
-            totalCredit,
-            netBalance,
-            lastTransactionDate,
-            dateRange
-        });
-
-        let result = { amount: 0, type: 'debit', date: lastTransactionDate };
-
-        if (netBalance > 0) {
-            result = { amount: netBalance, type: 'debit', date: lastTransactionDate };
-        } else if (netBalance < 0) {
-            result = { amount: Math.abs(netBalance), type: 'credit', date: lastTransactionDate };
-        }
-
-        return result;
-
-    } catch (error) {
-        console.error('Error calculating opening balance:', error);
+        const net = totalDebit - totalCredit;
+        return {
+            amount: Math.abs(net),
+            type: net >= 0 ? 'debit' : 'credit',
+            date: lastDate
+        };
+    } catch (e) {
+        console.error("Error calc opening balance", e);
         return { amount: 0, type: 'debit', date: 'Opening' };
     }
 }
@@ -4940,10 +5187,10 @@ function isDateBefore(dateStr, compareDateStr) {
 /* Helper: Convert DD-MM-YYYY to YYYY-MM-DD for sorting */
 function convertDateToISO(dateStr) {
     if (!dateStr) return new Date().toISOString().split('T')[0];
-    
+
     // If already in YYYY-MM-DD format (ISO), return as is
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr;
-    
+
     // Handle DD-MM-YYYY or DD/MM/YYYY
     if (dateStr.includes('-')) {
         const parts = dateStr.split('-');
@@ -4957,7 +5204,7 @@ function convertDateToISO(dateStr) {
             return `${parts[2]}-${parts[1]}-${parts[0]}`;
         }
     }
-    
+
     return dateStr;
 }
 
@@ -4978,31 +5225,24 @@ function convertToComparableDate(dateStr) {
         return new Date(); // Return current date as fallback
     }
 }
-/* 5. DISPLAY LEDGER TABLE (Fixed Footer Calculation & Layout) */
+/* 3. DISPLAY LEDGER (Updated: Receipt #s & Conditional Footer) */
 function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
     const tbody = document.getElementById('ledger-tbody');
     const tfoot = document.querySelector('.unified-ledger-table tfoot');
-    
+
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    console.log('[LEDGER] Rendering table...');
-
-    // 1. Initialize Totals with Opening Balance
+    // 1. Totals & Opening
     let totalDebit = 0;
     let totalCredit = 0;
 
-    if (openingBalance.type === 'debit') {
-        totalDebit += openingBalance.amount;
-    } else {
-        totalCredit += openingBalance.amount;
-    }
+    if (openingBalance.type === 'debit') totalDebit += openingBalance.amount;
+    else totalCredit += openingBalance.amount;
 
-    // 2. Render Opening Row
     const openingRow = document.createElement('tr');
-    // Handle date display safely
     const opDate = openingBalance.date === 'Opening' ? 'Opening' : (typeof convertToDisplayFormat === 'function' ? convertToDisplayFormat(openingBalance.date) : openingBalance.date);
-    
+
     openingRow.innerHTML = `
         <td>${opDate}</td>
         <td class="bold">Opening Balance</td>
@@ -5011,28 +5251,31 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
     `;
     tbody.appendChild(openingRow);
 
-    // 3. Process All Transactions
+    // 2. Transactions
     let allTransactions = [];
 
-    // BILLS (Debit)
+    // BILLS
     if (financialData.bills) {
         financialData.bills.forEach(bill => {
             const state = bill.modalState || {};
             const prefix = state.prefix || '';
             const no = state.invoiceNo || bill.invoiceDetails?.invoiceNo || bill.invoiceDetails?.number || '';
-            const type = state.type || 'Invoice';
-            
-            // Calculate Amount
+
+            // --- LABEL LOGIC ---
+            let typeLabel = 'Invoice';
             let amount = 0;
-            if(bill.source === 'gst') {
+
+            if (bill.source === 'gst') {
+                typeLabel = 'Tax Invoice'; // Force Label for GST
                 amount = parseFloat(bill.totals?.grandTotal || 0);
             } else {
+                typeLabel = state.type || 'Invoice'; // Use saved label for Regular
                 amount = parseFloat(bill.totalAmount || bill.grandTotal || 0);
             }
 
             allTransactions.push({
                 date: bill.date || bill.invoiceDetails?.date,
-                particulars: `By Sale A/c (${type} - ${prefix}${no})`,
+                particulars: ` Sale (${typeLabel} - ${prefix}${no})`,
                 debit: amount,
                 credit: 0,
                 timestamp: new Date(convertDateToISO(bill.date || bill.invoiceDetails?.date)).getTime()
@@ -5040,12 +5283,12 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
         });
     }
 
-    // PAYMENTS (Credit)
+    // PAYMENTS
     if (financialData.payments) {
         financialData.payments.forEach(pay => {
             let suffix = '';
-            // Display Logic: (Type - Ref) or (Type)
             const type = pay.refType || 'Invoice';
+
             if (pay.refBillNo || pay.refDisplay) {
                 const num = pay.refDisplay || `${pay.refPrefix || ''}${pay.refBillNo}`;
                 suffix = ` (${type} - ${num})`;
@@ -5053,9 +5296,12 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
                 suffix = ` (${type})`;
             }
 
+            // FIX: Add Receipt Number
+            const recNo = pay.receiptNo ? ` #${pay.receiptNo}` : '';
+
             allTransactions.push({
                 date: pay.date,
-                particulars: `Receipt : To ${pay.method} A/c${suffix}`,
+                particulars: `Receipt${recNo} : ${pay.method} ${suffix}`,
                 debit: 0,
                 credit: parseFloat(pay.amount),
                 timestamp: new Date(convertDateToISO(pay.date)).getTime()
@@ -5063,7 +5309,7 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
         });
     }
 
-    // CREDIT NOTES (Credit)
+    // CREDIT NOTES
     if (financialData.creditNotes) {
         financialData.creditNotes.forEach(cn => {
             let suffix = '';
@@ -5075,9 +5321,12 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
                 suffix = ` (${type})`;
             }
 
+            // FIX: Add Receipt Number
+            const recNo = cn.receiptNo ? ` #${cn.receiptNo}` : '';
+
             allTransactions.push({
                 date: cn.date,
-                particulars: `Credit Note : To ${cn.method} A/c${suffix}`,
+                particulars: `Credit Note${recNo} : ${cn.method} ${suffix}`,
                 debit: 0,
                 credit: parseFloat(cn.amount),
                 timestamp: new Date(convertDateToISO(cn.date)).getTime()
@@ -5085,10 +5334,9 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
         });
     }
 
-    // Sort Transactions
+    // Sort & Render
     allTransactions.sort((a, b) => a.timestamp - b.timestamp);
 
-    // 4. Render Transactions & Accumulate Totals
     allTransactions.forEach(tx => {
         totalDebit += tx.debit;
         totalCredit += tx.credit;
@@ -5103,24 +5351,28 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
         tbody.appendChild(row);
     });
 
-    // 5. Calculate Footer Values
+    // 3. Footer Logic
     const netAmount = totalDebit - totalCredit;
     let balanceAmount = 0;
     let advanceDeposit = 0;
 
-    if (netAmount > 0) {
-        balanceAmount = netAmount; // Debit Side Heavy
-    } else {
-        advanceDeposit = Math.abs(netAmount); // Credit Side Heavy
-    }
+    if (netAmount > 0) balanceAmount = netAmount;
+    else advanceDeposit = Math.abs(netAmount);
 
-    // Closing Date
-    const closingDate = allTransactions.length > 0 ? 
-        convertToDisplayFormat(allTransactions[allTransactions.length-1].date) : 
+    const closingDate = allTransactions.length > 0 ?
+        convertToDisplayFormat(allTransactions[allTransactions.length - 1].date) :
         (dateRange ? dateRange.endDate : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
 
-    // 6. Update Footer HTML
     if (tfoot) {
+        // FIX: Conditional Advance Deposit Row
+        const advanceRow = advanceDeposit > 0 ? `
+            <tr class="total-row highlight">
+                <td colspan="2" class="right bold">Advance Deposit</td>
+                <td style="text-align:center;" class="right bold" colspan="2">
+                    ₹${advanceDeposit.toFixed(2)}
+                </td>
+            </tr>` : '';
+
         tfoot.innerHTML = `
             <tr class="total-row highlight">
                 <td colspan="2" class="right bold">TOTAL</td>
@@ -5133,12 +5385,7 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
                     ${balanceAmount > 0 ? '₹' + balanceAmount.toFixed(2) : '0.00'}
                 </td>
             </tr>
-            <tr class="total-row highlight">
-                <td colspan="2" class="right bold">Advance Deposit</td>
-                <td style="text-align:center;" class="right bold" colspan="2">
-                    ${advanceDeposit > 0 ? '₹' + advanceDeposit.toFixed(2) : '0.00'}
-                </td>
-            </tr>
+            ${advanceRow}
             <tr class="closing-balance-row">
                 <td id="closing-balance-date">${closingDate}</td>
                 <td class="bold">Closing Balance</td>
@@ -5198,7 +5445,7 @@ async function downloadBillAsJson(billId, billType, event) {
         }
 
         const bill = await getFromDB(storeName, billId);
-        
+
         if (!bill) {
             showNotification('Bill not found in database', 'error');
             console.groupEnd();
@@ -5236,7 +5483,7 @@ async function downloadBillAsJson(billId, billType, event) {
         const dataStr = JSON.stringify(billData, null, 2);
         const dataBlob = new Blob([dataStr], { type: 'application/json' });
         const url = URL.createObjectURL(dataBlob);
-        
+
         const link = document.createElement('a');
         link.href = url;
         link.download = filename;
@@ -5314,17 +5561,17 @@ function createRestoredBillCard(bill) {
         isGST = true;
         billType = 'GST Invoice';
         const gstData = val.gstCustomerData || {};
-        
+
         // GST always uses Bill To Name
         custName = gstData.billTo?.name || val.customer?.billTo?.name || 'Unknown Customer';
         rawBillNo = val.invoiceDetails?.number || gstData.invoiceNo || 'N/A';
         date = val.invoiceDetails?.date || gstData.invoiceDate || 'Unknown';
-    } 
+    }
     // 2. Regular Bill Structure (Apply Fixed Logic)
     else {
         isGST = false;
         const state = val.modalState || {};
-        
+
         billType = state.type || 'Estimate';
         prefix = state.prefix || '';
         rawBillNo = state.invoiceNo || val.customer?.billNo || 'N/A';
@@ -5332,7 +5579,7 @@ function createRestoredBillCard(bill) {
 
         // --- Determine Customer Name based on View Format ---
         const viewFormat = state.viewFormat || 'simple';
-        
+
         if (viewFormat === 'simple') {
             custName = state.simple?.name;
         } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
@@ -5494,7 +5741,7 @@ async function loadRegularRestoredBill(billId) {
 
         // 1. Set as current bill
         await setInDB('billDataManual', 'currentBill', billData);
-        
+
         // 2. Load standard data
         await loadFromLocalStorage();
         saveStateToHistory();
@@ -5503,47 +5750,47 @@ async function loadRegularRestoredBill(billId) {
         const state = billData.modalState;
         if (state) {
             localStorage.setItem('regularBillState', JSON.stringify(state));
-            
+
             if (typeof initRegBillTypes === 'function') initRegBillTypes();
 
             // A. Restore Type & Prefix (Trigger Change)
-            if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-            if(typeof handleRegTypeChange === 'function') handleRegTypeChange();
+            if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+            if (typeof handleRegTypeChange === 'function') handleRegTypeChange();
 
             // B. Restore Values Again (Safety against resets)
-            if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-            if(document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
-            if(document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
-            if(document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
+            if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+            if (document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
+            if (document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
+            if (document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
 
             // C. Restore View Format
-            if(document.getElementById('reg-modal-cust-view-select')) {
+            if (document.getElementById('reg-modal-cust-view-select')) {
                 document.getElementById('reg-modal-cust-view-select').value = state.viewFormat || state.viewMode || 'simple';
-                if(typeof handleRegViewChange === 'function') handleRegViewChange();
+                if (typeof handleRegViewChange === 'function') handleRegViewChange();
             }
 
             // D. Restore Fields
             if (state.simple) {
-                if(document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
-                if(document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
-                if(document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
+                if (document.getElementById('reg-modal-simple-name')) document.getElementById('reg-modal-simple-name').value = state.simple.name || '';
+                if (document.getElementById('reg-modal-simple-phone')) document.getElementById('reg-modal-simple-phone').value = state.simple.phone || '';
+                if (document.getElementById('reg-modal-simple-addr')) document.getElementById('reg-modal-simple-addr').value = state.simple.addr || '';
             }
             if (state.billTo) {
-                if(document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
-                if(document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
-                if(document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
-                if(document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
-                if(document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                if (document.getElementById('reg-modal-bill-name')) document.getElementById('reg-modal-bill-name').value = state.billTo.name || '';
+                if (document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
+                if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
+                if (document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
+                if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
             }
             if (state.shipTo) {
-                if(document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
-                if(document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
-                if(document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
-                if(document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                if(document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                if(document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                if(document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
+                if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
+                if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
+                if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
+                if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
+                if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
             }
 
             // E. Sync to Main View
@@ -5625,19 +5872,19 @@ async function loadRestoredBill(billId, event) {
                 if (typeof initRegBillTypes === 'function') initRegBillTypes();
 
                 // Restore Type & Prefix
-                if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-                if(typeof handleRegTypeChange === 'function') handleRegTypeChange();
+                if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+                if (typeof handleRegTypeChange === 'function') handleRegTypeChange();
 
                 // Restore Values
-                if(document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
-                if(document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
-                if(document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
-                if(document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
+                if (document.getElementById('reg-modal-type-select')) document.getElementById('reg-modal-type-select').value = state.type || 'Estimate';
+                if (document.getElementById('reg-modal-prefix')) document.getElementById('reg-modal-prefix').value = state.prefix || '';
+                if (document.getElementById('reg-modal-invoice-no')) document.getElementById('reg-modal-invoice-no').value = state.invoiceNo || '';
+                if (document.getElementById('reg-modal-date')) document.getElementById('reg-modal-date').value = state.date || '';
 
                 // Restore View Format
-                if(document.getElementById('reg-modal-cust-view-select')) {
+                if (document.getElementById('reg-modal-cust-view-select')) {
                     document.getElementById('reg-modal-cust-view-select').value = state.viewFormat || state.viewMode || 'simple';
-                    if(typeof handleRegViewChange === 'function') handleRegViewChange();
+                    if (typeof handleRegViewChange === 'function') handleRegViewChange();
                 }
 
                 // === SMART RESTORE INPUTS (With Fallback) ===
@@ -5649,10 +5896,10 @@ async function loadRestoredBill(billId, event) {
                 if (state.simple) {
                     const elName = document.getElementById('reg-modal-simple-name');
                     if (elName) elName.value = state.simple.name || mainName;
-                    
+
                     const elPhone = document.getElementById('reg-modal-simple-phone');
                     if (elPhone) elPhone.value = state.simple.phone || mainPhone;
-                    
+
                     const elAddr = document.getElementById('reg-modal-simple-addr');
                     if (elAddr) elAddr.value = state.simple.addr || mainAddr;
                 }
@@ -5669,19 +5916,19 @@ async function loadRestoredBill(billId, event) {
                     // Only fallback phone if it looks like it belongs (optional, but safer)
                     if (elPhone) elPhone.value = state.billTo.phone || (state.billTo.name ? '' : mainPhone);
 
-                    if(document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
-                    if(document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                    if(document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                    if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
+                    if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
+                    if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
                 }
 
                 if (state.shipTo) {
-                    if(document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
-                    if(document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
-                    if(document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
-                    if(document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                    if(document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                    if(document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                    if(document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                    if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
+                    if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
+                    if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
+                    if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
+                    if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
+                    if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
+                    if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
                 }
 
                 // Sync to View
@@ -5691,7 +5938,7 @@ async function loadRestoredBill(billId, event) {
         }
 
         if (currentView === 'input') toggleView();
-        
+
         closeRestoredBillsModal();
         showNotification('Restored bill loaded successfully!', 'success');
 
@@ -9515,7 +9762,7 @@ function initRegBillTypes() {
     // 6. Add Custom Types (Only those that are NOT in the defaults list)
     // This ensures "My Custom Bill" appears AFTER "Work Order"
     const purelyCustomTypes = customTypes.filter(ct => !defaults.includes(ct.name));
-    
+
     purelyCustomTypes.forEach(t => {
         const opt = document.createElement('option');
         opt.value = t.name;
@@ -9628,7 +9875,7 @@ async function handleRegTypeChange(preventSync = false) {
         const currentPrefix = prefixInput.value;
         const nextNo = await getNextInvoiceNumberAsync(type, currentPrefix);
         document.getElementById('reg-modal-invoice-no').value = nextNo;
-        
+
         // Sync to view immediately
         syncRegularData('modal');
     }
@@ -9862,7 +10109,7 @@ function copyRegBillToShip() {
 async function saveRegularBillDetails(isSilentLoad = false) {
     // 1. Get Data
     const typeEl = document.getElementById('reg-modal-type-select');
-    
+
     // --- VALIDATION START ---
     // Check if user is trying to save the "Custom..." placeholder
     if (!isSilentLoad && typeEl && typeEl.value === 'Custom') {
@@ -9941,7 +10188,7 @@ async function saveRegularBillDetails(isSilentLoad = false) {
     const advancedView = document.getElementById('reg-advanced-view');
     const shipCol = document.getElementById('adv-ship-col');
 
-    let activeCustomerName = ''; 
+    let activeCustomerName = '';
 
     if (viewMode === 'simple') {
         if (defaultView) defaultView.style.display = 'block';
@@ -10032,7 +10279,7 @@ async function saveRegularBillDetails(isSilentLoad = false) {
 function resetRegularModal() {
     // 1. Clear Input Fields
     document.getElementById('reg-modal-invoice-no').value = '';
-    
+
     // Set Date to Today (DD-MM-YYYY)
     const today = new Date();
     const dd = String(today.getDate()).padStart(2, '0');
@@ -10072,7 +10319,7 @@ function resetRegularModal() {
         // 1. Menu Hide
         // 2. Label Update
         // 3. Next Invoice Number Fetch
-        handleRegTypeChange(); 
+        handleRegTypeChange();
     } else {
         // Fallback if select doesn't exist for some reason
         saveRegularBillDetails();
@@ -10132,7 +10379,7 @@ async function applySavedBillsFilter() {
                     const term = searchInput.replace('/amt/', '').trim();
                     const amountStr = (val.totalAmount || '').toString().toLowerCase();
                     matchesSearch = amountStr.includes(term);
-                } 
+                }
                 // Command: GSTIN (/gstin/)
                 else if (searchInput.startsWith('/gstin/')) {
                     const term = searchInput.replace('/gstin/', '').trim();
@@ -10146,13 +10393,13 @@ async function applySavedBillsFilter() {
                     const term = searchInput.replace('/date/', '').trim();
                     const dateStr = (val.date || '').toString().toLowerCase();
                     matchesSearch = dateStr.includes(term);
-                } 
+                }
                 // Command: Month (/month/)
                 else if (searchInput.startsWith('/month/')) {
                     let term = searchInput.replace('/month/', '').trim();
                     // Handle single digit input (e.g., '5' -> '05')
                     if (term.length === 1) term = '0' + term;
-                    
+
                     const dateStr = (val.date || ''); // Format: DD-MM-YYYY
                     const parts = dateStr.split('-');
                     if (parts.length === 3) {
@@ -10160,7 +10407,7 @@ async function applySavedBillsFilter() {
                     } else {
                         matchesSearch = false;
                     }
-                } 
+                }
                 // Command: Year (/year/)
                 else if (searchInput.startsWith('/year/')) {
                     const term = searchInput.replace('/year/', '').trim();
@@ -10176,13 +10423,13 @@ async function applySavedBillsFilter() {
                 else {
                     const title = val.title?.toLowerCase() || '';
                     const billNo = (val.customer?.billNo || val.invoiceDetails?.number || '').toString().toLowerCase();
-                    
+
                     let nameMatch = false;
                     if (isGST) {
-                         // GST: Search Bill To / Ship To names
-                         const billToName = val.customer?.billTo?.name?.toLowerCase() || '';
-                         const shipToName = val.customer?.shipTo?.name?.toLowerCase() || '';
-                         nameMatch = billToName.includes(searchInput) || shipToName.includes(searchInput);
+                        // GST: Search Bill To / Ship To names
+                        const billToName = val.customer?.billTo?.name?.toLowerCase() || '';
+                        const shipToName = val.customer?.shipTo?.name?.toLowerCase() || '';
+                        nameMatch = billToName.includes(searchInput) || shipToName.includes(searchInput);
                     } else {
                         // Regular: Search Simple Name, Bill To Name, Customer Name
                         const custName = val.customer?.name?.toLowerCase() || '';
@@ -10268,23 +10515,23 @@ async function applySavedBillsFilter() {
 
                 billCard.addEventListener('click', async (e) => {
                     if (e.target.closest('.card-controls')) return;
-                    
+
                     if (typeof resetEditMode === 'function') resetEditMode();
                     if (typeof clearAllData === 'function') await clearAllData(true);
-                    
+
                     // Force switch to GST Mode UI
                     if (!isGSTMode) {
                         isGSTMode = true;
-                        if(typeof updateUIForGSTMode === 'function') updateUIForGSTMode();
+                        if (typeof updateUIForGSTMode === 'function') updateUIForGSTMode();
                     }
                     if (typeof loadGSTSavedBill === 'function') await loadGSTSavedBill(bill.id);
                     closeSavedBillsModal();
 
                     // Refresh Calculations
                     setTimeout(() => {
-                        if(typeof copyItemsToGSTBill === 'function') copyItemsToGSTBill();
-                        if(typeof updateGSTTaxCalculation === 'function') updateGSTTaxCalculation();
-                        if(typeof resetColumnVisibility === 'function') resetColumnVisibility();
+                        if (typeof copyItemsToGSTBill === 'function') copyItemsToGSTBill();
+                        if (typeof updateGSTTaxCalculation === 'function') updateGSTTaxCalculation();
+                        if (typeof resetColumnVisibility === 'function') resetColumnVisibility();
                     }, 100);
                 });
 
@@ -10295,7 +10542,7 @@ async function applySavedBillsFilter() {
                 const rawBillNo = state.invoiceNo || val.customer?.billNo || 'N/A';
                 const prefix = state.prefix || '';
                 const billType = state.type || 'Regular';
-                
+
                 // Name Logic
                 const viewFormat = state.viewFormat || 'simple';
                 let custName = 'N/A';
@@ -10344,11 +10591,11 @@ async function applySavedBillsFilter() {
 
                     if (typeof resetEditMode === 'function') resetEditMode();
                     if (typeof clearAllData === 'function') await clearAllData(true);
-                    
+
                     // Force switch to Regular Mode UI
                     if (isGSTMode) {
                         isGSTMode = false;
-                        if(typeof updateUIForGSTMode === 'function') updateUIForGSTMode();
+                        if (typeof updateUIForGSTMode === 'function') updateUIForGSTMode();
                     }
                     if (typeof loadSavedBill === 'function') await loadSavedBill(bill.id);
                     closeSavedBillsModal();
@@ -10419,12 +10666,12 @@ async function syncRegularData(source) {
         if (viewDate) viewDate.value = modalDate.value;
 
         if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
-        
+
         // --- FIX: Manually Trigger Rate Check ---
         // Since we are changing values via code, the 'input' listener on main view won't fire.
         // We must call the rate check manually here.
         const activeName = modalName.value || modalBillName.value;
-        
+
         if (activeName && typeof checkAndApplyCustomerRates === 'function') {
             checkAndApplyCustomerRates(activeName); // This will respect the 'Invoice' restriction
         }
@@ -10462,7 +10709,7 @@ function syncBillHeadingToSettings(typeVal) {
    STATE PERSISTENCE (Save/Load)
    ========================================== */
 
-document.addEventListener('DOMContentLoaded',async () => {
+document.addEventListener('DOMContentLoaded', async () => {
     // ... your other init code ...
     // 1. Init Options
     if (typeof initRegBillTypes === 'function') initRegBillTypes();
