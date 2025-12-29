@@ -159,9 +159,20 @@
     <!-- Ledger Dialog -->
     <div class="ledger-dialog" id="ledger-dialog">
         <div class="ledger-dialog-content">
-            <div class="ledger-dialog-header">
-                <h3 id="ledger-dialog-title" style="margin: 0;">Ledger - Customer Name</h3>
-                <button class="close-ledger-dialog" id="close-ledger-dialog">×</button>
+            <div class="ledger-dialog-header"
+                style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 id="ledger-dialog-title" style="margin: 0;">Ledger</h3>
+
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <button onclick="downloadLedgerPDF()" class="icon-btn" title="Download PDF"
+                        style="background: white; border: 1px solid #ddd; padding: 5px 10px; border-radius: 4px; cursor: pointer;">
+                        <span class="material-icons"
+                            style="font-size: 20px; color: var(--primary-color);">picture_as_pdf</span>
+                    </button>
+
+                    <button class="close-ledger-dialog" id="close-ledger-dialog"
+                        style="background:none; border:none; font-size:24px; cursor:pointer;">×</button>
+                </div>
             </div>
             <div class="ledger-dialog-body">
                 <!-- Date Range Selector -->
@@ -196,8 +207,8 @@
                             <tr>
                                 <th>Date</th>
                                 <th>Particulars</th>
-                                <th>Debit Amount (INR)</th>
-                                <th>Credit Amount (INR)</th>
+                                <th>Debit Amount</th>
+                                <th>Credit Amount</th>
                             </tr>
                         </thead>
                         <tbody id="ledger-tbody">
@@ -3394,9 +3405,11 @@
         </div>
     </div>
 
+    <!-- PDF MAKE -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
     <!-- OCR SCRIPTS -->
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
