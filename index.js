@@ -643,8 +643,8 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
     }
 }
 
-/* 3. GET PAYMENTS (Fixed for Ledger - Case Insensitive) */
-async function getCustomerPayments(customerName, gstin, type = 'payment', filters = {}) {
+/* 2. GET PAYMENTS (Fixed: Adaptive Logic for Regular Mode) */
+async function getCustomerPayments(customerName, gstin, type = 'payment', filters = {}, mode = 'regular') {
     const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
     if(!customerName) return [];
 
@@ -656,33 +656,41 @@ async function getCustomerPayments(customerName, gstin, type = 'payment', filter
         const searchGST = gstin ? gstin.toLowerCase().trim() : '';
 
         let records = allRecords.filter(record => {
-            const rVal = record.value || record; // Handle wrapped vs raw objects
-            
-            // 1. Check GSTIN match
-            if (searchGST && rVal.gstin) {
-                return rVal.gstin.toLowerCase().trim() === searchGST;
-            } 
-            
-            // 2. Check Name Match (Case Insensitive)
+            const rVal = record.value || record;
             const recName = (rVal.customerName || '').toLowerCase().trim();
-            return recName === searchName;
+            const recGST = (rVal.gstin || '').toLowerCase().trim();
+
+            if (mode === 'gst') {
+                // GST Mode: Must match GSTIN strictly
+                if (searchGST.length > 2) {
+                    return recGST === searchGST;
+                }
+                return false; 
+            } else {
+                // Regular Mode
+                if (searchGST.length > 2) {
+                    // CASE A: Regular Customer HAS a GSTIN (e.g. "asura redoc")
+                    // We match Name AND that specific GSTIN
+                    return recName === searchName && recGST === searchGST;
+                } else {
+                    // CASE B: Regular Customer has NO GSTIN
+                    // We match Name AND ensure record has NO GSTIN (prevents bleeding from GST profiles)
+                    return recName === searchName && (!recGST || recGST.length < 5);
+                }
+            }
         }).map(r => r.value || r);
 
-        // Apply filters if function exists
         if (typeof applyPaymentFilters === 'function') {
             records = applyPaymentFilters(records, filters);
         }
-
-        console.log(`[PAYMENTS] Found ${records.length} ${type}s`);
         return records;
-
     } catch (error) {
         console.error(`[PAYMENTS] Error fetching ${type}:`, error);
         return [];
     }
 }
 
-/* 2. SEARCH FILTER (Added Receipt No & Ref No Support) */
+/* 2. FILTER & SORT (Updated: Added Receipt Sorting) */
 function applyPaymentFilters(records, filters) {
     if (!filters) return records;
 
@@ -692,16 +700,12 @@ function applyPaymentFilters(records, filters) {
     if (filters.search) {
         const term = filters.search.toLowerCase().trim();
         filtered = filtered.filter(item => {
-            // Existing checks
             const method = (item.method || '').toLowerCase();
             const amount = (item.amount || '').toString();
             const notes = (item.notes || '').toLowerCase();
             const date = (item.date || '').toLowerCase();
-            
-            // NEW: Receipt Number Check
             const receipt = (item.receiptNo || '').toString();
             
-            // NEW: Reference Check (Construct the string to search against)
             const type = item.refType || '';
             const prefix = item.refPrefix || '';
             const billNo = item.refBillNo || '';
@@ -712,8 +716,8 @@ function applyPaymentFilters(records, filters) {
                    amount.includes(term) || 
                    notes.includes(term) || 
                    date.includes(term) ||
-                   receipt.includes(term) || // Search by "1", "2"
-                   fullRef.includes(term);   // Search by "Invoice", "001"
+                   receipt.includes(term) ||
+                   fullRef.includes(term);
         });
     }
 
@@ -728,6 +732,10 @@ function applyPaymentFilters(records, filters) {
             } else if (filters.sortBy === 'amount') {
                 valA = parseFloat(a.amount);
                 valB = parseFloat(b.amount);
+            } else if (filters.sortBy === 'receipt') {
+                // NEW: Sort by Receipt Number
+                valA = parseInt(a.receiptNo || 0);
+                valB = parseInt(b.receiptNo || 0);
             }
 
             if (filters.sortOrder === 'asc') {
@@ -3462,7 +3470,7 @@ async function saveCustomer() {
         console.error('Error saving customer:', error);
     }
 }
-//load regular mode customers
+/* 1. LOAD REGULAR CUSTOMERS (Fixed Name & Passing 'regular' mode) */
 async function loadCustomersList() {
     try {
         const customers = await getAllFromDB('savedCustomers');
@@ -3537,10 +3545,10 @@ async function loadCustomersList() {
                                 <span class="material-icons">more_vert</span>
                             </button>
                             <div id="${menuId}" class="action-dropdown">
-                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}', 'regular')">
                                     <span class="material-icons">payments</span> Payment & CN
                                 </button>
-                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}')">
+                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}', 'regular')">
                                     <span class="material-icons">book</span> Ledger
                                 </button>
                                 <button class="dropdown-item" onclick="editCustomer('${val.name}')">
