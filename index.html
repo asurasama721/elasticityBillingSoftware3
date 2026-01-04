@@ -2379,7 +2379,7 @@
         </div>
     </div>
 
-    <div id="share-modal" class="modal">
+    <div id="share-modal" class="modal" style="display: block;">
         <div class="modal-content" style="max-width: 400px; text-align: center;">
             <div class="modal-header">
                 <h3>Share Options</h3>
@@ -2388,10 +2388,29 @@
             <div class="modal-body">
                 <p style="margin-bottom: 20px; color: #666;">Choose how you want to share:</p>
 
-                <button onclick="handleSharePDF()" class="btn-share"
-                    style="width: 100%; justify-content: center; margin-bottom: 15px; padding: 12px; font-size: 16px;">
-                    <span class="material-icons">picture_as_pdf</span> Share Bill PDF
-                </button>
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button onclick="handleSharePDF()" class="btn-share"
+                        style="flex: 1; justify-content: center; padding: 12px; font-size: 16px;">
+                        <span class="material-icons">picture_as_pdf</span> Share Bill PDF
+                    </button>
+
+                    <button onclick="downloadPDF()" class="btn-share"
+                        style="flex: 0 0 auto; padding: 0 15px; justify-content: center;" title="Download PDF">
+                        <span class="material-icons">download</span>
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <button onclick="handleShareImage()" class="btn-share"
+                        style="flex: 1; justify-content: center; padding: 12px; font-size: 16px;">
+                        <span class="material-icons">image</span> Share Bill Image
+                    </button>
+
+                    <button onclick="handleDownloadImage()" class="btn-share"
+                        style="flex: 0 0 auto; padding: 0 15px; justify-content: center;" title="Download Image">
+                        <span class="material-icons">download</span>
+                    </button>
+                </div>
 
                 <button onclick="handleSayHi()" class="btn-share"
                     style="width: 100%; justify-content: center;padding: 12px; font-size: 16px;">
