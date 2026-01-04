@@ -49,8 +49,14 @@ const SCAN_DELAY = 1500;
 
 let isVendorMode = false;
 let currentVendorFile = null; // Stores Base64 string of uploaded bill
-let currentlyEditingVendorId = null;
+// let currentlyEditingVendorId = null;
 let currentVendorBillsMode = 'regular'; // 'regular' or 'gst'
+// --- VENDOR GLOBAL STATE ---
+let isVendorSortAscending = true;      // Sort A-Z by default
+let isVendorBillsSortNewest = true;    // Sort Newest First by default
+let currentVendorListMode = 'regular'; // 'regular' or 'gst'
+let currentVendorBillListMode = 'regular'; // 'regular' or 'gst'
+let currentlyEditingVendorId = null;   // Track which vendor is being edited
 
 // Add/Update this at the top with other global variables
 let autoScrollEnabled = localStorage.getItem('billApp_autoScroll') === 'true';
@@ -62,6 +68,7 @@ let paymentDraftState = {
     payment: {},
     'credit-note': {}
 };
+let currentPaymentPrefill = null;
 
 let isCustomerSortAscending = true; // Default A-Z
 
@@ -153,6 +160,14 @@ function initDB() {
                 const expenseStore = database.createObjectStore('expenses', { keyPath: 'id' });
                 expenseStore.createIndex('date', 'date', { unique: false });
                 expenseStore.createIndex('category', 'category', { unique: false });
+            }
+
+            // === NEW VENDOR PAYMENT STORES ===
+            if (!database.objectStoreNames.contains('vendorPayments')) {
+                database.createObjectStore('vendorPayments', { keyPath: 'id' });
+            }
+            if (!database.objectStoreNames.contains('vendorCreditNotes')) {
+                database.createObjectStore('vendorCreditNotes', { keyPath: 'id' });
             }
 
             // NEW: Add payment and credit note object stores
@@ -264,25 +279,40 @@ async function removeFromDB(storeName, key) {
 
 // Save payment/credit note
 async function savePaymentRecord(customerName, gstin, paymentData, type = 'payment') {
-    console.log(`[SAVE] Saving ${type} for ${customerName}`, paymentData);
-    
-    const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
-    const recordId = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const mode = currentPaymentCustomer?.mode || 'regular';
+    console.log(`[SAVE] Saving ${type} for ${customerName} (Mode: ${mode})`, paymentData);
 
-    // FIXED: Using spread (...paymentData) to ensure receiptNo and ref fields are saved
+    let storeName = '';
+    let recordIdPrefix = '';
+
+    if (mode === 'vendor') {
+        storeName = type === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+        recordIdPrefix = type === 'payment' ? 'vendor-pay' : 'vendor-cn';
+    } else {
+        storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        recordIdPrefix = type === 'payment' ? 'cust-pay' : 'cust-cn';
+    }
+
+    const recordId = `${recordIdPrefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const now = Date.now();
+
     const record = {
         id: recordId,
         customerName: customerName,
         gstin: gstin,
         type: type,
-        timestamp: Date.now(),
-        ...paymentData // <--- CRITICAL FIX: Saves receiptNo, refType, refBillNo etc.
+        timestamp: now, // Legacy timestamp
+        createdAt: now, // NEW: Creation timestamp for sorting
+        updatedAt: now, // NEW: Last updated timestamp
+        mode: mode, 
+        ...paymentData 
     };
 
     await setInDB(storeName, recordId, record);
-    console.log(`[SAVE] Success. ID: ${recordId}`);
+    console.log(`[SAVE] Success. ID: ${recordId} in ${storeName}`);
     return recordId;
 }
+
 // Toggle auto-apply customer rates
 async function toggleAutoApplyRates() {
     try {
@@ -344,19 +374,19 @@ async function getCustomerRateSuggestion(identifier, itemName) {
     try {
         const searchItem = itemName.toLowerCase().trim();
         const searchIdentifier = identifier.toLowerCase().trim();
-        
+
         let targetBills = [];
 
         if (isGSTMode) {
             // --- GST MODE: Search by GSTIN in gstSavedBills ---
             const rawBills = await getAllFromDB('gstSavedBills');
-            
+
             // 1. Filter: Match GSTIN (Bill To OR Ship To)
             targetBills = rawBills.filter(bill => {
                 const val = bill.value;
                 const billTo = val.customer?.billTo?.gstin?.toLowerCase();
                 const shipTo = val.customer?.shipTo?.gstin?.toLowerCase();
-                
+
                 return billTo === searchIdentifier || shipTo === searchIdentifier;
             });
 
@@ -378,9 +408,9 @@ async function getCustomerRateSuggestion(identifier, itemName) {
                 const billName = val.modalState?.billTo?.name?.toLowerCase();
                 const legacyName = val.customer?.name?.toLowerCase(); // Fallback for old data
 
-                return simpleName === searchIdentifier || 
-                       billName === searchIdentifier || 
-                       legacyName === searchIdentifier;
+                return simpleName === searchIdentifier ||
+                    billName === searchIdentifier ||
+                    legacyName === searchIdentifier;
             });
         }
 
@@ -396,7 +426,7 @@ async function getCustomerRateSuggestion(identifier, itemName) {
         // 3. TRAVERSE: Stop at the FIRST match (which is the most recent due to sorting)
         for (const bill of targetBills) {
             const val = bill.value;
-            
+
             // Handle various item structures (Regular 'items', GST 'items', or Legacy 'tableStructure')
             let itemsList = val.items || [];
             // Fallback for very old Regular bills that used tableStructure
@@ -413,7 +443,7 @@ async function getCustomerRateSuggestion(identifier, itemName) {
                 // Logic: Match Name AND ensure it's not a header/total row
                 if (storedName === searchItem && storedType === 'item') {
                     const rate = parseFloat(item.rate || 0);
-                    
+
                     if (rate > 0) {
                         // FOUND THE LATEST RATE! Return immediately.
                         return {
@@ -645,8 +675,16 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
 
 /* 2. GET PAYMENTS (Fixed: Adaptive Logic for Regular Mode) */
 async function getCustomerPayments(customerName, gstin, type = 'payment', filters = {}, mode = 'regular') {
-    const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
-    if(!customerName) return [];
+    // Determine Store based on Mode
+    let storeName = '';
+    
+    if (mode === 'vendor') {
+        storeName = type === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+    } else {
+        storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+    }
+
+    if (!customerName) return [];
 
     try {
         const allRecords = await getAllFromDB(storeName);
@@ -660,21 +698,22 @@ async function getCustomerPayments(customerName, gstin, type = 'payment', filter
             const recName = (rVal.customerName || '').toLowerCase().trim();
             const recGST = (rVal.gstin || '').toLowerCase().trim();
 
-            if (mode === 'gst') {
+            if (mode === 'vendor') {
+                 // Vendor Match: Strict Name match
+                 return recName === searchName;
+            } else if (mode === 'gst') {
                 // GST Mode: Must match GSTIN strictly
                 if (searchGST.length > 2) {
                     return recGST === searchGST;
                 }
-                return false; 
+                return false;
             } else {
                 // Regular Mode
                 if (searchGST.length > 2) {
-                    // CASE A: Regular Customer HAS a GSTIN (e.g. "asura redoc")
-                    // We match Name AND that specific GSTIN
+                    // CASE A: Regular Customer HAS a GSTIN
                     return recName === searchName && recGST === searchGST;
                 } else {
                     // CASE B: Regular Customer has NO GSTIN
-                    // We match Name AND ensure record has NO GSTIN (prevents bleeding from GST profiles)
                     return recName === searchName && (!recGST || recGST.length < 5);
                 }
             }
@@ -685,7 +724,7 @@ async function getCustomerPayments(customerName, gstin, type = 'payment', filter
         }
         return records;
     } catch (error) {
-        console.error(`[PAYMENTS] Error fetching ${type}:`, error);
+        console.error(`[PAYMENTS] Error fetching ${type} for ${mode}:`, error);
         return [];
     }
 }
@@ -705,19 +744,19 @@ function applyPaymentFilters(records, filters) {
             const notes = (item.notes || '').toLowerCase();
             const date = (item.date || '').toLowerCase();
             const receipt = (item.receiptNo || '').toString();
-            
+
             const type = item.refType || '';
             const prefix = item.refPrefix || '';
             const billNo = item.refBillNo || '';
             const refDisplay = item.refDisplay || '';
             const fullRef = `${type} ${prefix}${billNo} ${refDisplay}`.toLowerCase();
 
-            return method.includes(term) || 
-                   amount.includes(term) || 
-                   notes.includes(term) || 
-                   date.includes(term) ||
-                   receipt.includes(term) ||
-                   fullRef.includes(term);
+            return method.includes(term) ||
+                amount.includes(term) ||
+                notes.includes(term) ||
+                date.includes(term) ||
+                receipt.includes(term) ||
+                fullRef.includes(term);
         });
     }
 
@@ -725,7 +764,7 @@ function applyPaymentFilters(records, filters) {
     if (filters.sortBy) {
         filtered.sort((a, b) => {
             let valA, valB;
-            
+
             if (filters.sortBy === 'date') {
                 valA = new Date(convertDateToISO(a.date));
                 valB = new Date(convertDateToISO(b.date));
@@ -750,7 +789,7 @@ function applyPaymentFilters(records, filters) {
     if (filters.period && filters.period !== 'all') {
         const today = new Date();
         const cutoffDate = new Date();
-        
+
         if (filters.period === '1month') cutoffDate.setMonth(today.getMonth() - 1);
         if (filters.period === '3months') cutoffDate.setMonth(today.getMonth() - 3);
         if (filters.period === '6months') cutoffDate.setMonth(today.getMonth() - 6);
@@ -766,7 +805,15 @@ function applyPaymentFilters(records, filters) {
 
 // Delete payment/credit note
 async function deletePaymentRecord(recordId, type = 'payment') {
-    const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+    const mode = currentPaymentCustomer?.mode || 'regular';
+    let storeName = '';
+
+    if (mode === 'vendor') {
+        storeName = type === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+    } else {
+        storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+    }
+
     await removeFromDB(storeName, recordId);
 }
 
@@ -1256,6 +1303,19 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                 if (customerName) {
                     openPaymentDialog(customerName, gstin);
+                }
+            }
+        });
+        // --- CLICK OUTSIDE LISTENER FOR VENDOR SUGGESTIONS ---
+        document.addEventListener('click', function (event) {
+            const suggestions = document.getElementById('vendor-suggestions');
+            const input = document.getElementById('vendorName');
+
+            // If suggestions are visible
+            if (suggestions && suggestions.style.display === 'block') {
+                // If the click is NOT on the input AND NOT on the suggestion box itself
+                if (!input.contains(event.target) && !suggestions.contains(event.target)) {
+                    suggestions.style.display = 'none';
                 }
             }
         });
@@ -2010,13 +2070,33 @@ async function handleItemSearch() {
     }
 }
 
-// Handle item selection from suggestions
-function selectItemSuggestion(itemName) {
+async function selectItemSuggestion(itemName) {
     document.getElementById('itemNameManual').value = itemName;
     document.getElementById('item-suggestions').style.display = 'none';
 
-    // Trigger the existing item name input handler
-    handleItemNameInput();
+    // Trigger basic input handler to fetch item data
+    await handleItemNameInput();
+
+    // --- FORCE CONVERT UI UPDATE ---
+    try {
+        const item = await getFromDB('savedItems', itemName);
+        if (item && item.convertUnit && item.convertUnit !== 'none') {
+            const convertSelect = document.getElementById('convertUnit');
+            const convertBtn = document.getElementById('toggleConvertBtn');
+            
+            if (convertSelect) {
+                convertSelect.value = item.convertUnit;
+                // Force UI Visible
+                convertSelect.style.display = 'inline-block';
+                if (convertBtn) {
+                    convertBtn.classList.add('active');
+                    convertBtn.style.backgroundColor = '#95a5a6'; // Active style
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error setting convert unit UI", e);
+    }
 }
 
 // Toggle More Options in Add Item Modal
@@ -2425,57 +2505,49 @@ function closeAddItemModal() {
 }
 
 // Handle dimension type change in saved items modal
-// FIND this function in index.js and REPLACE it with this version:
 function handleSavedDimensionTypeChange() {
-    // 1. Get Elements (Modal Specific IDs)
+    // 1. Get Elements
     const dimensionType = document.getElementById('saved-dimension-type').value;
 
-    // TARGET THE CONTAINER DIV (Label + Select)
+    // WRAPPERS
     const measurementUnitWrapper = document.getElementById('saved-measurement-unit-wrapper');
     const measurementUnitSelect = document.getElementById('saved-measurement-unit');
-
+    const convertUnitWrapper = document.getElementById('saved-convert-unit-wrapper'); // NEW
     const dimensionInputs = document.getElementById('saved-dimension-inputs');
 
     // Inputs
     const dim1 = document.getElementById('saved-dimension1');
     const dim2 = document.getElementById('saved-dimension2');
     const dim3 = document.getElementById('saved-dimension3');
-
-    // Inputs Containers
     const inputs = document.querySelectorAll('#saved-dimension-inputs .dimension-input-with-toggle');
 
-    // --- REMOVED THE FORCED RESET LOGIC HERE --- 
-    // The lines setting .checked = true were deleted
-
-    // Reset values only if they're not already set
+    // Reset values only if empty
     if (dim1 && !dim1.value) dim1.value = '';
     if (dim2 && !dim2.value) dim2.value = '';
     if (dim3 && !dim3.value) dim3.value = '';
 
     // --- VISIBILITY LOGIC ---
     if (dimensionType === 'none' || dimensionType === 'dozen') {
-        // HIDE THE CONTAINER
+        // HIDE ALL
         if (measurementUnitWrapper) measurementUnitWrapper.style.display = 'none';
         if (measurementUnitSelect) measurementUnitSelect.style.display = 'none';
+        if (convertUnitWrapper) convertUnitWrapper.style.display = 'none'; // Hide Convert
         if (dimensionInputs) dimensionInputs.style.display = 'none';
     } else {
-        // SHOW THE CONTAINER
+        // SHOW ALL
         if (measurementUnitWrapper) measurementUnitWrapper.style.display = 'block';
         if (measurementUnitSelect) measurementUnitSelect.style.display = 'block';
+        if (convertUnitWrapper) convertUnitWrapper.style.display = 'block'; // Show Convert
         if (dimensionInputs) dimensionInputs.style.display = 'block';
 
-        // Hide all inputs first
+        // Manage Input Visibility
         inputs.forEach(input => input.style.display = 'none');
-
-        // Show first input for all types
         if (inputs[0]) inputs[0].style.display = 'flex';
         if (dim1) dim1.style.display = 'inline-block';
 
-        // Set placeholders based on dimension type
+        // Set placeholders
         switch (dimensionType) {
-            case 'length':
-                if (dim1) dim1.placeholder = 'Length';
-                break;
+            case 'length': if (dim1) dim1.placeholder = 'Length'; break;
             case 'widthXheight':
                 if (inputs[1]) inputs[1].style.display = 'flex';
                 if (dim1) dim1.placeholder = 'Width';
@@ -2622,34 +2694,39 @@ async function editItem(itemName) {
             document.getElementById('add-item-modal-title').textContent = 'Edit Item';
             document.getElementById('save-item-btn').textContent = 'Update Item';
 
-            // Populate Fields
+            // Populate Basic Fields
             document.getElementById('saved-item-name').value = item.name;
             document.getElementById('saved-category').value = item.category || '';
             document.getElementById('saved-min-stock').value = item.minStock || 0;
             document.getElementById('saved-batch-number').value = item.batchNumber || '';
             document.getElementById('saved-section-code').value = item.sectionCode || '';
             document.getElementById('saved-barcode').value = item.barcode || '';
-
-            // --- NEW: Populate Brand & Vendor ---
             document.getElementById('saved-brand-name').value = item.brandName || '';
             document.getElementById('saved-vendor-name').value = item.vendorName || '';
 
-            // --- NEW: Populate Sale Price & MRP ---
+            // Populate Prices
             document.getElementById('saved-sale-price').value = item.salePrice || item.defaultRate || '';
             document.getElementById('saved-sale-tax-type').value = item.saleTaxType || item.taxType || 'exclusive';
-
             document.getElementById('saved-mrp').value = item.mrp || '';
             document.getElementById('saved-mrp-tax-type').value = item.mrpTaxType || 'exclusive';
-            // --------------------------------------
 
             document.getElementById('saved-stock-quantity').value = item.stockQuantity || 0;
-            document.getElementById('saved-dimension-type').value = item.dimensionType || 'none';
-            document.getElementById('saved-measurement-unit').value = item.measurementUnit || 'ft';
             document.getElementById('saved-default-quantity').value = item.defaultQuantity || 1;
             document.getElementById('saved-select-unit').value = item.defaultUnit || '';
 
+            // --- DIMENSIONS & UNITS ---
+            document.getElementById('saved-dimension-type').value = item.dimensionType || 'none';
+            document.getElementById('saved-measurement-unit').value = item.measurementUnit || 'ft';
+            
+            // *** FIX: Populate Convert Unit ***
+            if (document.getElementById('saved-convert-unit')) {
+                document.getElementById('saved-convert-unit').value = item.convertUnit || 'none';
+            }
+            // ----------------------------------
+
             if (document.getElementById('saved-barcode-type')) document.getElementById('saved-barcode-type').value = item.barcodeType || 'CODE_128';
 
+            // Populate Dimension Values
             if (item.dimensionValues) {
                 document.getElementById('saved-dimension1').value = parseFloat(item.dimensionValues[0]) || '';
                 document.getElementById('saved-dimension2').value = parseFloat(item.dimensionValues[1]) || '';
@@ -2660,18 +2737,22 @@ async function editItem(itemName) {
                 document.getElementById('saved-dimension3').value = '';
             }
 
+            // Populate Toggles
             if (item.dimensionToggles) {
                 if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = item.dimensionToggles.toggle1;
                 if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = item.dimensionToggles.toggle2;
                 if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = item.dimensionToggles.toggle3;
             } else {
+                // Default to true if not set
                 if (document.getElementById('saved-dimension1-toggle')) document.getElementById('saved-dimension1-toggle').checked = true;
                 if (document.getElementById('saved-dimension2-toggle')) document.getElementById('saved-dimension2-toggle').checked = true;
                 if (document.getElementById('saved-dimension3-toggle')) document.getElementById('saved-dimension3-toggle').checked = true;
             }
 
+            // Recalculate Logic to show/hide inputs based on toggles/values
             updateSavedDimensionCalculation();
 
+            // Populate Extras
             document.getElementById('saved-discount-type').value = item.discountType || 'none';
             document.getElementById('saved-discount-value').value = item.discountValue || '';
             document.getElementById('saved-hsn-code').value = item.hsnCode || '';
@@ -2679,10 +2760,14 @@ async function editItem(itemName) {
             document.getElementById('saved-purchase-rate').value = item.purchaseRate || '';
             document.getElementById('saved-other-names').value = item.otherNames || '';
             document.getElementById('saved-notes').value = item.notes || '';
+            
+            // Reset UI State
             document.getElementById('more-options-container').style.display = 'none';
             document.getElementById('toggle-more-options-btn').innerHTML = 'More Options <span class="material-icons">keyboard_arrow_down</span>';
 
+            // Trigger Visibility Update for new values
             handleSavedDimensionTypeChange();
+            
             document.getElementById('add-item-modal').style.display = 'block';
         }
     } catch (error) {
@@ -2693,44 +2778,12 @@ async function editItem(itemName) {
 
 async function saveItem() {
     const itemName = document.getElementById('saved-item-name').value.trim();
-    // Existing Fields
-    const category = document.getElementById('saved-category').value.trim();
-    const batchNumber = document.getElementById('saved-batch-number').value.trim();
-    const sectionCode = document.getElementById('saved-section-code').value.trim();
+    if (!itemName) { showNotification('Please enter an item name'); return; }
 
-    const brandName = document.getElementById('saved-brand-name').value.trim();
-    const vendorName = document.getElementById('saved-vendor-name').value.trim();
-
-    const barcode = document.getElementById('saved-barcode').value.trim();
-    const barcodeType = document.getElementById('saved-barcode-type') ? document.getElementById('saved-barcode-type').value : 'CODE128';
-
-    const salePrice = parseFloat(document.getElementById('saved-sale-price').value) || 0;
-    const saleTaxType = document.getElementById('saved-sale-tax-type').value;
-    const mrp = parseFloat(document.getElementById('saved-mrp').value) || 0;
-    const mrpTaxType = document.getElementById('saved-mrp-tax-type').value;
-
-    const dimensionType = document.getElementById('saved-dimension-type').value;
-    const measurementUnit = document.getElementById('saved-measurement-unit').value;
-    const defaultQuantity = parseFloat(document.getElementById('saved-default-quantity').value) || 1;
-    const defaultUnit = document.getElementById('saved-select-unit').value.trim();
-    // const defaultRate = parseFloat(document.getElementById('saved-default-rate').value) || 0;
-
-    const discountType = document.getElementById('saved-discount-type').value;
-    const discountValue = parseFloat(document.getElementById('saved-discount-value').value) || 0;
-    const hsnCode = document.getElementById('saved-hsn-code').value.trim();
-
-    const stockQuantity = parseInt(document.getElementById('saved-stock-quantity').value) || 0;
-    const minStock = parseInt(document.getElementById('saved-min-stock').value) || 0;
-
-    const productCode = document.getElementById('saved-product-code').value.trim();
-    const purchaseRate = parseFloat(document.getElementById('saved-purchase-rate').value) || 0;
-    const otherNames = document.getElementById('saved-other-names').value.trim();
-    const notes = document.getElementById('saved-notes').value.trim();
-
+    const convertUnit = document.getElementById('saved-convert-unit') ? document.getElementById('saved-convert-unit').value : 'none';
     const dimension1 = parseFloat(document.getElementById('saved-dimension1').value) || 0;
     const dimension2 = parseFloat(document.getElementById('saved-dimension2').value) || 0;
     const dimension3 = parseFloat(document.getElementById('saved-dimension3').value) || 0;
-    const dimensionValues = [dimension1, dimension2, dimension3];
 
     const toggleStates = {
         toggle1: document.getElementById('saved-dimension1-toggle') ? document.getElementById('saved-dimension1-toggle').checked : true,
@@ -2738,74 +2791,57 @@ async function saveItem() {
         toggle3: document.getElementById('saved-dimension3-toggle') ? document.getElementById('saved-dimension3-toggle').checked : true
     };
 
-    if (!itemName) {
-        showNotification('Please enter an item name');
-        return;
-    }
-
-    // --- UPDATED: Handle Stock History Logic ---
+    // ... (Stock History Logic remains same) ...
     let lastStockQuantity = 0;
-    let lastStockUpdate = Date.now(); // Default for new items
-
+    let lastStockUpdate = Date.now();
     if (currentlyEditingItemId) {
         try {
             const oldItem = await getFromDB('savedItems', currentlyEditingItemId);
             if (oldItem) {
-                const oldStock = parseInt(oldItem.stockQuantity) || 0;
-
-                if (oldStock !== stockQuantity) {
-                    // Stock changed manually: Archive old stock
-                    lastStockQuantity = oldStock;
+                lastStockQuantity = oldItem.lastStockQuantity || 0;
+                if ((parseInt(document.getElementById('saved-stock-quantity').value) || 0) !== (parseInt(oldItem.stockQuantity) || 0)) {
+                    lastStockQuantity = parseInt(oldItem.stockQuantity) || 0;
                     lastStockUpdate = Date.now();
-                } else {
-                    // Stock didn't change: Preserve existing history
-                    lastStockQuantity = oldItem.lastStockQuantity !== undefined ? oldItem.lastStockQuantity : 0;
-                    lastStockUpdate = oldItem.lastStockUpdate || Date.now();
                 }
             }
-        } catch (e) {
-            console.error("Error fetching old item for stock history", e);
-        }
+        } catch (e) {}
     }
-    // -------------------------------------------
 
     const itemData = {
         name: itemName,
-        category: category,
-        batchNumber: batchNumber,
-        sectionCode: sectionCode,
-        barcode: barcode,
-        barcodeType: barcodeType,
-        brandName: brandName,
-        vendorName: vendorName,
-        salePrice: salePrice,
-        saleTaxType: saleTaxType,
-        mrp: mrp,
-        mrpTaxType: mrpTaxType,
-
-        defaultRate: salePrice > 0 ? salePrice : mrp,
-        taxType: saleTaxType,
-
-        dimensionType: dimensionType,
-        measurementUnit: measurementUnit,
-        dimensionValues: dimensionValues,
+        category: document.getElementById('saved-category').value.trim(),
+        batchNumber: document.getElementById('saved-batch-number').value.trim(),
+        sectionCode: document.getElementById('saved-section-code').value.trim(),
+        barcode: document.getElementById('saved-barcode').value.trim(),
+        barcodeType: document.getElementById('saved-barcode-type')?.value || 'CODE128',
+        brandName: document.getElementById('saved-brand-name').value.trim(),
+        vendorName: document.getElementById('saved-vendor-name').value.trim(),
+        salePrice: parseFloat(document.getElementById('saved-sale-price').value) || 0,
+        saleTaxType: document.getElementById('saved-sale-tax-type').value,
+        mrp: parseFloat(document.getElementById('saved-mrp').value) || 0,
+        mrpTaxType: document.getElementById('saved-mrp-tax-type').value,
+        defaultRate: (parseFloat(document.getElementById('saved-sale-price').value) || 0) || (parseFloat(document.getElementById('saved-mrp').value) || 0),
+        taxType: document.getElementById('saved-sale-tax-type').value,
+        
+        dimensionType: document.getElementById('saved-dimension-type').value,
+        measurementUnit: document.getElementById('saved-measurement-unit').value,
+        convertUnit: convertUnit, // --- SAVED HERE ---
+        dimensionValues: [dimension1, dimension2, dimension3],
         dimensionToggles: toggleStates,
-        defaultQuantity: defaultQuantity,
-        defaultUnit: defaultUnit,
-        discountType: discountType,
-        discountValue: discountValue,
-        hsnCode: hsnCode,
-
-        stockQuantity: stockQuantity,
-        minStock: minStock,
-        // Save history fields
+        
+        defaultQuantity: parseFloat(document.getElementById('saved-default-quantity').value) || 1,
+        defaultUnit: document.getElementById('saved-select-unit').value.trim(),
+        discountType: document.getElementById('saved-discount-type').value,
+        discountValue: parseFloat(document.getElementById('saved-discount-value').value) || 0,
+        hsnCode: document.getElementById('saved-hsn-code').value.trim(),
+        stockQuantity: parseInt(document.getElementById('saved-stock-quantity').value) || 0,
+        minStock: parseInt(document.getElementById('saved-min-stock').value) || 0,
         lastStockQuantity: lastStockQuantity,
         lastStockUpdate: lastStockUpdate,
-
-        productCode: productCode,
-        purchaseRate: purchaseRate,
-        otherNames: otherNames,
-        notes: notes,
+        productCode: document.getElementById('saved-product-code').value.trim(),
+        purchaseRate: parseFloat(document.getElementById('saved-purchase-rate').value) || 0,
+        otherNames: document.getElementById('saved-other-names').value.trim(),
+        notes: document.getElementById('saved-notes').value.trim(),
         timestamp: Date.now()
     };
 
@@ -3043,149 +3079,104 @@ async function loadItemsList() {
             return;
         }
 
-        // Helper function to format date: dd-mm-yy, hh:mm AM/PM
+        // Helper function to format date
         const formatStockDate = (ts) => {
             if (!ts) return '';
             const d = new Date(ts);
             const day = String(d.getDate()).padStart(2, '0');
             const month = String(d.getMonth() + 1).padStart(2, '0');
             const year = String(d.getFullYear()).slice(-2);
-
             let h = d.getHours();
             const m = String(d.getMinutes()).padStart(2, '0');
             const ampm = h >= 12 ? 'PM' : 'AM';
             h = h % 12 || 12; // Convert 0 to 12
-
             return `${day}-${month}-${year}, ${h}:${m} ${ampm}`;
         };
 
         items.forEach(item => {
             const itemCard = document.createElement('div');
             itemCard.className = 'item-card';
-
             const safeName = item.value.name.replace(/[^a-zA-Z0-9]/g, '-');
             const menuId = `menu-item-${safeName}-${Date.now()}`;
 
             let dimensionInfo = '';
             let unitInfo = '';
+            
             if (item.value.dimensionType && item.value.dimensionType !== 'none') {
                 dimensionInfo += `<div>Dimension Type: ${item.value.dimensionType}</div>`;
                 unitInfo = `<div>Measurement Unit: ${item.value.measurementUnit || 'ft'}</div>`;
+                
+                // --- UPDATED: Display Convert Unit ---
+                if (item.value.convertUnit && item.value.convertUnit !== 'none') {
+                    unitInfo += `<div>Convert To: <b>${item.value.convertUnit}</b></div>`;
+                }
+                // ------------------------------------
+
                 if (item.value.dimensionValues) {
                     const [v1, v2, v3] = item.value.dimensionValues;
                     dimensionInfo += `<div>Dimension Values: ${v1}, ${v2}, ${v3}</div>`;
                 }
             }
 
-            // --- UPDATED: Stock Info with History ---
             let stockInfo = '';
             if (item.value.stockQuantity !== undefined) {
                 const updateTimeStr = item.value.lastStockUpdate ? formatStockDate(item.value.lastStockUpdate) : '';
                 const updateDisplay = updateTimeStr ? ` <span style="font-size:0.85em; color:#666;">(Updated: ${updateTimeStr})</span>` : '';
-
                 stockInfo = `<div>Stock: ${item.value.stockQuantity}${updateDisplay}</div>`;
-
                 if (item.value.lastStockQuantity !== undefined) {
                     stockInfo += `<div>Last Stock: ${item.value.lastStockQuantity}</div>`;
                 }
             }
-            // ----------------------------------------
 
             let discountInfo = (item.value.discountType && item.value.discountType !== 'none') ? `<div>Discount: ${item.value.discountType} - ${item.value.discountValue}</div>` : '';
             let notesInfo = (item.value.notes && item.value.notes !== 'None' && item.value.notes.trim() !== '') ? `<div>Notes: ${item.value.notes}</div>` : '';
-
             let otherNamesInfo = item.value.otherNames ? `<div>Other Names: ${item.value.otherNames}</div>` : '';
             let hsnInfo = item.value.hsnCode ? `<div>HSN/SAC: ${item.value.hsnCode}</div>` : '';
             let productCodeInfo = item.value.productCode ? `<div>Product Code: ${item.value.productCode}</div>` : '';
             let purchaseRateInfo = item.value.purchaseRate ? `<div>Purchase Rate: ₹${item.value.purchaseRate}</div>` : '';
-
             let categoryInfo = item.value.category ? `<div>Category: ${item.value.category}</div>` : '';
             let brandInfo = item.value.brandName ? `<div>Brand: ${item.value.brandName}</div>` : '';
             let vendorInfo = item.value.vendorName ? `<div>Vendor: ${item.value.vendorName}</div>` : '';
-
-            let saleInfo = item.value.salePrice
-                ? `<div>Sale Price: ₹${item.value.salePrice} <span style="font-size:0.85em; color:#666;">(${item.value.saleTaxType})</span></div>`
-                : '';
-            let mrpInfo = item.value.mrp
-                ? `<div>MRP: ₹${item.value.mrp} <span style="font-size:0.85em; color:#666;">(${item.value.mrpTaxType})</span></div>`
-                : '';
-
+            let saleInfo = item.value.salePrice ? `<div>Sale Price: ₹${item.value.salePrice} <span style="font-size:0.85em; color:#666;">(${item.value.saleTaxType})</span></div>` : '';
+            let mrpInfo = item.value.mrp ? `<div>MRP: ₹${item.value.mrp} <span style="font-size:0.85em; color:#666;">(${item.value.mrpTaxType})</span></div>` : '';
             let batchInfo = item.value.batchNumber ? `<div>Batch: ${item.value.batchNumber}</div>` : '';
             let sectionInfo = item.value.sectionCode ? `<div>Section: ${item.value.sectionCode}</div>` : '';
 
-            let taxTypeInfo = item.value.taxType ? ` <span style="font-size:0.85em; color:#666;">(Default: ${item.value.taxType})</span>` : '';
-
             let codeOptions = '';
             if (item.value.productCode) {
-                codeOptions += `
-                <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.productCode}', '${item.value.name}', 'Product Code')">
-                    <span class="material-icons">qr_code_2</span> Product Code QR
-                </button>`;
+                codeOptions += `<button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.productCode}', '${item.value.name}', 'Product Code')"><span class="material-icons">qr_code_2</span> Product Code QR</button>`;
             }
             if (item.value.sectionCode) {
-                codeOptions += `
-                <button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.sectionCode}', '${item.value.name}', 'Section Code')">
-                    <span class="material-icons">qr_code_2</span> Section Code QR
-                </button>`;
+                codeOptions += `<button class="dropdown-item" onclick="openCodeModal('qr', '${item.value.sectionCode}', '${item.value.name}', 'Section Code')"><span class="material-icons">qr_code_2</span> Section Code QR</button>`;
             }
             if (item.value.barcode) {
                 const bType = item.value.barcodeType || 'CODE128';
-                codeOptions += `
-                <button class="dropdown-item" onclick="openCodeModal('barcode', '${item.value.barcode}', '${item.value.name}', '${bType}')">
-                    <span class="material-icons">view_week</span> View Barcode
-                </button>`;
+                codeOptions += `<button class="dropdown-item" onclick="openCodeModal('barcode', '${item.value.barcode}', '${item.value.name}', '${bType}')"><span class="material-icons">view_week</span> View Barcode</button>`;
             }
 
             itemCard.innerHTML = `
                 <div class="card-header-row">
                     <div class="card-info">${item.value.name}</div>
-                    
                     <div class="card-controls">
-                        <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
-                            <span class="material-icons">keyboard_arrow_down</span>
-                        </button>
-                        
+                        <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details"><span class="material-icons">keyboard_arrow_down</span></button>
                         <div class="action-menu-container">
-                            <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
-                                <span class="material-icons">more_vert</span>
-                            </button>
+                            <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')"><span class="material-icons">more_vert</span></button>
                             <div id="${menuId}" class="action-dropdown">
-                                <button class="dropdown-item" onclick="openAddStockModal('${item.value.name}')">
-                                    <span class="material-icons">add_box</span> Add Stock
-                                </button>
-                                <button class="dropdown-item" onclick="editItem('${item.value.name}')">
-                                    <span class="material-icons">edit</span> Edit
-                                </button>
-                                
+                                <button class="dropdown-item" onclick="openAddStockModal('${item.value.name}')"><span class="material-icons">add_box</span> Add Stock</button>
+                                <button class="dropdown-item" onclick="editItem('${item.value.name}')"><span class="material-icons">edit</span> Edit</button>
                                 ${codeOptions}
-                                
-                                <button class="dropdown-item delete-item" onclick="deleteItem('${item.value.name}')">
-                                    <span class="material-icons">delete</span> Delete
-                                </button>
+                                <button class="dropdown-item delete-item" onclick="deleteItem('${item.value.name}')"><span class="material-icons">delete</span> Delete</button>
                             </div>
                         </div>
                     </div>
                 </div>
-                
                 <div class="details-section hidden item-details">
-                    ${categoryInfo}
-                    ${brandInfo}
-                    ${vendorInfo}
-                    ${saleInfo}
-                    ${mrpInfo}
-                    ${batchInfo}
-                    ${sectionInfo}
-                    ${dimensionInfo}
-                    ${unitInfo}
+                    ${categoryInfo} ${brandInfo} ${vendorInfo} ${saleInfo} ${mrpInfo} ${batchInfo} ${sectionInfo}
+                    ${dimensionInfo} ${unitInfo}
                     <div>Default Quantity: ${item.value.defaultQuantity || 1}</div>
                     <div>Default Unit: ${item.value.defaultUnit}</div>
-                    ${stockInfo}
-                    ${productCodeInfo}
-                    ${hsnInfo}
-                    ${purchaseRateInfo}
-                    ${discountInfo}
-                    ${otherNamesInfo}
-                    ${notesInfo}
+                    ${stockInfo} ${productCodeInfo} ${hsnInfo} ${purchaseRateInfo}
+                    ${discountInfo} ${otherNamesInfo} ${notesInfo}
                 </div>
             `;
             itemsList.appendChild(itemCard);
@@ -3493,10 +3484,10 @@ async function loadCustomersList() {
             const address = (val.address || '').toLowerCase();
             const phone = (val.phone || '').toLowerCase();
 
-            return name.includes(searchTerm) || 
-                   gstin.includes(searchTerm) || 
-                   address.includes(searchTerm) || 
-                   phone.includes(searchTerm);
+            return name.includes(searchTerm) ||
+                gstin.includes(searchTerm) ||
+                address.includes(searchTerm) ||
+                phone.includes(searchTerm);
         });
 
         if (filtered.length === 0) {
@@ -3508,7 +3499,7 @@ async function loadCustomersList() {
         filtered.sort((a, b) => {
             const nameA = (a.value.name || '').toLowerCase();
             const nameB = (b.value.name || '').toLowerCase();
-            
+
             if (isCustomerSortAscending) {
                 return nameA.localeCompare(nameB);
             } else {
@@ -3580,7 +3571,7 @@ function searchCustomers() {
     // Check which mode is active (Regular or GST)
     const toggle = document.getElementById('customer-mode-toggle');
     const isGST = toggle && toggle.checked;
-    
+
     if (isGST) {
         loadGSTCustomersList();
     } else {
@@ -3781,7 +3772,7 @@ async function selectRegularCustomer(customer) {
 
 function toggleCustomerSort() {
     isCustomerSortAscending = !isCustomerSortAscending;
-    
+
     // Update Button UI
     const btn = document.getElementById('customer-sort-btn');
     if (btn) {
@@ -3793,12 +3784,12 @@ function toggleCustomerSort() {
     }
 
     // Refresh List (Triggers searchCustomers -> loadGSTCustomersList)
-    searchCustomers(); 
+    searchCustomers();
 }
 
 function toggleSavedBillsSort() {
     isSavedBillsSortAscending = !isSavedBillsSortAscending;
-    
+
     // Update UI
     const btn = document.getElementById('saved-bills-sort-btn');
     if (isSavedBillsSortAscending) {
@@ -4219,7 +4210,7 @@ async function saveCurrentBill() {
 
             // --- NEW: HANDLE CREATED_AT LOGIC ---
             let createdAtTimestamp = Date.now();
-            
+
             // If editing, try to retrieve the original creation time
             if (editMode && currentEditingBillId) {
                 const originalBill = await getFromDB('savedBills', currentEditingBillId);
@@ -4364,7 +4355,7 @@ function toggleVendorMode() {
         body.classList.add('vendor-mode');
 
         // Hide Sales Elements
-        if (regHeading) regHeading.style.display = 'none';
+        if (regHeading) regHeading.style.display = 'none'; // HIDDEN IN VENDOR MODE
         if (companyDetails) companyDetails.style.display = 'none';
         if (customerDetails) customerDetails.style.display = 'none';
         if (regFooter) regFooter.style.display = 'none';
@@ -4390,16 +4381,14 @@ function toggleVendorMode() {
         const dateInput = document.getElementById('vendorDate');
         if (dateInput && !dateInput.value) dateInput.value = dateStr;
 
-        // showNotification("Switched to Vendor (Purchase) Mode", "info");
-
     } else {
         // --- SWITCH BACK TO SALES MODE ---
         body.classList.remove('vendor-mode');
 
         // Show Sales Elements
-        if (regHeading) regHeading.style.display = 'block';
+        if (regHeading) regHeading.style.display = 'block'; // SHOWN IN SALES MODE
         if (companyDetails) companyDetails.style.display = 'flex';
-        if (customerDetails) customerDetails.style.display = 'block'; // customer details is a table
+        if (customerDetails) customerDetails.style.display = 'block';
         if (regFooter) regFooter.style.display = 'none'; // Footer hidden by default until toggled
 
         // Hide Vendor Elements
@@ -4421,8 +4410,174 @@ function toggleVendorMode() {
 
 function toggleVendorBillsMode() {
     const toggle = document.getElementById('vendor-bills-mode-toggle');
-    currentVendorBillsMode = toggle.checked ? 'gst' : 'regular';
+    currentVendorBillListMode = toggle.checked ? 'gst' : 'regular';
     loadVendorSavedBillsList();
+}
+function toggleVendorBillsSort() {
+    isVendorBillsSortNewest = !isVendorBillsSortNewest;
+
+    // Toggle Animation Class
+    const btn = document.getElementById('vendor-bills-sort-btn');
+    if (btn) {
+        if (isVendorBillsSortNewest) {
+            btn.classList.remove('ascending'); // Newest First (Normal)
+        } else {
+            btn.classList.add('ascending');    // Oldest First (Flipped)
+        }
+    }
+
+    loadVendorSavedBillsList();
+}
+
+async function loadVendorBill(billId) {
+    try {
+        const bill = await getFromDB('vendorSavedBills', billId);
+        if (!bill) {
+            showNotification("Bill not found", "error");
+            return;
+        }
+
+        // 1. Clear current workspace
+        await clearAllData(true);
+
+        // 2. Ensure we are in Vendor Mode
+        if (!isVendorMode) {
+            toggleVendorMode();
+        }
+
+        const data = bill.value || bill;
+
+        // 3. DO NOT Set Edit Mode Globals (READ ONLY LOAD)
+        editMode = false;
+        currentEditingBillId = null;
+
+        // Reset Save Button to Default (Create Mode)
+        const saveBtn = document.querySelector('.settings-btn[onclick="saveCurrentBill()"]');
+        if (saveBtn) {
+            saveBtn.innerHTML = '<span class="material-icons">save_alt</span>SAVE PURCHASE';
+            saveBtn.style.backgroundColor = '#d35400';
+        }
+
+        // 4. Populate Inputs
+        document.getElementById('vendorName').value = data.vendor.name;
+        document.getElementById('vendorAddr').value = data.vendor.address || '';
+        document.getElementById('vendorPhone').value = data.vendor.phone || '';
+        document.getElementById('vendorGSTIN').value = data.vendor.gstin || '';
+        document.getElementById('vendorEmail').value = data.vendor.email || '';
+        document.getElementById('vendorInvoiceNo').value = data.billDetails.invoiceNo;
+        document.getElementById('vendorDate').value = data.billDetails.date;
+        document.getElementById('vendorType').value = data.billDetails.type || 'Regular';
+
+        if (data.billDetails.file) {
+            currentVendorFile = data.billDetails.file;
+            const label = document.getElementById('vendorFileName');
+            label.style.display = 'inline';
+            label.textContent = data.billDetails.file.name;
+        } else {
+            currentVendorFile = null;
+            document.getElementById('vendorFileName').style.display = 'none';
+        }
+
+        // 5. Populate Items & Sections
+        if (data.items && data.items.length > 0) {
+            const createListTbody = document.querySelector("#createListManual tbody");
+            const copyListTbody = document.querySelector("#copyListManual tbody");
+
+            data.items.forEach(item => {
+                // === SECTION ROW LOGIC ===
+                if (item.type === 'section') {
+                    // 1. Create Section Row
+                    const sectionRow = document.createElement('tr');
+                    sectionRow.className = 'section-row';
+                    sectionRow.setAttribute('data-section-id', item.id);
+                    sectionRow.setAttribute('data-show-total', item.showTotal);
+                    sectionRow.draggable = true;
+
+                    // Restore inner HTML (Name + Buttons) and Style
+                    const td = document.createElement('td');
+                    td.colSpan = 7;
+                    td.style.cssText = item.style || 'background-color: #ffe8b5; color: #000000; font-size: 14px; font-weight: 600; text-transform: none; text-align: left; padding-left: 75px;';
+                    td.innerHTML = item.html; 
+                    sectionRow.appendChild(td);
+
+                    createListTbody.appendChild(sectionRow);
+
+                    // 2. Create View Copy (Remove buttons for clean view)
+                    const viewSectionRow = sectionRow.cloneNode(true);
+                    viewSectionRow.querySelector('.remove-btn')?.remove();
+                    viewSectionRow.querySelector('.collapse-btn')?.remove();
+                    copyListTbody.appendChild(viewSectionRow);
+
+                    // 3. Create Total Row (if enabled)
+                    if (item.showTotal) {
+                        const totalRow = document.createElement('tr');
+                        totalRow.className = 'section-total-row';
+                        totalRow.setAttribute('data-for-section', item.id);
+                        totalRow.innerHTML = `
+                            <td colspan="5" style="text-align: right; font-weight: bold; padding-right: 10px;">Total :</td>
+                            <td style="text-align: center; font-weight: bold;">0.00</td>
+                            <td class="section-total-action-cell" style="display: table-cell;"></td>
+                        `;
+                        createListTbody.appendChild(totalRow);
+                        copyListTbody.appendChild(totalRow.cloneNode(true));
+                    }
+                } 
+                // === STANDARD ITEM LOGIC ===
+                else {
+                    const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
+                    const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
+
+                    const row1 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', true, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
+                        item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
+                    );
+                    
+                    if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
+                    if (item.convertUnit) row1.setAttribute('data-convert-unit', item.convertUnit);
+                    
+                    createListTbody.appendChild(row1);
+
+                    const row2 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', false, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
+                    );
+                    
+                    if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
+                    copyListTbody.appendChild(row2);
+                }
+            });
+        }
+
+        // --- RESTORE ADJUSTMENTS & CALCULATE ---
+        if (data.adjustments) {
+            adjustmentChain = data.adjustments.chain || [];
+            discountAmount = data.adjustments.discountAmount || 0;
+            discountPercent = data.adjustments.discountPercent || 0;
+            gstPercent = data.adjustments.gstPercent || 0;
+        } else {
+            adjustmentChain = [];
+            discountAmount = 0;
+            discountPercent = 0;
+            gstPercent = 0;
+        }
+
+        // 6. UI Updates
+        updateSerialNumbers();
+        updateTotal(); // Calculates totals including section totals
+        closeVendorSavedBillsModal();
+        showNotification("Bill Loaded (Read Only View)", "info");
+
+        // 7. Persist
+        await saveToLocalStorage();
+        await saveVendorState();
+
+    } catch (e) {
+        console.error("Error loading vendor bill", e);
+        showNotification("Error loading bill", "error");
+    }
 }
 
 async function editVendorSavedBill(billId, event) {
@@ -4475,44 +4630,99 @@ async function editVendorSavedBill(billId, event) {
             document.getElementById('vendorFileName').style.display = 'none';
         }
 
-        // 5. Populate Items (This manipulates the DOM directly)
+        // 5. Populate Items & Sections
         if (data.items && data.items.length > 0) {
             const createListTbody = document.querySelector("#createListManual tbody");
             const copyListTbody = document.querySelector("#copyListManual tbody");
 
             data.items.forEach(item => {
-                const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
-                const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
+                // === SECTION ROW LOGIC ===
+                if (item.type === 'section') {
+                    // 1. Create Section Row
+                    const sectionRow = document.createElement('tr');
+                    sectionRow.className = 'section-row';
+                    sectionRow.setAttribute('data-section-id', item.id);
+                    sectionRow.setAttribute('data-show-total', item.showTotal);
+                    sectionRow.draggable = true;
 
-                const row1 = createTableRowManual(
-                    rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
-                    '', true, item.quantity, item.dimensionType || 'none', item.quantity,
-                    { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
-                    item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
-                );
-                if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
-                createListTbody.appendChild(row1);
+                    const td = document.createElement('td');
+                    td.colSpan = 7;
+                    td.style.cssText = item.style || 'background-color: #ffe8b5; color: #000000; font-size: 14px; font-weight: 600; text-transform: none; text-align: left; padding-left: 75px;';
+                    td.innerHTML = item.html; 
+                    sectionRow.appendChild(td);
 
-                const row2 = createTableRowManual(
-                    rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
-                    '', false, item.quantity, item.dimensionType || 'none', item.quantity,
-                    { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
-                );
-                if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
-                copyListTbody.appendChild(row2);
+                    createListTbody.appendChild(sectionRow);
+
+                    // 2. Create View Copy
+                    const viewSectionRow = sectionRow.cloneNode(true);
+                    viewSectionRow.querySelector('.remove-btn')?.remove();
+                    viewSectionRow.querySelector('.collapse-btn')?.remove();
+                    copyListTbody.appendChild(viewSectionRow);
+
+                    // 3. Create Total Row (if enabled)
+                    if (item.showTotal) {
+                        const totalRow = document.createElement('tr');
+                        totalRow.className = 'section-total-row';
+                        totalRow.setAttribute('data-for-section', item.id);
+                        totalRow.innerHTML = `
+                            <td colspan="5" style="text-align: right; font-weight: bold; padding-right: 10px;">Total :</td>
+                            <td style="text-align: center; font-weight: bold;">0.00</td>
+                            <td class="section-total-action-cell" style="display: table-cell;"></td>
+                        `;
+                        createListTbody.appendChild(totalRow);
+                        copyListTbody.appendChild(totalRow.cloneNode(true));
+                    }
+                } 
+                // === STANDARD ITEM LOGIC ===
+                else {
+                    const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
+                    const toggleStates = item.dimensionToggles || { toggle1: true, toggle2: true, toggle3: true };
+
+                    const row1 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', true, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
+                        item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
+                    );
+                    
+                    if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
+                    if (item.convertUnit) row1.setAttribute('data-convert-unit', item.convertUnit);
+
+                    createListTbody.appendChild(row1);
+
+                    const row2 = createTableRowManual(
+                        rowId, item.itemName, item.quantity, item.unit, item.rate, item.amount, item.notes || '',
+                        '', false, item.quantity, item.dimensionType || 'none', item.quantity,
+                        { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
+                    );
+                    
+                    if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
+                    copyListTbody.appendChild(row2);
+                }
             });
+        }
+
+        // --- RESTORE ADJUSTMENTS & CALCULATE ---
+        if (data.adjustments) {
+            adjustmentChain = data.adjustments.chain || [];
+            discountAmount = data.adjustments.discountAmount || 0;
+            discountPercent = data.adjustments.discountPercent || 0;
+            gstPercent = data.adjustments.gstPercent || 0;
+        } else {
+            adjustmentChain = [];
+            discountAmount = 0;
+            discountPercent = 0;
+            gstPercent = 0;
         }
 
         // 6. UI Updates
         updateSerialNumbers();
-        updateTotal();
+        updateTotal(); 
         closeVendorSavedBillsModal();
         showNotification("Purchase bill loaded for editing", "info");
 
         // 7. CRITICAL: Save to BOTH storages immediately
-        // This persists the Table Items to billDataManual
         await saveToLocalStorage();
-        // This persists the Vendor Mode & Inputs to vendorState
         await saveVendorState();
 
     } catch (e) {
@@ -4554,36 +4764,70 @@ function handleVendorFileSelect(input) {
 // Helper to scrape items specifically from the Input Table (createListManual)
 function getVendorItemsData() {
     const items = [];
-    // Select rows from the INPUT table, not the GST view table
-    document.querySelectorAll('#createListManual tbody tr[data-id]').forEach(row => {
-        const cells = row.children;
-        const particularsDiv = cells[1];
-        const itemName = particularsDiv.querySelector('.itemNameClass')?.textContent.trim() || '';
-        const notes = particularsDiv.querySelector('.notes')?.textContent || '';
+    // Select ALL rows from the INPUT table to capture order and sections
+    const rows = document.querySelectorAll('#createListManual tbody tr');
 
-        // Safely extract values
-        const quantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent) || 0;
-        const rate = parseFloat(cells[4].textContent) || 0;
-        const amount = parseFloat(cells[5].textContent) || 0;
+    rows.forEach(row => {
+        // CASE A: Section Row
+        if (row.classList.contains('section-row')) {
+            const sectionId = row.getAttribute('data-section-id');
+            const cell = row.querySelector('td');
+            const collapseBtn = row.querySelector('.collapse-btn');
+            
+            // Extract text content carefully (ignoring buttons)
+            let sectionName = '';
+            for (let node of cell.childNodes) {
+                if (node.nodeType === Node.TEXT_NODE && node.textContent.trim()) {
+                    sectionName = node.textContent.trim();
+                    break;
+                }
+            }
 
-        items.push({
-            id: row.getAttribute('data-id'),
-            itemName: itemName,
-            quantity: quantity,
-            unit: cells[3].textContent,
-            rate: rate,
-            amount: amount,
-            notes: notes,
-            // Capture all hidden attributes needed to recreate the row exactly
-            hsn: row.getAttribute('data-hsn') || '',
-            dimensionType: row.getAttribute('data-dimension-type') || 'none',
-            dimensionValues: JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]'),
-            dimensionUnit: row.getAttribute('data-dimension-unit') || 'ft',
-            dimensionToggles: JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}'),
-            discountType: row.getAttribute('data-discount-type') || 'none',
-            discountValue: row.getAttribute('data-discount-value') || 0,
-            particularsHtml: particularsDiv.innerHTML
-        });
+            items.push({
+                type: 'section',
+                id: sectionId,
+                name: sectionName,
+                style: cell.getAttribute('style') || '',
+                collapsed: collapseBtn ? collapseBtn.textContent === '+' : false,
+                html: cell.innerHTML, // Save inner HTML to preserve buttons/layout
+                showTotal: row.getAttribute('data-show-total') === 'true'
+            });
+        } 
+        // CASE B: Item Row
+        else if (row.getAttribute('data-id')) {
+            const cells = row.children;
+            const particularsDiv = cells[1];
+            const itemName = particularsDiv.querySelector('.itemNameClass')?.textContent.trim() || '';
+            const notes = particularsDiv.querySelector('.notes')?.textContent || '';
+
+            // Safely extract values
+            const quantity = parseFloat(row.getAttribute('data-original-quantity') || cells[2].textContent) || 0;
+            const rate = parseFloat(cells[4].textContent) || 0;
+            const amount = parseFloat(cells[5].textContent) || 0;
+
+            items.push({
+                type: 'item', // Mark as item
+                id: row.getAttribute('data-id'),
+                itemName: itemName,
+                quantity: quantity,
+                unit: cells[3].textContent,
+                rate: rate,
+                amount: amount,
+                notes: notes,
+                // Capture all attributes needed for exact reconstruction
+                hsn: row.getAttribute('data-hsn') || '',
+                dimensionType: row.getAttribute('data-dimension-type') || 'none',
+                dimensionValues: JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]'),
+                dimensionUnit: row.getAttribute('data-dimension-unit') || 'ft',
+                dimensionToggles: JSON.parse(row.getAttribute('data-dimension-toggles') || '{"toggle1":true,"toggle2":true,"toggle3":true}'),
+                discountType: row.getAttribute('data-discount-type') || 'none',
+                discountValue: row.getAttribute('data-discount-value') || 0,
+                convertUnit: row.getAttribute('data-convert-unit') || 'none',
+                particularsHtml: particularsDiv.innerHTML,
+                displayQuantity: cells[2].textContent,
+                dimensionsVisible: row.getAttribute('data-dimensions-visible') === 'true'
+            });
+        }
     });
     return items;
 }
@@ -4591,13 +4835,46 @@ function getVendorItemsData() {
 async function saveVendorPurchaseBill() {
     const vendorName = document.getElementById('vendorName').value.trim();
     const invoiceNo = document.getElementById('vendorInvoiceNo').value.trim();
+    const vendorType = document.getElementById('vendorType').value;
 
     if (!vendorName || !invoiceNo) {
         showNotification("Vendor Name and Invoice No are required", "error");
         return;
     }
 
-    // 1. Determine ID (New or Existing)
+    // === DUPLICATE CHECK START ===
+    try {
+        const allBills = await getAllFromDB('vendorSavedBills');
+        
+        // Normalize for comparison
+        const newNameClean = vendorName.toLowerCase();
+        const newInvoiceClean = invoiceNo.toLowerCase();
+
+        const duplicate = allBills.find(b => {
+            const bName = (b.value.vendor?.name || '').toLowerCase();
+            const bInv = (b.value.billDetails?.invoiceNo || '').toLowerCase();
+            return bName === newNameClean && bInv === newInvoiceClean;
+        });
+
+        if (duplicate) {
+            if (editMode && currentEditingBillId) {
+                // If editing, it's a duplicate ONLY if the ID is different
+                if (duplicate.id !== currentEditingBillId) {
+                    showNotification("Duplicate: This Invoice Number already exists for this Vendor.", "error");
+                    return; // STOP SAVE
+                }
+            } else {
+                // If creating new, strict check
+                showNotification("Duplicate: This Invoice Number already exists for this Vendor.", "error");
+                return; // STOP SAVE
+            }
+        }
+    } catch (e) {
+        console.error("Error checking duplicates", e);
+    }
+    // === DUPLICATE CHECK END ===
+
+    // 2. Determine ID (New or Existing)
     let billId;
     if (editMode && currentEditingBillId) {
         billId = currentEditingBillId; // Keep existing ID
@@ -4605,8 +4882,8 @@ async function saveVendorPurchaseBill() {
         billId = `vendor-bill-${Date.now()}`; // Generate New ID
     }
 
-    // 2. Gather Data (Using the new helper)
-    const itemsData = getVendorItemsData(); // SCRAPE FROM INPUT TABLE
+    // 3. Gather Data
+    const itemsData = getVendorItemsData();
 
     const purchaseData = {
         id: billId,
@@ -4615,27 +4892,36 @@ async function saveVendorPurchaseBill() {
             address: document.getElementById('vendorAddr').value,
             phone: document.getElementById('vendorPhone').value,
             gstin: document.getElementById('vendorGSTIN').value,
-            email: document.getElementById('vendorEmail').value
+            email: document.getElementById('vendorEmail').value,
+            type: vendorType
         },
         billDetails: {
             invoiceNo: invoiceNo,
             date: document.getElementById('vendorDate').value,
-            type: document.getElementById('vendorType').value,
-            file: currentVendorFile // Base64 string
+            type: vendorType,
+            file: currentVendorFile
         },
         items: itemsData,
+        // --- NEW: SAVE ADJUSTMENTS & TAX SETTINGS ---
+        adjustments: {
+            chain: adjustmentChain || [],
+            discountAmount: discountAmount || 0,
+            discountPercent: discountPercent || 0,
+            gstPercent: gstPercent || 0
+        },
+        // --------------------------------------------
         totalAmount: document.getElementById('createTotalAmountManual').textContent,
         timestamp: Date.now()
     };
 
     try {
-        // 3. Save Bill
+        // 4. Save Bill
         await setInDB('vendorSavedBills', billId, purchaseData);
 
-        // 4. Auto-Save Vendor (if new)
+        // 5. Auto-Save Vendor
         await autoSaveVendor(purchaseData.vendor);
 
-        // 5. Handle Stock (Only increase if NEW bill, to avoid double counting on edits for now)
+        // 6. Handle Stock
         if (!editMode) {
             await processPurchaseItems(purchaseData.items);
             showNotification("Purchase Saved & Stock Updated!", "success");
@@ -4643,28 +4929,30 @@ async function saveVendorPurchaseBill() {
             showNotification("Purchase Updated Successfully!", "success");
         }
 
-        // 6. RESET UI & EXIT EDIT MODE
-        // Clear Form
+        // 7. RESET UI & EXIT EDIT MODE
         document.getElementById('vendorName').value = '';
         document.getElementById('vendorInvoiceNo').value = '';
         document.getElementById('vendorAddr').value = '';
         document.getElementById('vendorPhone').value = '';
         document.getElementById('vendorGSTIN').value = '';
         document.getElementById('vendorEmail').value = '';
+        document.getElementById('vendorType').value = 'Regular';
 
-        // Clear Tables
+        // Reset Globals
+        adjustmentChain = [];
+        discountAmount = 0;
+        discountPercent = 0;
+        gstPercent = 0;
+
         await clearAllData(true);
 
-        // Reset File
         currentVendorFile = null;
         document.getElementById('vendorFileName').style.display = 'none';
         document.getElementById('vendorFile').value = '';
 
-        // Reset Edit Mode State
         editMode = false;
         currentEditingBillId = null;
 
-        // Reset Button Text
         const saveBtn = document.querySelector('.settings-btn[onclick="saveCurrentBill()"]');
         if (saveBtn) {
             saveBtn.innerHTML = '<span class="material-icons">save_alt</span>SAVE PURCHASE';
@@ -4682,40 +4970,80 @@ async function autoSaveVendor(vendorData) {
     const exists = vendors.find(v => v.value.name.toLowerCase() === vendorData.name.toLowerCase());
 
     if (!exists) {
+        // Save new vendor with the TYPE included
         await setInDB('vendorList', `vendor-${Date.now()}`, vendorData);
-        console.log("New vendor added automatically");
+        console.log(`New ${vendorData.type} vendor added automatically`);
+    } else {
+        // OPTIONAL: If you want to update the type of an EXISTING vendor when saving a bill
+        // Uncomment the lines below:
+        /*
+        if (exists.value.type !== vendorData.type) {
+            exists.value.type = vendorData.type;
+            await setInDB('vendorList', exists.id, exists.value);
+            console.log("Vendor type updated automatically");
+        }
+        */
     }
 }
 
 async function processPurchaseItems(items) {
-    for (const item of items) {
-        const qty = parseFloat(item.quantity) || 0;
-        if (qty <= 0) continue;
+    const vendorName = document.getElementById('vendorName').value.trim();
 
-        // Check if item exists in savedItems
+    for (const item of items) {
+        if (item.type !== 'item') continue;
+
+        const qty = parseFloat(item.quantity) || 0;
+        // Skip if invalid, unless it's a pure update (optional)
+        if (qty <= 0 && item.rate <= 0) continue; 
+
+        // 1. Get Existing Item
         let savedItemObj = await getFromDB('savedItems', item.itemName);
 
+        // 2. Prepare Data from the Bill Row
+        const commonData = {
+            purchaseRate: parseFloat(item.rate),
+            defaultUnit: item.unit,
+            
+            // Dimensions & Toggles
+            dimensionType: item.dimensionType,
+            dimensionValues: item.dimensionValues,
+            
+            // *** FIX: Save BOTH properties to satisfy bill row logic AND item manager logic ***
+            dimensionUnit: item.dimensionUnit, // Used by Bill Row logic
+            measurementUnit: item.dimensionUnit, // Used by Edit Item Modal logic
+            
+            dimensionToggles: item.dimensionToggles,
+            convertUnit: item.convertUnit || 'none', 
+
+            discountType: item.discountType,
+            discountValue: item.discountValue,
+            vendorName: vendorName,
+            lastStockUpdate: Date.now()
+        };
+
         if (savedItemObj) {
-            // EXISTS: Increase Stock
+            // === UPDATE EXISTING ITEM ===
+            savedItemObj.lastStockQuantity = savedItemObj.stockQuantity || 0;
             const currentStock = parseFloat(savedItemObj.stockQuantity) || 0;
+            
+            // Increment Stock
             savedItemObj.stockQuantity = currentStock + qty;
-
-            // Update purchase rate to the rate in this bill
-            savedItemObj.purchaseRate = parseFloat(item.rate);
-
-            savedItemObj.lastStockUpdate = Date.now();
-
+            
+            // Merge new details
+            Object.assign(savedItemObj, commonData);
+            
             await setInDB('savedItems', item.itemName, savedItemObj);
         } else {
-            // NEW ITEM: Create it automatically
+            // === CREATE NEW ITEM ===
             const newItem = {
                 name: item.itemName,
                 stockQuantity: qty,
-                purchaseRate: parseFloat(item.rate),
-                salePrice: 0, // Default 0, user sets later
-                defaultUnit: item.unit,
+                lastStockQuantity: 0, 
+                salePrice: 0, 
                 category: 'Uncategorized',
-                timestamp: Date.now()
+                defaultQuantity: 1, 
+                timestamp: Date.now(),
+                ...commonData 
             };
             await setInDB('savedItems', item.itemName, newItem);
         }
@@ -4727,6 +5055,14 @@ async function processPurchaseItems(items) {
 function openManageVendorsModal() {
     toggleSettingsSidebar();
     document.getElementById('manage-vendors-modal').style.display = 'block';
+
+    // Default to Regular view when opening
+    currentVendorListMode = 'regular';
+    document.getElementById('vendor-mode-toggle').checked = false;
+
+    // Reset Sort
+    isVendorSortAscending = true;
+
     loadVendorList();
 }
 
@@ -4734,65 +5070,145 @@ function closeManageVendorsModal() {
     document.getElementById('manage-vendors-modal').style.display = 'none';
 }
 
+function toggleVendorListMode() {
+    const toggle = document.getElementById('vendor-mode-toggle');
+    currentVendorListMode = toggle.checked ? 'gst' : 'regular';
+    loadVendorList();
+}
+
+function toggleVendorSort() {
+    isVendorSortAscending = !isVendorSortAscending;
+    
+    // Toggle Animation Class
+    const btn = document.getElementById('vendor-sort-btn');
+    if (btn) {
+        if (isVendorSortAscending) {
+            btn.classList.remove('ascending'); // A-Z (Normal)
+        } else {
+            btn.classList.add('ascending');    // Z-A (Flipped)
+        }
+    }
+    
+    loadVendorList();
+}
+
 async function loadVendorList() {
     const list = document.getElementById('vendors-list');
+    const searchInput = document.getElementById('vendor-search');
+    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+    
     list.innerHTML = '';
-    const vendors = await getAllFromDB('vendorList');
 
-    if (vendors.length === 0) { list.innerHTML = '<div class="item-card">No vendors found</div>'; return; }
+    try {
+        const vendors = await getAllFromDB('vendorList');
 
-    vendors.forEach(v => {
-        const val = v.value;
-        const menuId = `menu-vendor-${v.id}-${Date.now()}`;
+        if (vendors.length === 0) {
+            list.innerHTML = '<div class="item-card">No vendors saved yet</div>';
+            return;
+        }
 
-        const card = document.createElement('div');
-        card.className = 'customer-card';
-        card.innerHTML = `
-            <div class="card-header-row">
-                <div class="card-info">${val.name} <span class="card-sub-info">${val.phone || ''}</span></div>
-                
-                <div class="card-controls">
-                    <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
-                        <span class="material-icons">keyboard_arrow_down</span>
-                    </button>
+        // 1. FILTER
+        const filtered = vendors.filter(v => {
+            const val = v.value;
+            const type = (val.type || 'Regular').toLowerCase();
+            const matchesType = type === currentVendorListMode;
+            
+            const name = (val.name || '').toLowerCase();
+            const gstin = (val.gstin || '').toLowerCase();
+            const phone = (val.phone || '').toLowerCase();
+            
+            return matchesType && (
+                name.includes(searchTerm) || 
+                gstin.includes(searchTerm) || 
+                phone.includes(searchTerm)
+            );
+        });
+
+        if (filtered.length === 0) {
+            const modeLabel = currentVendorListMode === 'regular' ? 'Regular' : 'GST';
+            list.innerHTML = `<div class="item-card">No ${modeLabel} vendors found</div>`;
+            return;
+        }
+
+        // 2. SORT
+        filtered.sort((a, b) => {
+            const nameA = (a.value.name || '').toLowerCase();
+            const nameB = (b.value.name || '').toLowerCase();
+            return isVendorSortAscending ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+        });
+
+        // 3. RENDER
+        filtered.forEach(v => {
+            const val = v.value;
+            const menuId = `menu-vendor-${v.id}-${Date.now()}`;
+            
+            let detailsHtml = '';
+            if (val.address) detailsHtml += `<div>Address: ${val.address}</div>`;
+            if (val.phone)   detailsHtml += `<div>Phone: ${val.phone}</div>`;
+            if (val.gstin)   detailsHtml += `<div>GSTIN: ${val.gstin}</div>`;
+            if (val.email)   detailsHtml += `<div>Email: ${val.email}</div>`;
+            if (detailsHtml === '') detailsHtml = '<div>No additional details provided</div>';
+
+            const card = document.createElement('div');
+            card.className = 'customer-card';
+            card.innerHTML = `
+                <div class="card-header-row">
+                    <div class="card-info">
+                        ${val.name} 
+                        </div>
                     
-                    <div class="action-menu-container">
-                        <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
-                            <span class="material-icons">more_vert</span>
+                    <div class="card-controls">
+                        <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
+                            <span class="material-icons">keyboard_arrow_down</span>
                         </button>
-                        <div id="${menuId}" class="action-dropdown">
-                            <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}')">
-                                <span class="material-icons">payments</span> Payment & CN
+                        
+                        <div class="action-menu-container">
+                            <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
+                                <span class="material-icons">more_vert</span>
                             </button>
-                            <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}')">
-                                <span class="material-icons">book</span> Ledger
-                            </button>
-                            <button class="dropdown-item" onclick="editVendor('${v.id}')">
-                                <span class="material-icons">edit</span> Edit
-                            </button>
-                            <button class="dropdown-item delete-item" onclick="deleteVendor('${v.id}')">
-                                <span class="material-icons">delete</span> Delete
-                            </button>
+                            <div id="${menuId}" class="action-dropdown">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${val.name}', '${val.gstin || ''}', 'vendor')">
+                                    <span class="material-icons">payments</span> Payment & CN
+                                </button>
+                                <button class="dropdown-item" onclick="openLedgerDialog('${val.name}', '${val.gstin || ''}', 'vendor')">
+                                    <span class="material-icons">book</span> Ledger
+                                </button>
+                                <button class="dropdown-item" onclick="editVendor('${v.id}')">
+                                    <span class="material-icons">edit</span> Edit
+                                </button>
+                                <button class="dropdown-item delete-item" onclick="deleteVendor('${v.id}')">
+                                    <span class="material-icons">delete</span> Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="details-section hidden">
-                <div>${val.address || 'No Address'}</div>
-                <div>GSTIN: ${val.gstin || '-'}</div>
-                <div>Email: ${val.email || '-'}</div>
-            </div>
-        `;
-        list.appendChild(card);
-    });
+                <div class="details-section hidden">
+                    ${detailsHtml}
+                </div>
+            `;
+            list.appendChild(card);
+        });
+
+    } catch (e) {
+        console.error("Error loading vendor list", e);
+        list.innerHTML = '<div class="item-card">Error loading vendors</div>';
+    }
 }
 
 function openAddVendorModal() {
+    currentlyEditingVendorId = null;
+    document.getElementById('add-vendor-modal-title').textContent = 'Add New Vendor';
+    document.getElementById('save-vendor-btn').textContent = 'Save Vendor';
+
+    // Reset Inputs
+    document.getElementById('saved-vendor-type').value = 'Regular'; // Default
     document.getElementById('saved-vendor-name').value = '';
     document.getElementById('saved-vendor-address').value = '';
     document.getElementById('saved-vendor-phone').value = '';
     document.getElementById('saved-vendor-gstin').value = '';
     document.getElementById('saved-vendor-email').value = '';
+
     document.getElementById('add-vendor-modal').style.display = 'block';
 }
 
@@ -4802,62 +5218,46 @@ function closeAddVendorModal() {
 }
 
 async function saveVendor() {
-    // 1. Target the specific modal to avoid ID conflicts
-    const modalContext = document.getElementById('add-vendor-modal');
-    if (!modalContext) {
-        console.error("Vendor modal not found in DOM");
-        return;
-    }
-
-    // 2. Query inputs strictly within this modal
-    const nameInput = modalContext.querySelector('#saved-vendor-name');
-    const name = nameInput ? nameInput.value.trim() : '';
-
+    const name = document.getElementById('saved-vendor-name').value.trim();
     if (!name) {
-        console.warn("Vendor Name is empty. Checking input element:", nameInput);
         showNotification("Vendor Name is required", "error");
         return;
     }
 
     const vendorData = {
+        type: document.getElementById('saved-vendor-type').value, // NEW FIELD
         name: name,
-        address: modalContext.querySelector('#saved-vendor-address').value || '',
-        phone: modalContext.querySelector('#saved-vendor-phone').value || '',
-        gstin: modalContext.querySelector('#saved-vendor-gstin').value || '',
-        email: modalContext.querySelector('#saved-vendor-email').value || '',
+        address: document.getElementById('saved-vendor-address').value || '',
+        phone: document.getElementById('saved-vendor-phone').value || '',
+        gstin: document.getElementById('saved-vendor-gstin').value || '',
+        email: document.getElementById('saved-vendor-email').value || '',
         timestamp: Date.now()
     };
 
     try {
         if (currentlyEditingVendorId) {
-            // Update Existing Vendor
-            console.log("Updating vendor:", currentlyEditingVendorId);
+            // EDIT EXISTING
             await setInDB('vendorList', currentlyEditingVendorId, vendorData);
-
-            // Optional: Update global vendor state inputs if this vendor is currently loaded in the main view
-            const currentVendorName = document.getElementById('vendorName');
-            if (currentVendorName && currentVendorName.value === name) {
-                document.getElementById('vendorAddr').value = vendorData.address;
-                document.getElementById('vendorPhone').value = vendorData.phone;
-                document.getElementById('vendorGSTIN').value = vendorData.gstin;
-                document.getElementById('vendorEmail').value = vendorData.email;
-                if (typeof saveVendorState === 'function') saveVendorState();
-            }
-
             showNotification("Vendor updated successfully", "success");
         } else {
-            // Create New Vendor
+            // CREATE NEW
             const newId = `vendor-${Date.now()}`;
-            console.log("Creating new vendor:", newId);
             await setInDB('vendorList', newId, vendorData);
             showNotification("Vendor added successfully", "success");
         }
 
-        closeAddVendorModal(); // Use the correct close function name
-        await loadVendorList();   // Refresh list
+        closeAddVendorModal();
+        loadVendorList(); // Refresh the list to show changes
 
-        // Reset editing ID
-        currentlyEditingVendorId = null;
+        // If the Purchase Entry screen is currently showing this vendor, update it
+        const purchaseNameInput = document.getElementById('vendorName');
+        if (purchaseNameInput && purchaseNameInput.value === name) {
+            document.getElementById('vendorType').value = vendorData.type;
+            document.getElementById('vendorAddr').value = vendorData.address;
+            document.getElementById('vendorPhone').value = vendorData.phone;
+            document.getElementById('vendorGSTIN').value = vendorData.gstin;
+            document.getElementById('vendorEmail').value = vendorData.email;
+        }
 
     } catch (e) {
         console.error("Save vendor error:", e);
@@ -4890,19 +5290,29 @@ async function handleVendorSearch() {
         const filtered = all.filter(v =>
             v.value.name.toLowerCase().includes(val) ||
             (v.value.gstin && v.value.gstin.toLowerCase().includes(val))
-        ).slice(0, 5);
+        ).slice(0, 5); // Limit to top 5 results
 
         suggestions.innerHTML = '';
 
         if (filtered.length > 0) {
             filtered.forEach(v => {
+                const vendorData = v.value;
+                const typeLabel = vendorData.type || 'Regular';
+
                 const div = document.createElement('div');
                 div.className = 'customer-suggestion-item';
 
-                // CHANGED: Show ONLY the name, removed GSTIN appending
-                div.textContent = v.value.name;
+                // Show Name and Type
+                div.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>${vendorData.name}</span>
+                        <span style="font-size: 0.8em; color: #7f8c8d; background: #f0f0f0; padding: 2px 5px; border-radius: 3px;">
+                            ${typeLabel}
+                        </span>
+                    </div>
+                `;
 
-                div.onclick = () => selectVendorSuggestion(v.value);
+                div.onclick = () => selectVendorSuggestion(vendorData);
                 suggestions.appendChild(div);
             });
             suggestions.style.display = 'block';
@@ -4913,19 +5323,57 @@ async function handleVendorSearch() {
         console.error("Vendor search error", e);
     }
 }
+function handleVendorTypeChange() {
+    const type = document.getElementById('vendorType').value;
+    
+    if (type === 'GST') {
+        // Open the existing GST settings modal
+        openGSTModal();
+    } else {
+        // === REGULAR MODE SELECTED ===
+        
+        // 1. Reset GST Percent
+        gstPercent = 0;
+
+        // 2. Remove GST entry from the Adjustment Chain
+        // (Assuming 'legacy-gst' is the ID used, matching your previous migration logic)
+        if (Array.isArray(adjustmentChain)) {
+            adjustmentChain = adjustmentChain.filter(adj => adj.id !== 'legacy-gst');
+        }
+
+        // 3. Clear the input in the modal (for consistency)
+        if (document.getElementById('gst-input')) {
+            document.getElementById('gst-input').value = '';
+        }
+
+        // 4. Update Calculations immediately
+        updateTotal();
+
+        // 5. Persist the state (Auto-save changes to workspace)
+        if (typeof saveVendorState === 'function') {
+            saveVendorState();
+        }
+    }
+}
 function selectVendorSuggestion(vendorData) {
-    // 1. Auto-Fill Details
+    // 1. Auto-Fill Text Inputs
     document.getElementById('vendorName').value = vendorData.name;
     document.getElementById('vendorAddr').value = vendorData.address || '';
     document.getElementById('vendorPhone').value = vendorData.phone || '';
     document.getElementById('vendorGSTIN').value = vendorData.gstin || '';
     document.getElementById('vendorEmail').value = vendorData.email || '';
 
-    // 2. Hide Suggestions
+    // 2. Auto-Select Type Dropdown
+    const typeDropdown = document.getElementById('vendorType');
+    if (typeDropdown) {
+        // Default to Regular if type is missing in old data
+        typeDropdown.value = vendorData.type || 'Regular';
+    }
+
+    // 3. Hide Suggestions
     document.getElementById('vendor-suggestions').style.display = 'none';
 
-    // 3. CRITICAL: Persist State Immediately
-    // This ensures data is saved if page is refreshed right after clicking
+    // 4. Save State Immediately (So data persists on reload)
     saveVendorState();
 }
 
@@ -4946,54 +5394,28 @@ function openAddVendorModal() {
 
 async function editVendor(vendorId) {
     try {
-        console.log("Attempting to edit vendor ID:", vendorId);
-
-        // 1. Fetch from DB
         const result = await getFromDB('vendorList', vendorId);
+        if (!result) return;
 
-        if (!result) {
-            console.error("Vendor not found in database.");
-            return;
-        }
-
-        // 2. Unwrap Data
-        // Handle both wrapped {id, value: {..}} and direct {id, name: ..} structures
         const val = result.value || result;
-        console.log("Vendor Data Loaded:", val);
-
         currentlyEditingVendorId = vendorId;
 
-        // 3. Update Modal UI
+        // Populate Modal
         document.getElementById('add-vendor-modal-title').textContent = 'Edit Vendor';
-        const saveBtn = document.getElementById('save-vendor-btn');
-        if (saveBtn) saveBtn.textContent = 'Update Vendor';
+        document.getElementById('save-vendor-btn').textContent = 'Update Vendor';
 
-        // 4. Populate Fields (Targeting specifically within the modal to avoid ambiguity)
-        const modal = document.getElementById('add-vendor-modal');
-        if (modal) {
-            const nameInput = modal.querySelector('#saved-vendor-name');
-            const addrInput = modal.querySelector('#saved-vendor-address');
-            const phoneInput = modal.querySelector('#saved-vendor-phone');
-            const gstinInput = modal.querySelector('#saved-vendor-gstin');
-            const emailInput = modal.querySelector('#saved-vendor-email');
+        // Handle Legacy Data (Default to Regular if type is missing)
+        document.getElementById('saved-vendor-type').value = val.type || 'Regular';
+        document.getElementById('saved-vendor-name').value = val.name || '';
+        document.getElementById('saved-vendor-address').value = val.address || '';
+        document.getElementById('saved-vendor-phone').value = val.phone || '';
+        document.getElementById('saved-vendor-gstin').value = val.gstin || '';
+        document.getElementById('saved-vendor-email').value = val.email || '';
 
-            if (nameInput) {
-                // Ensure we handle null/undefined names gracefully
-                nameInput.value = (val.name !== undefined && val.name !== null) ? val.name : '';
-            }
-            if (addrInput) addrInput.value = val.address || '';
-            if (phoneInput) phoneInput.value = val.phone || '';
-            if (gstinInput) gstinInput.value = val.gstin || '';
-            if (emailInput) emailInput.value = val.email || '';
-
-            // Show Modal
-            modal.style.display = 'block';
-        } else {
-            console.error("Modal element 'add-vendor-modal' not found in DOM");
-        }
+        document.getElementById('add-vendor-modal').style.display = 'block';
 
     } catch (e) {
-        console.error("Error in editVendor:", e);
+        console.error("Error editing vendor:", e);
     }
 }
 
@@ -5003,9 +5425,12 @@ function openVendorSavedBillsModal() {
     toggleSettingsSidebar();
     document.getElementById('vendor-bills-modal').style.display = 'block';
 
-    // Reset toggle to Regular by default
+    // Default to Regular view
+    currentVendorBillListMode = 'regular';
     document.getElementById('vendor-bills-mode-toggle').checked = false;
-    currentVendorBillsMode = 'regular';
+
+    // Default Sort (Newest First)
+    isVendorBillsSortNewest = true;
 
     loadVendorSavedBillsList();
 }
@@ -5016,87 +5441,125 @@ function closeVendorSavedBillsModal() {
 
 async function loadVendorSavedBillsList() {
     const list = document.getElementById('vendor-bills-list');
+    const searchInput = document.getElementById('vendor-bills-search');
+    const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
     list.innerHTML = '';
 
-    let bills = await getAllFromDB('vendorSavedBills');
+    try {
+        let bills = await getAllFromDB('vendorSavedBills');
 
-    if (bills.length === 0) {
-        list.innerHTML = '<div class="item-card">No purchase bills found</div>';
-        return;
-    }
+        if (bills.length === 0) {
+            list.innerHTML = '<div class="item-card">No purchase bills saved yet</div>';
+            return;
+        }
 
-    // Filter based on toggle mode
-    // Note: Older bills might not have 'type', so we assume 'Regular' if missing
-    bills = bills.filter(b => {
-        const type = (b.value.billDetails.type || 'Regular').toLowerCase();
-        return type === currentVendorBillsMode;
-    });
+        // 1. FILTER BY TYPE & SEARCH
+        const filtered = bills.filter(b => {
+            const val = b.value;
+            const type = (val.billDetails?.type || 'Regular').toLowerCase();
+            const matchesType = type === currentVendorBillListMode;
 
-    if (bills.length === 0) {
-        list.innerHTML = `<div class="item-card">No ${currentVendorBillsMode.toUpperCase()} bills found</div>`;
-        return;
-    }
+            const vendorName = (val.vendor?.name || '').toLowerCase();
+            const invoiceNo = (val.billDetails?.invoiceNo || '').toLowerCase();
+            const amount = String(val.totalAmount || '').toLowerCase();
 
-    // Sort newest first
-    bills.sort((a, b) => b.value.timestamp - a.value.timestamp);
+            const matchesSearch = vendorName.includes(searchTerm) ||
+                invoiceNo.includes(searchTerm) ||
+                amount.includes(searchTerm);
 
-    bills.forEach(b => {
-        const val = b.value;
-        const menuId = `menu-vbill-${b.id}-${Date.now()}`;
-        const hasFile = !!val.billDetails.file;
+            return matchesType && matchesSearch;
+        });
 
-        const card = document.createElement('div');
-        card.className = 'saved-bill-card';
-        card.innerHTML = `
-            <div class="card-header-row">
-                <div class="card-info">
-                    <span>${val.vendor.name} - ${val.billDetails.invoiceNo}</span>
-                    <span class="card-sub-info" style="color:var(--primary-color)">₹${val.totalAmount}</span>
-                </div>
-                
-                <div class="card-controls">
-                    <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
-                        <span class="material-icons">keyboard_arrow_down</span>
-                    </button>
+        if (filtered.length === 0) {
+            const modeLabel = currentVendorBillListMode === 'regular' ? 'Regular' : 'GST';
+            list.innerHTML = `<div class="item-card">No ${modeLabel} purchase bills found</div>`;
+            return;
+        }
+
+        // 2. SORT (Date/Timestamp)
+        filtered.sort((a, b) => {
+            const timeA = a.value.timestamp || 0;
+            const timeB = b.value.timestamp || 0;
+            return isVendorBillsSortNewest ? (timeB - timeA) : (timeA - timeB);
+        });
+
+        // 3. RENDER
+        filtered.forEach(b => {
+            const val = b.value;
+            const menuId = `menu-vbill-${b.id}-${Date.now()}`;
+            const hasFile = !!val.billDetails.file;
+
+            // --- NEW: PREFILL DATA FOR PAYMENT ---
+            // Vendors usually imply 'Tax Invoice'. We pass the invoice number.
+            const prefillData = JSON.stringify({
+                type: 'Tax Invoice', 
+                prefix: '',
+                no: val.billDetails.invoiceNo
+            }).replace(/"/g, '&quot;');
+
+            const card = document.createElement('div');
+            card.className = 'saved-bill-card';
+
+            card.innerHTML = `
+                <div class="card-header-row">
+                    <div class="card-info">
+                        <span>${val.vendor.name} - ${val.billDetails.invoiceNo}</span>
+                        <span class="card-sub-info" style="color:var(--primary-color)">₹${val.totalAmount}</span>
+                    </div>
                     
-                    <div class="action-menu-container">
-                        <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
-                            <span class="material-icons">more_vert</span>
+                    <div class="card-controls">
+                        <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
+                            <span class="material-icons">keyboard_arrow_down</span>
                         </button>
-                        <div id="${menuId}" class="action-dropdown">
-                            ${hasFile ? `
-                            <button class="dropdown-item" onclick="viewBillFile('${b.id}')">
-                                <span class="material-icons">description</span> View File
-                            </button>` : ''}
-                            
-                            <button class="dropdown-item" onclick="editVendorSavedBill('${b.id}', event)">
-                                <span class="material-icons">edit</span> Edit
+                        
+                        <div class="action-menu-container">
+                            <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
+                                <span class="material-icons">more_vert</span>
                             </button>
-                            
-                            <button class="dropdown-item delete-item" onclick="deleteVendorBill('${b.id}')">
-                                <span class="material-icons">delete</span> Delete
-                            </button>
+                            <div id="${menuId}" class="action-dropdown">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${val.vendor.name}', '${val.vendor.gstin || ''}', 'vendor', ${prefillData})">
+                                    <span class="material-icons">payments</span> Payment & CN
+                                </button>
+
+                                ${hasFile ? `
+                                <button class="dropdown-item" onclick="viewBillFile('${b.id}')">
+                                    <span class="material-icons">description</span> View File
+                                </button>` : ''}
+                                
+                                <button class="dropdown-item" onclick="editVendorSavedBill('${b.id}', event)">
+                                    <span class="material-icons">edit</span> Edit
+                                </button>
+                                
+                                <button class="dropdown-item delete-item" onclick="deleteVendorBill('${b.id}')">
+                                    <span class="material-icons">delete</span> Delete
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="details-section hidden saved-bill-details">
-                <div>Date: ${val.billDetails.date}</div>
-                <div>GSTIN: ${val.vendor.gstin || '-'}</div>
-                <div>Items: ${val.items ? val.items.length : 0}</div>
-            </div>
-        `;
+                
+                <div class="details-section hidden saved-bill-details">
+                    <div>Date: ${val.billDetails.date}</div>
+                    <div>GSTIN: ${val.vendor.gstin || 'N/A'}</div>
+                    <div>Items: ${val.items ? val.items.length : 0}</div>
+                </div>
+            `;
 
-        // Click on card body to load/edit (ignoring buttons)
-        card.addEventListener('click', (e) => {
-            if (!e.target.closest('button')) {
-                editVendorSavedBill(b.id, e);
-            }
+            // Click card to Load Read-Only (ignoring specific buttons)
+            card.addEventListener('click', (e) => {
+                if (!e.target.closest('button')) {
+                    loadVendorBill(b.id);
+                }
+            });
+
+            list.appendChild(card);
         });
 
-        list.appendChild(card);
-    });
+    } catch (e) {
+        console.error("Error loading vendor bills", e);
+        list.innerHTML = '<div class="item-card">Error loading bills</div>';
+    }
 }
 
 /* ==========================================
@@ -5346,23 +5809,12 @@ async function deleteVendorBill(id) {
 }
 
 function searchVendorBills() {
-    const term = document.getElementById('vendor-bills-search').value.toLowerCase();
-    const cards = document.querySelectorAll('#vendor-bills-list .saved-bill-card');
-
-    cards.forEach(card => {
-        const text = card.textContent.toLowerCase();
-        card.style.display = text.includes(term) ? 'block' : 'none';
-    });
+    loadVendorSavedBillsList();
 }
 
 function searchVendors() {
-    const term = document.getElementById('vendor-search').value.toLowerCase();
-    const cards = document.querySelectorAll('#vendors-list .customer-card');
-
-    cards.forEach(card => {
-        const text = card.textContent.toLowerCase();
-        card.style.display = text.includes(term) ? 'block' : 'none';
-    });
+    // Just trigger reload, logic is inside loadVendorList
+    loadVendorList();
 }
 
 // VENDOR FUNCTIONS END
@@ -5401,7 +5853,7 @@ function openSavedBillsModal() {
     currentBillsMode = 'regular';
 
     // 2. Reset Sort Button to Default (Descending)
-    isSavedBillsSortAscending = false; 
+    isSavedBillsSortAscending = false;
     const sortBtn = document.getElementById('saved-bills-sort-btn');
     if (sortBtn) {
         sortBtn.classList.remove('ascending');
@@ -5413,7 +5865,7 @@ function openSavedBillsModal() {
         filterSelect.style.display = 'inline-block';
         filterSelect.value = 'all'; // Reset selection
     }
-    
+
     // 4. Reset Search Placeholder & Input
     const searchInput = document.getElementById('saved-bills-search');
     if (searchInput) {
@@ -5423,7 +5875,7 @@ function openSavedBillsModal() {
 
     // 5. Load Regular Bills
     loadSavedBillsList();
-    
+
     if (typeof toggleSettingsSidebar === 'function') toggleSettingsSidebar();
 }
 
@@ -5432,18 +5884,17 @@ function closeSavedBillsModal() {
     document.getElementById('saved-bills-modal').style.display = 'none';
 }
 
+/* 2. LOAD REGULAR BILLS (Ensures Button Exists & Data Passed Correctly) */
 async function loadSavedBillsList() {
     try {
         const savedBills = await getAllFromDB('savedBills');
         const billsList = document.getElementById('saved-bills-list');
         billsList.innerHTML = '';
 
-        // --- FIX: Populate Filter by Bill Type ---
+        // Populate Filter
         const filterSelect = document.getElementById('saved-prefix-filter');
         if (filterSelect) {
-            // Extract unique types
             const types = new Set(savedBills.map(b => b.value.modalState?.type || 'Regular').filter(t => t));
-
             filterSelect.innerHTML = '<option value="all">All Types</option>';
             types.forEach(type => {
                 const opt = document.createElement('option');
@@ -5458,64 +5909,57 @@ async function loadSavedBillsList() {
             return;
         }
 
-        // --- UPDATED SORTING LOGIC: CreatedAt Descending (Fallback to Timestamp) ---
         savedBills.sort((a, b) => {
             const timeA = a.value.createdAt || a.value.timestamp || 0;
             const timeB = b.value.createdAt || b.value.timestamp || 0;
-            return timeB - timeA; // Descending (Newest Original Creation First)
+            return timeB - timeA;
         });
-        // --------------------------------------------------------------------------
 
         savedBills.forEach(bill => {
             const billCard = document.createElement('div');
             billCard.className = 'saved-bill-card';
-
             const menuId = `menu-bill-${bill.id}-${Date.now()}`;
 
-            // Get Data from Saved Modal State
             const state = bill.value.modalState || {};
             const rawBillNo = state.invoiceNo || bill.value.customer?.billNo || 'N/A';
             const prefix = state.prefix || '';
-            const billType = state.type || 'Estimate'; // Default text
+            const billType = state.type || 'Invoice';
 
-            // --- FIX START: Determine Customer Name based on View Format ---
             const viewFormat = state.viewFormat || 'simple';
             let custName = 'N/A';
+            if (viewFormat === 'simple') custName = state.simple?.name;
+            else if (viewFormat === 'bill_to' || viewFormat === 'both') custName = state.billTo?.name;
+            if (!custName) custName = bill.value.customer?.name || 'N/A';
 
-            if (viewFormat === 'simple') {
-                custName = state.simple?.name;
-            } else if (viewFormat === 'bill_to' || viewFormat === 'both') {
-                custName = state.billTo?.name;
-            }
-
-            // Fallback if the specific name is empty
-            if (!custName) {
-                custName = bill.value.customer?.name || 'N/A';
-            }
-            // --- FIX END ---
-
-            // Construct Display Number (Prefix + No)
             const displayBillNo = prefix ? `${prefix}${rawBillNo}` : rawBillNo;
+            const gstin = bill.value.customer?.gstin || '';
 
-            // --- FIX: Card HTML with Prefix and Type ---
+            // --- PREFILL DATA OBJECT ---
+            const prefillData = JSON.stringify({
+                type: billType,
+                prefix: prefix,
+                no: rawBillNo
+            }).replace(/"/g, '&quot;');
+
             billCard.innerHTML = `
                 <div class="card-header-row">
                     <div class="card-info">
                         <span>${displayBillNo} - ${custName}</span>
-                        <span class="card-sub-info" style="font-size: 0.85em; color: #666; color:var(--primary-color);font-weight: 500;">${billType}</span>
+                        <span class="card-sub-info" style="font-size: 0.85em; color:var(--primary-color);font-weight: 500;">${billType}</span>
                         <span class="card-sub-info">₹${bill.value.totalAmount}</span>
                     </div>
-                    
                     <div class="card-controls">
                         <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
                             <span class="material-icons">keyboard_arrow_down</span>
                         </button>
-                        
                         <div class="action-menu-container">
                             <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
                                 <span class="material-icons">more_vert</span>
                             </button>
                             <div id="${menuId}" class="action-dropdown">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${custName}', '${gstin}', 'regular', ${prefillData})">
+                                    <span class="material-icons">payments</span> Payment & CN
+                                </button>
                                 <button class="dropdown-item" onclick="downloadBillAsJson('${bill.id}', 'regular', event)">
                                     <span class="material-icons">download</span> Download JSON
                                 </button>
@@ -5529,11 +5973,9 @@ async function loadSavedBillsList() {
                         </div>
                     </div>
                 </div>
-                
                 <div class="details-section hidden saved-bill-details">
                     <div>Date: ${bill.value.date}</div>
                     <div>Items: ${bill.value.items?.length || bill.value.itemCount || 0}</div>
-                    
                 </div>
             `;
 
@@ -5554,6 +5996,8 @@ async function loadSavedBillsList() {
         console.error('Error loading saved bills:', error);
     }
 }
+
+//VENDOR END
 
 async function loadSavedBill(billId) {
     try {
@@ -8805,25 +9249,25 @@ async function clearCustomerInputs() {
     }
 
     // 2. Clear Bill To inputs
-    if(document.getElementById('consignee-name')) document.getElementById('consignee-name').value = '';
-    if(document.getElementById('consignee-address')) document.getElementById('consignee-address').value = '';
-    if(document.getElementById('consignee-gst')) document.getElementById('consignee-gst').value = '';
-    if(document.getElementById('consignee-state')) document.getElementById('consignee-state').value = 'Maharashtra';
-    if(document.getElementById('consignee-code')) document.getElementById('consignee-code').value = '27';
-    if(document.getElementById('consignee-contact')) document.getElementById('consignee-contact').value = '';
+    if (document.getElementById('consignee-name')) document.getElementById('consignee-name').value = '';
+    if (document.getElementById('consignee-address')) document.getElementById('consignee-address').value = '';
+    if (document.getElementById('consignee-gst')) document.getElementById('consignee-gst').value = '';
+    if (document.getElementById('consignee-state')) document.getElementById('consignee-state').value = 'Maharashtra';
+    if (document.getElementById('consignee-code')) document.getElementById('consignee-code').value = '27';
+    if (document.getElementById('consignee-contact')) document.getElementById('consignee-contact').value = '';
 
     // 3. Clear Ship To inputs
-    if(document.getElementById('buyer-name')) document.getElementById('buyer-name').value = '';
-    if(document.getElementById('buyer-address')) document.getElementById('buyer-address').value = '';
-    if(document.getElementById('buyer-gst')) document.getElementById('buyer-gst').value = '';
-    if(document.getElementById('buyer-state')) document.getElementById('buyer-state').value = 'Maharashtra';
-    if(document.getElementById('buyer-code')) document.getElementById('buyer-code').value = '27';
-    if(document.getElementById('buyer-contact')) document.getElementById('buyer-contact').value = '';
-    if(document.getElementById('place-of-supply')) document.getElementById('place-of-supply').value = '';
+    if (document.getElementById('buyer-name')) document.getElementById('buyer-name').value = '';
+    if (document.getElementById('buyer-address')) document.getElementById('buyer-address').value = '';
+    if (document.getElementById('buyer-gst')) document.getElementById('buyer-gst').value = '';
+    if (document.getElementById('buyer-state')) document.getElementById('buyer-state').value = 'Maharashtra';
+    if (document.getElementById('buyer-code')) document.getElementById('buyer-code').value = '27';
+    if (document.getElementById('buyer-contact')) document.getElementById('buyer-contact').value = '';
+    if (document.getElementById('place-of-supply')) document.getElementById('place-of-supply').value = '';
 
     // 4. Clear invoice details & Set Defaults
-    if(document.getElementById('invoice-no')) document.getElementById('invoice-no').value = '';
-    if(document.getElementById('gst-percent-input')) document.getElementById('gst-percent-input').value = '18';
+    if (document.getElementById('invoice-no')) document.getElementById('invoice-no').value = '';
+    if (document.getElementById('gst-percent-input')) document.getElementById('gst-percent-input').value = '18';
 
     // --- NEW: Set Present Date ---
     const now = new Date();
@@ -8831,7 +9275,7 @@ async function clearCustomerInputs() {
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const year = now.getFullYear();
     const dateStr = `${day}-${month}-${year}`;
-    
+
     if (document.getElementById('invoice-date')) {
         document.getElementById('invoice-date').value = dateStr;
     }
@@ -8842,19 +9286,19 @@ async function clearCustomerInputs() {
     }
 
     // 5. Clear bill view display
-    if(document.getElementById('bill-invoice-no')) document.getElementById('bill-invoice-no').textContent = document.getElementById('invoice-no').value;
-    if(document.getElementById('bill-date-gst')) document.getElementById('bill-date-gst').textContent = dateStr;
-    if(document.getElementById('billToName')) document.getElementById('billToName').textContent = '';
-    if(document.getElementById('billToAddr')) document.getElementById('billToAddr').textContent = '';
-    if(document.getElementById('billToGstin')) document.getElementById('billToGstin').textContent = 'customer 15-digit GSTIN';
-    if(document.getElementById('billToContact')) document.getElementById('billToContact').textContent = 'Not provided';
-    if(document.getElementById('shipTo')) document.getElementById('shipTo').style.display = 'none';
+    if (document.getElementById('bill-invoice-no')) document.getElementById('bill-invoice-no').textContent = document.getElementById('invoice-no').value;
+    if (document.getElementById('bill-date-gst')) document.getElementById('bill-date-gst').textContent = dateStr;
+    if (document.getElementById('billToName')) document.getElementById('billToName').textContent = '';
+    if (document.getElementById('billToAddr')) document.getElementById('billToAddr').textContent = '';
+    if (document.getElementById('billToGstin')) document.getElementById('billToGstin').textContent = 'customer 15-digit GSTIN';
+    if (document.getElementById('billToContact')) document.getElementById('billToContact').textContent = 'Not provided';
+    if (document.getElementById('shipTo')) document.getElementById('shipTo').style.display = 'none';
 
     // 6. Save the cleared state
-    if(typeof saveCustomerDialogState === 'function') saveCustomerDialogState();
-    if(typeof saveToLocalStorage === 'function') saveToLocalStorage();
+    if (typeof saveCustomerDialogState === 'function') saveCustomerDialogState();
+    if (typeof saveToLocalStorage === 'function') saveToLocalStorage();
 
-    if(typeof showNotification === 'function') showNotification('Customer details cleared & reset!', 'success');
+    if (typeof showNotification === 'function') showNotification('Customer details cleared & reset!', 'success');
 }
 
 async function clearAllData(silent = false) {
@@ -8868,7 +9312,7 @@ async function clearAllData(silent = false) {
         if (typeof saveToHistory === 'function') await saveToHistory();
     }
 
-       window.currentCustomer = null;
+    window.currentCustomer = null;
     window.confirmedRegularCustomer = null; // safe even if unused
 
     // ---------------------------------------------------------
@@ -9050,6 +9494,21 @@ async function clearAllData(silent = false) {
     if (typeof saveToLocalStorage === 'function') await saveToLocalStorage();
     if (typeof saveCustomerDialogState === 'function') await saveCustomerDialogState();
     if (typeof saveGSTCustomerDataToLocalStorage === 'function') await saveGSTCustomerDataToLocalStorage();
+
+    // ---------------------------------------------------------
+    // 11. ENFORCE VENDOR MODE UI (FIX FOR "INVOICE" HEADER)
+    // ---------------------------------------------------------
+    if (typeof isVendorMode !== 'undefined' && isVendorMode) {
+        const regHeading = document.getElementById('regular-bill-heading');
+        const companyDetails = document.getElementById('regular-company-details');
+        const customerDetails = document.querySelector('#bill-container .customer-details');
+        const regFooter = document.getElementById('regular-bill-footer');
+
+        if (regHeading) regHeading.style.display = 'none';
+        if (companyDetails) companyDetails.style.display = 'none';
+        if (customerDetails) customerDetails.style.display = 'none';
+        if (regFooter) regFooter.style.display = 'none';
+    }
 
     if (!silent) {
         console.log('All data cleared.');
@@ -9409,7 +9868,7 @@ function toggleCustomerMode() {
 function toggleBillsMode() {
     const isGST = document.getElementById('bills-mode-toggle').checked;
     currentBillsMode = isGST ? 'gst' : 'regular';
-    
+
     const filterSelect = document.getElementById('saved-prefix-filter');
     const searchInput = document.getElementById('saved-bills-search');
 
@@ -9417,14 +9876,14 @@ function toggleBillsMode() {
         // --- GST MODE UI ---
         // Hide Type Filter
         if (filterSelect) filterSelect.style.display = 'none';
-        
+
         // Update Search Placeholder for GST
         if (searchInput) {
             searchInput.value = ''; // Clear previous search
             // Shows GSTIN, Amt, Date, Month, Year
             searchInput.placeholder = "Search GST... (/gstin/27.., /amt/500, /date/23, /month/12, /year/2025)";
         }
-        
+
         // Load Data
         applySavedBillsFilter();
 
@@ -9432,7 +9891,7 @@ function toggleBillsMode() {
         // --- REGULAR MODE UI ---
         // Show Type Filter
         if (filterSelect) filterSelect.style.display = 'inline-block';
-        
+
         // Update Search Placeholder for Regular
         if (searchInput) {
             searchInput.value = '';
@@ -9441,7 +9900,7 @@ function toggleBillsMode() {
         }
 
         // Load Data
-        loadSavedBillsList(); 
+        loadSavedBillsList();
     }
 }
 
