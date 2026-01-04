@@ -2723,7 +2723,7 @@ body.gst-mode #addTermsListSectionBtn {
 
 .dimension-inputs-group {
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     gap: 8px;
 }
 
@@ -4236,11 +4236,11 @@ terms modal
 }
 
 #vendor-details-container {
-    background: #fff;
-    padding: 15px;
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05);
+    /* background: #fff; */
+    padding: 0 15px 15px 15px;
+    /* border-radius: 8px; */
+    /* border: 1px solid var(--border-color); */
+    /* box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.05); */
 }
 
 #vendor-details-container input {
@@ -5807,13 +5807,17 @@ body {
     color: #d63031;
 }
 
-/* Shared Sort Button Animation */
+/* Shared Sort Button Animation - Updated with Vendor IDs */
 #saved-bills-sort-btn .material-icons,
-#customer-sort-btn .material-icons {
+#customer-sort-btn .material-icons,
+#vendor-sort-btn .material-icons,
+#vendor-bills-sort-btn .material-icons {
     transition: transform 0.3s ease;
 }
 
 #saved-bills-sort-btn.ascending .material-icons,
-#customer-sort-btn.ascending .material-icons {
+#customer-sort-btn.ascending .material-icons,
+#vendor-sort-btn.ascending .material-icons,
+#vendor-bills-sort-btn.ascending .material-icons {
     transform: scaleY(-1);
 }
