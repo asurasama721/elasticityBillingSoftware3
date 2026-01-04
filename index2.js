@@ -1156,6 +1156,7 @@ async function getGSTBillData() {
 }
 
 
+/* 3. LOAD GST SAVED BILLS (Ensures Button Exists) */
 async function loadGSTSavedBillsList() {
     try {
         const savedBills = await getAllFromDB('gstSavedBills');
@@ -1167,42 +1168,47 @@ async function loadGSTSavedBillsList() {
             return;
         }
 
-        // --- UPDATED SORT: createdAt Descending ---
         savedBills.sort((a, b) => {
             const timeA = a.value.createdAt || a.value.timestamp || 0;
             const timeB = b.value.createdAt || b.value.timestamp || 0;
             return timeB - timeA;
         });
-        // ------------------------------------------
 
         savedBills.forEach(bill => {
             const billCard = document.createElement('div');
             billCard.className = 'saved-bill-card';
-
             const menuId = `menu-gstbill-${bill.id}-${Date.now()}`;
+
             const invoiceNo = bill.value.invoiceDetails?.number || 'N/A';
             const custName = bill.value.customer?.billTo?.name || 'N/A';
-            const gstin = bill.value.customer?.billTo?.gstin || 'No GSTIN';
+            const gstin = bill.value.customer?.billTo?.gstin || '';
 
-            // New Header: [Invoice] - [Customer] -> [GSTIN] -> [Total] -> [Toggle] -> [Menu]
+            // --- PREFILL DATA OBJECT ---
+            const prefillData = JSON.stringify({
+                type: 'Tax Invoice',
+                prefix: '',
+                no: invoiceNo
+            }).replace(/"/g, '&quot;');
+
             billCard.innerHTML = `
                 <div class="card-header-row">
                     <div class="card-info">
                         <span>${invoiceNo} - ${custName}</span>
-                        <span class="card-sub-info">${gstin}</span>
+                        <span class="card-sub-info">${gstin || 'No GSTIN'}</span>
                         <span class="card-sub-info" style="color:var(--primary-color)">₹${bill.value.totalAmount}</span>
                     </div>
-                    
                     <div class="card-controls">
                         <button class="icon-btn" onclick="toggleCardDetails(this)" title="Toggle Details">
                             <span class="material-icons">keyboard_arrow_down</span>
                         </button>
-                        
                         <div class="action-menu-container">
                             <button class="icon-btn" onclick="toggleActionMenu(event, '${menuId}')">
                                 <span class="material-icons">more_vert</span>
                             </button>
                             <div id="${menuId}" class="action-dropdown">
+                                <button class="dropdown-item" onclick="openPaymentDialog('${custName}', '${gstin}', 'gst', ${prefillData})">
+                                    <span class="material-icons">payments</span> Payment & CN
+                                </button>
                                 <button class="dropdown-item" onclick="downloadBillAsJson('${bill.id}', 'gst', event)">
                                     <span class="material-icons">download</span> Download JSON
                                 </button>
@@ -1216,31 +1222,23 @@ async function loadGSTSavedBillsList() {
                         </div>
                     </div>
                 </div>
-                
                 <div class="details-section hidden saved-bill-details">
                     <div>Date: ${bill.value.date}</div>
                     <div>Items: ${bill.value.items?.length || bill.value.itemCount || 0}</div>
                     <div>Type: ${bill.value.taxSettings?.transactionType || 'N/A'}</div>
                 </div>
             `;
-            // RESTORE CLICK TO LOAD FUNCTIONALITY
-            billCard.addEventListener('click', async (e) => {
-                // Ignore clicks on buttons/menu (Action controls)
-                if (e.target.closest('.card-controls')) return;
 
+            billCard.addEventListener('click', async (e) => {
+                if (e.target.closest('.card-controls')) return;
                 resetEditMode();
                 await clearAllData(true);
-
-                // Ensure we are in GST Mode
                 if (!isGSTMode) {
                     isGSTMode = true;
                     updateUIForGSTMode();
                 }
-
                 await loadGSTSavedBill(bill.id);
                 closeSavedBillsModal();
-
-                // Wait for UI to settle then update calculations
                 setTimeout(() => {
                     copyItemsToGSTBill();
                     updateGSTTaxCalculation();
@@ -2621,12 +2619,19 @@ async function updateNextReceiptNo() {
 
     // If we are currently editing, do NOT show the "Next" number
     if (currentlyEditingPaymentId) {
-        // The edit function handles the display text
         return;
     }
 
     try {
-        const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        const mode = currentPaymentCustomer?.mode || 'regular';
+        let storeName = '';
+
+        if (mode === 'vendor') {
+            storeName = currentPaymentType === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+        } else {
+            storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        }
+
         const allRecords = await getAllFromDB(storeName);
 
         let maxNo = 0;
@@ -2689,13 +2694,39 @@ async function handlePaymentRefInput(input) {
             return timeB - timeA; // Descending Order
         };
 
-        if (mode === 'gst') {
-            // --- GST Search ---
+        // === 1. VENDOR MODE ===
+        if (mode === 'vendor') {
+            const allVendorBills = await getAllFromDB('vendorSavedBills');
+            const searchName = currentPaymentCustomer.name.toLowerCase().trim();
+
+            suggestions = allVendorBills
+                .sort(sortByLatest)
+                .filter(bill => {
+                    const bVal = bill.value;
+                    const vendorName = (bVal.vendor?.name || '').toLowerCase().trim();
+                    const invoiceNo = (bVal.billDetails?.invoiceNo || '').toLowerCase();
+
+                    // Match Vendor
+                    if (vendorName !== searchName) return false;
+
+                    // Match Query (Invoice No)
+                    if (query && !invoiceNo.includes(query)) return false;
+
+                    return true;
+                }).map(bill => ({
+                    display: bill.value.billDetails?.invoiceNo,
+                    amount: bill.value.totalAmount,
+                    prefix: '',
+                    no: bill.value.billDetails?.invoiceNo
+                }));
+        } 
+        // === 2. GST MODE ===
+        else if (mode === 'gst') {
             const allGstBills = await getAllFromDB('gstSavedBills');
             const searchGSTIN = (currentPaymentCustomer.gstin || '').toLowerCase();
 
             suggestions = allGstBills
-                .sort(sortByLatest) // <--- FIX: Sort Latest First
+                .sort(sortByLatest)
                 .filter(bill => {
                     const bVal = bill.value;
                     const billGST = (bVal.customer?.billTo?.gstin || '').toLowerCase();
@@ -2717,13 +2748,14 @@ async function handlePaymentRefInput(input) {
                     no: bill.value.invoiceDetails?.number
                 }));
 
-        } else {
-            // --- Regular Search ---
+        } 
+        // === 3. REGULAR MODE ===
+        else {
             const allBills = await getAllFromDB('savedBills');
             const searchName = currentPaymentCustomer.name.toLowerCase().trim();
 
             suggestions = allBills
-                .sort(sortByLatest) // <--- FIX: Sort Latest First
+                .sort(sortByLatest)
                 .filter(bill => {
                     const state = bill.value.modalState || {};
 
@@ -2788,17 +2820,24 @@ document.addEventListener('click', function (e) {
 });
 //new payment functions end
 
-/* 1. OPEN PAYMENT DIALOG (Updated: Sort Option & Focus Event) */
-function openPaymentDialog(customerName, gstin, explicitMode) {
+/* 1. OPEN PAYMENT DIALOG (Updated: Clears Drafts on Open) */
+async function openPaymentDialog(customerName, gstin, explicitMode, prefillData = null) {
+    // 1. SAVE GLOBAL STATE
+    currentPaymentPrefill = prefillData;
+
+    // Clear old drafts to prevent mixing data
+    paymentDraftState = {
+        'payment': {},
+        'credit-note': {}
+    };
+
     resetPaymentForm();
 
-    // --- MODE DETERMINATION ---
-    let mode = 'regular'; // Default
-
+    // 2. Mode Determination
+    let mode = 'regular';
     if (explicitMode) {
         mode = explicitMode;
     } else {
-        // Fallback: Guess based on GSTIN string
         const cleanGST = (gstin || '').toLowerCase().trim();
         const seemsLikeGST = cleanGST.length > 5 &&
             !cleanGST.includes('not provided') &&
@@ -2817,39 +2856,57 @@ function openPaymentDialog(customerName, gstin, explicitMode) {
     document.getElementById('payment-dialog-title').textContent = `Payments - ${customerName}`;
     document.getElementById('payment-dialog').classList.add('active');
 
-    // Reset Toggle UI
+    // 3. UI Reset
     const toggleBtns = document.querySelectorAll('.toggle-btn');
     toggleBtns.forEach(btn => btn.classList.remove('active'));
-    if(toggleBtns[0]) toggleBtns[0].classList.add('active');
+    if (toggleBtns[0]) toggleBtns[0].classList.add('active');
 
-    // Set Date
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
     const dateInput = document.getElementById('payment-date');
-    if(dateInput) dateInput.value = `${day}-${month}-${year}`;
+    if (dateInput) dateInput.value = getTodayDateStr();
 
-    // --- UI TOGGLE BASED ON MODE ---
+    // 4. Setup HTML Structure (Select vs Input)
     const refContainer = document.getElementById('payment-ref-type').parentNode;
+    
+    // UPDATED: Handle text display for Vendor vs GST
+    if (mode === 'gst' || mode === 'vendor') {
+        let displayLabel = 'TAX INVOICE';
+        let valueLabel = 'Tax Invoice';
 
-    if (mode === 'gst') {
-        // GST Mode: Hide Select
+        if (mode === 'vendor') {
+            // Default assumption for Vendors
+            displayLabel = 'Invoice';
+            valueLabel = 'Invoice';
+
+            // Check actual Vendor Type from DB [Diagram of Decision Logic]
+            try {
+                const vendors = await getAllFromDB('vendorList');
+                const match = vendors.find(v => v.value.name.toLowerCase().trim() === customerName.toLowerCase().trim());
+                
+                if (match && match.value.type === 'GST') {
+                    displayLabel = 'Tax Invoice';
+                    valueLabel = 'Tax Invoice';
+                }
+            } catch (e) {
+                console.error("Error fetching vendor type:", e);
+            }
+        }
+
         refContainer.innerHTML = `
             <label>Bill Type (Ref):</label>
-            <input type="text" value="TAX INVOICE" disabled style="background: #f0f0f0; border: 1px solid #ddd; color: #555;">
-            <select id="payment-ref-type" style="display:none;"><option value="Tax Invoice" selected>Tax Invoice</option></select>
+            <input type="text" value="${displayLabel}" disabled style="background: #f0f0f0; border: 1px solid #ddd; color: #555;">
+            <select id="payment-ref-type" style="display:none;"><option value="${valueLabel}" selected>${valueLabel}</option></select>
         `;
     } else {
-        // Regular Mode: Show Select
         refContainer.innerHTML = `
             <label>Bill Type (Ref):</label>
             <select id="payment-ref-type" onchange="handlePaymentRefTypeChange()"></select>
         `;
-        populatePaymentBillTypes(); // Fill Regular Options
     }
 
-    // --- ADDED "Receipt No" Option to Sort ---
+    // 5. Apply Values & Locking (Via Reset Logic)
+    resetPaymentForm(true);
+
+    // 6. Sort Option
     const sortSelect = document.getElementById('sort-by-select');
     if (sortSelect) {
         sortSelect.innerHTML = `
@@ -2859,13 +2916,6 @@ function openPaymentDialog(customerName, gstin, explicitMode) {
         `;
     }
 
-    // --- ADDED "onfocus" to Ref Input ---
-    const refInput = document.getElementById('payment-ref-no');
-    if (refInput) {
-        refInput.setAttribute('onfocus', 'handlePaymentRefInput(this)');
-    }
-
-    updateNextReceiptNo();
     updatePaymentUI();
     loadPaymentsAndCreditNotesWithFilters();
 }
@@ -2889,6 +2939,7 @@ function initializePeriodSelector() {
         fromDateInput.style.display = 'none';
     }
 }
+
 /* 2. HELPER: Populate Ledger Filter Types (Customer Specific) */
 async function populateLedgerBillTypes() {
     const select = document.getElementById('ledger-bill-type-filter');
@@ -2974,7 +3025,8 @@ async function openLedgerDialog(customerName, gstin, explicitMode) {
     // --- UI TOGGLE ---
     const filterSelect = document.getElementById('ledger-bill-type-filter');
 
-    if (mode === 'gst') {
+    // UPDATED: Hide filter for GST AND Vendor modes
+    if (mode === 'gst' || mode === 'vendor') {
         if (filterSelect) filterSelect.style.display = 'none';
     } else {
         if (filterSelect) {
@@ -2995,17 +3047,22 @@ async function openLedgerDialog(customerName, gstin, explicitMode) {
     loadLedgerData(currentPaymentCustomer.name, currentPaymentCustomer.gstin);
 }
 
-// Close dialogs
+/* 4. CLOSE DIALOG (Critical: Clears Prefill Data) */
 function closePaymentDialog() {
     document.getElementById('payment-dialog').classList.remove('active');
+    
+    // Reset Global States
     currentPaymentCustomer = null;
+    currentPaymentPrefill = null; // FIX: Ensure prefill is cleared on close
 }
-
 function closeLedgerDialog() {
     document.getElementById('ledger-dialog').classList.remove('active');
 }
 
+/* 1. SAVE DRAFT (No Changes, just keeping for completeness) */
 function saveFormToDraft(type) {
+    if (!paymentDraftState[type]) paymentDraftState[type] = {};
+    
     paymentDraftState[type] = {
         date: document.getElementById('payment-date').value,
         method: document.getElementById('payment-method').value,
@@ -3019,29 +3076,86 @@ function saveFormToDraft(type) {
     };
 }
 
+/* 2. RESTORE FORM (Updated: Respects Global Prefill & Locks Fields) */
 function restoreFormFromDraft(type) {
-    const draft = paymentDraftState[type];
-    // Set Date: Draft or Today
+    const draft = paymentDraftState[type] || {};
+
+    // --- A. Basic Fields (Always restore from draft or defaults) ---
     document.getElementById('payment-date').value = draft.date || getTodayDateStr();
     document.getElementById('payment-method').value = draft.method || 'Cash';
     document.getElementById('payment-amount').value = draft.amount || '';
     document.getElementById('payment-notes').value = draft.notes || '';
 
-    // Custom Method
-    document.getElementById('custom-payment-method').value = draft.customMethod || '';
+    // Custom Method Logic
+    const customInput = document.getElementById('custom-payment-method');
+    const customContainer = document.getElementById('custom-method-container');
+    customInput.value = draft.customMethod || '';
     if (draft.method === 'Other') {
-        document.getElementById('custom-method-container').style.display = 'block';
+        customContainer.style.display = 'block';
     } else {
-        document.getElementById('custom-method-container').style.display = 'none';
+        customContainer.style.display = 'none';
     }
 
-    // Refs
-    document.getElementById('payment-ref-type').value = draft.refType || '';
-    document.getElementById('payment-ref-no').value = draft.refNo || '';
-    document.getElementById('payment-ref-prefix').value = draft.refPrefix || '';
-    document.getElementById('payment-ref-billno').value = draft.refBillNo || '';
+    // --- B. Reference Fields Logic (The Fix) ---
+    const refInput = document.getElementById('payment-ref-no');
+    const refPrefixInput = document.getElementById('payment-ref-prefix');
+    const refBillNoInput = document.getElementById('payment-ref-billno');
+    const typeSelect = document.getElementById('payment-ref-type');
+    const mode = currentPaymentCustomer?.mode || 'regular';
 
-    // Reset Button
+    if (currentPaymentPrefill) {
+        // === LOCKED PREFILL MODE (Override Draft) ===
+        
+        // 1. Force Type Selection (Regular Mode)
+        if (mode === 'regular' && typeSelect) {
+            // Force inject the specific option to ensure it exists
+            typeSelect.innerHTML = `<option value="${currentPaymentPrefill.type}" selected>${currentPaymentPrefill.type}</option>`;
+            typeSelect.value = currentPaymentPrefill.type;
+            typeSelect.disabled = true; // Lock
+            typeSelect.style.backgroundColor = "#f0f0f0";
+        }
+
+        // 2. Fill & Lock Input
+        const displayNo = `${currentPaymentPrefill.prefix || ''}${currentPaymentPrefill.no}`;
+        refInput.value = displayNo;
+        refInput.readOnly = true; // Lock
+        refInput.style.backgroundColor = "#f0f0f0";
+        refInput.removeAttribute('onfocus');
+
+        // 3. Fill Hidden Fields
+        refPrefixInput.value = currentPaymentPrefill.prefix || '';
+        refBillNoInput.value = currentPaymentPrefill.no || '';
+
+    } else {
+        // === NORMAL DRAFT MODE (Restore Draft) ===
+
+        // 1. Set Type (Regular Mode)
+        if (mode === 'regular' && typeSelect) {
+            typeSelect.disabled = false; // Unlock
+            typeSelect.style.backgroundColor = "white";
+            
+            // Re-populate if options are missing (e.g. was locked)
+            if (typeSelect.options.length <= 1) {
+                populatePaymentBillTypes().then(() => {
+                    if(draft.refType) typeSelect.value = draft.refType;
+                });
+            } else {
+                typeSelect.value = draft.refType || '';
+            }
+        }
+
+        // 2. Set Input & Unlock
+        refInput.value = draft.refNo || '';
+        refInput.readOnly = false; // Unlock
+        refInput.style.backgroundColor = "white";
+        refInput.setAttribute('onfocus', 'handlePaymentRefInput(this)');
+
+        // 3. Hidden Fields
+        refPrefixInput.value = draft.refPrefix || '';
+        refBillNoInput.value = draft.refBillNo || '';
+    }
+
+    // --- C. Reset Button Label ---
     const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
     document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">add</i> Add <span id="add-btn-label">${typeLabel}</span>`;
 }
@@ -3055,11 +3169,12 @@ function getTodayDateStr() {
     return `${day}-${month}-${year}`;
 }
 
-/* 3. TOGGLE HANDLER (Triggers Receipt Update) */
+/* 3. TOGGLE HANDLER (Updated: Calls Restore which handles logic) */
 function setupPaymentTypeToggle() {
     const toggleBtns = document.querySelectorAll('.toggle-btn');
+    
     toggleBtns.forEach(btn => {
-        btn.addEventListener('click', async function () { // Made async
+        btn.addEventListener('click', async function () {
             // 1. Save Draft
             saveFormToDraft(currentPaymentType);
 
@@ -3071,13 +3186,13 @@ function setupPaymentTypeToggle() {
             currentPaymentType = this.dataset.type;
             currentlyEditingPaymentId = null;
 
-            // 4. Restore Draft
+            // 4. Restore Draft (This now triggers the Prefill check)
             restoreFormFromDraft(currentPaymentType);
 
             // 5. Update UI Labels
             updatePaymentUI();
 
-            // 6. CRITICAL: Update Receipt Number for the new type
+            // 6. Update Receipt Number
             await updateNextReceiptNo();
 
             // 7. Reload Table
@@ -3090,7 +3205,18 @@ function setupPaymentTypeToggle() {
 async function editPaymentRecord(recordId, recordType = null) {
     try {
         const type = recordType || currentPaymentType;
-        const storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        
+        // --- FIX: Determine Store based on Mode ---
+        const mode = currentPaymentCustomer?.mode || 'regular';
+        let storeName = '';
+
+        if (mode === 'vendor') {
+            storeName = type === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+        } else {
+            storeName = type === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        }
+        // ------------------------------------------
+
         const record = await getFromDB(storeName, recordId);
 
         if (!record) { showNotification('Record not found', 'error'); return; }
@@ -3133,27 +3259,83 @@ async function editPaymentRecord(recordId, recordType = null) {
     }
 }
 
-/* 4. RESET FORM (Triggers Receipt Update) */
+/* 2. RESET FORM (Updated: Safer Prefill Persistence) */
 function resetPaymentForm(setDate = false) {
-    if (setDate) document.getElementById('payment-date').value = getTodayDateStr();
+    if (setDate) {
+        const dateInput = document.getElementById('payment-date');
+        if (dateInput) dateInput.value = getTodayDateStr();
+    }
 
+    // 1. Clear Basic Fields
     document.getElementById('payment-method').value = 'Cash';
     document.getElementById('payment-amount').value = '';
     document.getElementById('payment-notes').value = '';
     document.getElementById('custom-payment-method').value = '';
     document.getElementById('custom-method-container').style.display = 'none';
 
-    document.getElementById('payment-ref-type').value = '';
-    document.getElementById('payment-ref-no').value = '';
-    document.getElementById('payment-ref-prefix').value = '';
-    document.getElementById('payment-ref-billno').value = '';
-
+    // 2. Update Button Label
     const typeLabel = currentPaymentType === 'payment' ? 'Payment' : 'Credit Note';
     document.getElementById('add-payment-btn').innerHTML = `<i class="material-icons">add</i> Add <span id="add-btn-label">${typeLabel}</span>`;
 
     currentlyEditingPaymentId = null;
 
-    // CRITICAL: Update Receipt Number whenever form is reset (after add/update)
+    // 3. Handle Reference Fields (Prefill vs Normal)
+    const refInput = document.getElementById('payment-ref-no');
+    const refPrefixInput = document.getElementById('payment-ref-prefix');
+    const refBillNoInput = document.getElementById('payment-ref-billno');
+    const typeSelect = document.getElementById('payment-ref-type');
+    const mode = currentPaymentCustomer?.mode || 'regular';
+
+    if (currentPaymentPrefill) {
+        // === LOCKED MODE (Specific Bill) ===
+        
+        // A. Force Type Selection (Regular Mode)
+        if (mode === 'regular' && typeSelect) {
+            // Force inject option to guarantee it exists and is selected
+            typeSelect.innerHTML = `<option value="${currentPaymentPrefill.type}" selected>${currentPaymentPrefill.type}</option>`;
+            typeSelect.value = currentPaymentPrefill.type; // Double ensure
+            typeSelect.disabled = true;
+            typeSelect.style.backgroundColor = "#f0f0f0";
+        }
+
+        // B. Fill & Lock Input
+        const displayNo = `${currentPaymentPrefill.prefix || ''}${currentPaymentPrefill.no}`;
+        refInput.value = displayNo;
+        refInput.readOnly = true;
+        refInput.style.backgroundColor = "#f0f0f0";
+        refInput.removeAttribute('onfocus'); 
+        
+        // C. Fill Hidden Data
+        refPrefixInput.value = currentPaymentPrefill.prefix || '';
+        refBillNoInput.value = currentPaymentPrefill.no || '';
+
+    } else {
+        // === NORMAL MODE (Editable) ===
+        
+        // A. Reset Type Select (Regular Mode)
+        if (mode === 'regular' && typeSelect) {
+            typeSelect.disabled = false;
+            typeSelect.style.backgroundColor = "white";
+            typeSelect.value = ''; // Clear selection
+            
+            // Re-populate if it was locked (has only 1 option)
+            if (typeSelect.options.length <= 1) {
+                populatePaymentBillTypes(); 
+            }
+        }
+
+        // B. Clear & Unlock Input
+        refInput.value = '';
+        refInput.readOnly = false;
+        refInput.style.backgroundColor = "white";
+        refInput.setAttribute('onfocus', 'handlePaymentRefInput(this)');
+        
+        // C. Clear Hidden Data
+        refPrefixInput.value = '';
+        refBillNoInput.value = '';
+    }
+
+    // 4. Update Receipt No
     updateNextReceiptNo();
 }
 
@@ -3169,13 +3351,35 @@ async function updatePaymentRecord() {
     const amount = parseFloat(document.getElementById('payment-amount').value);
     const notes = document.getElementById('payment-notes').value;
 
-    const refType = document.getElementById('payment-ref-type').value;
     const refPrefix = document.getElementById('payment-ref-prefix').value;
     const refBillNo = document.getElementById('payment-ref-billno').value;
     const refDisplay = document.getElementById('payment-ref-no').value;
 
     try {
-        const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        // --- FIX: Determine Store based on Mode ---
+        const mode = currentPaymentCustomer?.mode || 'regular';
+        let storeName = '';
+
+        if (mode === 'vendor') {
+            storeName = currentPaymentType === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+        } else {
+            storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        }
+        // ------------------------------------------
+
+        // --- DETERMINE REF TYPE SAFELY ---
+        let refType = '';
+        if (mode === 'gst') {
+            refType = 'Tax Invoice';
+        } else if (mode === 'vendor') {
+            const gstin = (currentPaymentCustomer.gstin || '').toLowerCase().trim();
+            const isGSTVendor = gstin.length > 5 && !gstin.includes('not provided');
+            refType = isGSTVendor ? 'Tax Invoice' : 'Invoice';
+        } else {
+            // Regular Mode: Trust the dropdown
+            refType = document.getElementById('payment-ref-type').value;
+        }
+
         const existingRecord = await getFromDB(storeName, currentlyEditingPaymentId);
 
         const updatedRecord = {
@@ -3225,13 +3429,13 @@ function displayPayments(payments) {
 
     payments.forEach(payment => {
         // --- LOGIC CHANGE: Default to Bill Type, append No if exists ---
-        let refText = payment.refType || 'Invoice'; 
-        
+        let refText = payment.refType || 'Invoice';
+
         if (payment.refBillNo || payment.refDisplay) {
             const num = payment.refDisplay || `${payment.refPrefix || ''}${payment.refBillNo}`;
             refText = `${refText} - ${num}`;
         }
-        
+
         // Only show dash if absolutely no info exists (legacy data)
         if (!payment.refType && !payment.refBillNo) refText = '-';
 
@@ -3398,9 +3602,31 @@ async function getCustomerBills(customerName, gstin, mode = 'regular') {
         const searchName = customerName.toLowerCase().trim();
         const searchGST = gstin ? gstin.toLowerCase().trim() : '';
 
-        // --- GST MODE ---
+        // === 1. VENDOR MODE ===
+        if (mode === 'vendor') {
+            const vendorBills = await getAllFromDB('vendorSavedBills');
+            
+            const filtered = vendorBills.filter(bill => {
+                const bVal = bill.value;
+                const vName = (bVal.vendor?.name || '').toLowerCase().trim();
+                return vName === searchName;
+            });
+
+            // Normalization: Map vendor bill fields to match what Ledger expects
+            bills = filtered.map(bill => ({
+                ...bill.value, 
+                source: 'vendor', 
+                id: bill.id,
+                // Ledger expects 'invoiceDetails' for display
+                invoiceDetails: {
+                    number: bill.value.billDetails.invoiceNo,
+                    date: bill.value.billDetails.date
+                }
+            }));
+        }
+        // === 2. GST MODE ===
         // Only look in 'gstSavedBills'
-        if (mode === 'gst') {
+        else if (mode === 'gst') {
             const gstBills = await getAllFromDB('gstSavedBills');
             const filteredGstBills = gstBills.filter(bill => {
                 const bVal = bill.value;
@@ -3420,8 +3646,8 @@ async function getCustomerBills(customerName, gstin, mode = 'regular') {
                 ...bill.value, source: 'gst', id: bill.id
             }));
         }
-        // --- REGULAR MODE ---
-        // Only look in 'savedBills' (The store separation is the filter)
+        // === 3. REGULAR MODE ===
+        // Only look in 'savedBills'
         else {
             const regularBills = await getAllFromDB('savedBills');
 
@@ -3610,17 +3836,28 @@ async function addNewPayment() {
     const amount = parseFloat(document.getElementById('payment-amount').value);
     const notes = document.getElementById('payment-notes').value;
 
-    // --- CRITICAL: DETERMINE REF TYPE ---
+    // --- CRITICAL: DETERMINE REF TYPE & MODE ---
     let refType = '';
-    const mode = currentPaymentCustomer.mode || 'regular'; // Rely on explicit mode
+    const mode = currentPaymentCustomer.mode || 'regular'; 
 
     if (mode === 'gst') {
-        refType = 'Tax Invoice'; // Always enforce for GST
-    } else {
-        // Regular: Get from dropdown
+        // 1. GST CUSTOMER (Existing Logic)
+        refType = 'Tax Invoice'; 
+    } 
+    else if (mode === 'vendor') {
+        // 2. VENDOR (New Logic)
+        // Check if this specific vendor has a valid GSTIN
+        const gstin = (currentPaymentCustomer.gstin || '').toLowerCase().trim();
+        const isGSTVendor = gstin.length > 5 && 
+                            !gstin.includes('not provided') && 
+                            !gstin.includes('n/a');
+        
+        refType = isGSTVendor ? 'Tax Invoice' : 'Invoice';
+    } 
+    else {
+        // 3. REGULAR CUSTOMER (Existing Logic)
         const selectEl = document.getElementById('payment-ref-type');
         refType = selectEl ? selectEl.value : '';
-        // Default to Invoice if dropdown is empty or not selected
         if (!refType || refType === '') refType = 'Invoice';
     }
 
@@ -3645,7 +3882,14 @@ async function addNewPayment() {
     }
 
     try {
-        const storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        // --- DETERMINE CORRECT STORE FOR RECEIPT NO ---
+        let storeName = '';
+        if (mode === 'vendor') {
+            storeName = currentPaymentType === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
+        } else {
+            storeName = currentPaymentType === 'payment' ? 'customerPayments' : 'customerCreditNotes';
+        }
+
         const allRecords = await getAllFromDB(storeName);
 
         let maxNo = 0;
@@ -3693,7 +3937,6 @@ function toggleProfitView() {
    PDF DOWNLOAD LOGIC (LEDGER)
    ========================================================================== */
 /* PDF DOWNLOAD (Fixed: 60% Width for Addresses) */
-/* PDF DOWNLOAD (Fixed: Date/Period Alignment & 60% Address Width) */
 async function downloadLedgerPDF() {
     if (!currentPaymentCustomer) {
         showNotification("No customer selected", "error");
@@ -3706,9 +3949,37 @@ async function downloadLedgerPDF() {
         // 1. Get Company Info
         const company = await getFromDB('companyInfo', 'companyInfo') || {};
         
-        // 2. Get Ledger Table Data (Scrape from DOM)
+        // 2. Determine Mode & Details
+        const mode = currentPaymentCustomer.mode || 'regular';
+        let addressText = '';
+        let headerTitle = 'LEDGER STATEMENT';
+
+        if (mode === 'vendor') {
+            headerTitle = 'VENDOR LEDGER STATEMENT';
+            // Fetch full vendor details from DB
+            try {
+                const vendors = await getAllFromDB('vendorList');
+                const match = vendors.find(v => v.value.name.toLowerCase() === currentPaymentCustomer.name.toLowerCase());
+                if (match) {
+                    const v = match.value;
+                    const parts = [];
+                    if (v.address) parts.push(v.address);
+                    if (v.phone) parts.push(`Phone: ${v.phone}`);
+                    if (v.email) parts.push(`Email: ${v.email}`);
+                    addressText = parts.join('\n');
+                }
+            } catch (e) { console.error("Error fetching vendor details for PDF", e); }
+        } else {
+            // Regular Customer logic
+            if (typeof getCustomerAddressStr === 'function') {
+                addressText = await getCustomerAddressStr(currentPaymentCustomer);
+            }
+        }
+
+        // 3. Get Ledger Table Data (Scrape from DOM)
+        // (The DOM is already updated by loadLedgerData, so "Purchase" will appear here automatically)
         const tableBody = [];
-        
+
         // Header Row
         tableBody.push([
             { text: 'Date', style: 'tableHeader' },
@@ -3730,8 +4001,8 @@ async function downloadLedgerPDF() {
                 const debit = cells[2].innerText.trim();
                 const credit = cells[3].innerText.trim();
 
-                if(index === 0) startDate = date;
-                if(index === rows.length - 1) endDate = date;
+                if (index === 0) startDate = date;
+                if (index === rows.length - 1) endDate = date;
 
                 tableBody.push([
                     { text: date, style: index === 0 ? 'boldRow' : 'bodyText' },
@@ -3746,31 +4017,31 @@ async function downloadLedgerPDF() {
         const footRows = document.querySelectorAll('.unified-ledger-table tfoot tr');
         footRows.forEach(row => {
             const cells = row.querySelectorAll('td');
-            
+
             if (cells.length === 3) {
                 const label = cells[0].innerText.trim();
                 const val1 = cells[1].innerText.trim();
                 const val2 = cells[2].innerText.trim();
-                
+
                 tableBody.push([
                     { text: label, colSpan: 2, style: 'footerBold', alignment: 'right' },
-                    {}, 
+                    {},
                     { text: val1, style: 'footerBold', alignment: 'right' },
                     { text: val2, style: 'footerBold', alignment: 'right' }
                 ]);
-            } 
+            }
             else if (cells.length === 2) {
                 const label = cells[0].innerText.trim();
                 const value = cells[1].innerText.trim();
-                
+
                 if (label.toLowerCase().includes('advance deposit')) {
                     const numVal = parseFloat(value.replace(/[^\d.-]/g, '')) || 0;
                     if (numVal === 0) return;
                 }
-                
+
                 tableBody.push([
                     { text: label, colSpan: 2, style: 'footerBold', alignment: 'right' },
-                    {}, 
+                    {},
                     { text: value, colSpan: 2, style: 'footerBold', alignment: 'center' },
                     {}
                 ]);
@@ -3785,23 +4056,23 @@ async function downloadLedgerPDF() {
             }
         });
 
-        // 3. Define Document Definition
+        // 4. Define Document Definition
         const docDefinition = {
             content: [
-                // Header: Customer Details
+                // Header: Customer/Vendor Details
                 {
                     columns: [
                         {
-                            width: '55%', // Customer Address takes 60%
+                            width: '55%',
                             stack: [
-                                { text: 'LEDGER STATEMENT', style: 'mainHeader' },
+                                { text: headerTitle, style: 'mainHeader' },
                                 { text: currentPaymentCustomer.name.toUpperCase(), style: 'customerName' },
-                                { text: await getCustomerAddressStr(currentPaymentCustomer), style: 'subText' },
+                                { text: addressText, style: 'subText' },
                                 { text: `GSTIN: ${currentPaymentCustomer.gstin || 'N/A'}`, style: 'subText' }
                             ]
                         },
                         {
-                            width: '*', // FIX: Changed from 'auto' to '*' to push it to the right edge
+                            width: '*',
                             stack: [
                                 { text: `Date: ${new Date().toLocaleDateString('en-IN')}`, alignment: 'right', style: 'metaText' },
                                 { text: `Period: ${startDate} to ${endDate}`, alignment: 'right', style: 'metaText' }
@@ -3819,25 +4090,25 @@ async function downloadLedgerPDF() {
                         body: tableBody
                     },
                     layout: {
-                        paddingLeft: function(i) { return 5; },
-                        paddingRight: function(i) { return 5; },
-                        paddingTop: function(i) { return 5; },
-                        paddingBottom: function(i) { return 5; },
-                        vLineWidth: function(i, node) { return 0; },
-                        hLineWidth: function(i, node) {
-                            if (i === 0) return 0; 
-                            if (i === 1) return 2; 
+                        paddingLeft: function (i) { return 5; },
+                        paddingRight: function (i) { return 5; },
+                        paddingTop: function (i) { return 5; },
+                        paddingBottom: function (i) { return 5; },
+                        vLineWidth: function (i, node) { return 0; },
+                        hLineWidth: function (i, node) {
+                            if (i === 0) return 0;
+                            if (i === 1) return 2;
                             return 1;
                         },
-                        hLineColor: function(i, node) { return '#444444'; }
+                        hLineColor: function (i, node) { return '#444444'; }
                     }
                 },
 
-                // Footer: Company Details (Wrapped in 60% column)
+                // Footer: Company Details
                 {
                     columns: [
                         {
-                            width: '60%', // Company Address takes 60%
+                            width: '60%',
                             stack: [
                                 {
                                     text: 'Regards,',
@@ -3875,11 +4146,11 @@ async function downloadLedgerPDF() {
             }
         };
 
-        // 4. Generate Filename
+        // 5. Generate Filename
         const safeName = currentPaymentCustomer.name.replace(/[^a-zA-Z0-9]/g, '_');
         const dateStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
         const modeStr = currentPaymentCustomer.mode || 'regular';
-        
+
         const fileName = `Ledger_${safeName}_${dateStr}_${modeStr}.pdf`;
 
         pdfMake.createPdf(docDefinition).download(fileName);
@@ -3890,6 +4161,7 @@ async function downloadLedgerPDF() {
         showNotification("Error generating PDF", "error");
     }
 }
+
 
 // Helper to get address string safely (Checking GST customers then Regular)
 async function getCustomerAddressStr(custObj) {
@@ -5118,7 +5390,22 @@ async function loadLedgerData(customerName = currentPaymentCustomer?.name, gstin
             financialData.creditNotes = financialData.creditNotes.filter(c => (c.refType || 'Invoice') === type);
         }
 
+        // Render the table
         displayUnifiedLedgerTable(financialData, openingBalance, dateRange);
+
+        // === FIX: UPDATE LABELS FOR VENDOR MODE ===
+        // Since displayUnifiedLedgerTable defaults to "Sale", we update the DOM directly
+        if (mode === 'vendor') {
+            const rows = document.querySelectorAll('#ledger-tbody tr');
+            rows.forEach(row => {
+                // Check the Particulars column (usually index 1)
+                if (row.cells.length > 1) {
+                    // Replace "Sale (" with "Purchase ("
+                    row.cells[1].innerHTML = row.cells[1].innerHTML.replace(/Sale\s+\(/g, 'Purchase (');
+                }
+            });
+        }
+        // ==========================================
 
     } catch (error) {
         console.error("[LEDGER] Error loading:", error);
@@ -5254,31 +5541,47 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
     // 2. Transactions
     let allTransactions = [];
 
+    // Helper to get sorting timestamps
+    const getSortKeys = (dateStr, item) => {
+        const dateTs = new Date(convertDateToISO(dateStr)).getTime(); // Date Only (Midnight)
+        // Prefer createdAt, fallback to timestamp, fallback to 0. 
+        // This ensures correct ordering for items added on the same day.
+        const createdTs = item.createdAt || item.timestamp || 0; 
+        return { dateTs, createdTs };
+    };
+
     // BILLS
     if (financialData.bills) {
         financialData.bills.forEach(bill => {
             const state = bill.modalState || {};
             const prefix = state.prefix || '';
             const no = state.invoiceNo || bill.invoiceDetails?.invoiceNo || bill.invoiceDetails?.number || '';
+            const dateStr = bill.date || bill.invoiceDetails?.date;
 
-            // --- LABEL LOGIC ---
+            // Label Logic
             let typeLabel = 'Invoice';
             let amount = 0;
 
             if (bill.source === 'gst') {
-                typeLabel = 'Tax Invoice'; // Force Label for GST
+                typeLabel = 'Tax Invoice';
                 amount = parseFloat(bill.totals?.grandTotal || 0);
+            } else if (bill.source === 'vendor') {
+                typeLabel = 'Invoice'; // Initial label, modified later if needed
+                amount = parseFloat(bill.totalAmount || 0);
             } else {
-                typeLabel = state.type || 'Invoice'; // Use saved label for Regular
+                typeLabel = state.type || 'Invoice';
                 amount = parseFloat(bill.totalAmount || bill.grandTotal || 0);
             }
 
+            const { dateTs, createdTs } = getSortKeys(dateStr, bill);
+
             allTransactions.push({
-                date: bill.date || bill.invoiceDetails?.date,
-                particulars: ` Sale (${typeLabel} - ${prefix}${no})`,
+                date: dateStr,
+                particulars: ` Sale (${typeLabel} - ${prefix}${no})`, // Will be regex-replaced for Vendors later
                 debit: amount,
                 credit: 0,
-                timestamp: new Date(convertDateToISO(bill.date || bill.invoiceDetails?.date)).getTime()
+                dateTimestamp: dateTs,
+                createdTimestamp: createdTs
             });
         });
     }
@@ -5296,15 +5599,16 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
                 suffix = ` (${type})`;
             }
 
-            // FIX: Add Receipt Number
             const recNo = pay.receiptNo ? ` #${pay.receiptNo}` : '';
+            const { dateTs, createdTs } = getSortKeys(pay.date, pay);
 
             allTransactions.push({
                 date: pay.date,
                 particulars: `Receipt${recNo} : ${pay.method} ${suffix}`,
                 debit: 0,
                 credit: parseFloat(pay.amount),
-                timestamp: new Date(convertDateToISO(pay.date)).getTime()
+                dateTimestamp: dateTs,
+                createdTimestamp: createdTs
             });
         });
     }
@@ -5321,22 +5625,31 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
                 suffix = ` (${type})`;
             }
 
-            // FIX: Add Receipt Number
             const recNo = cn.receiptNo ? ` #${cn.receiptNo}` : '';
+            const { dateTs, createdTs } = getSortKeys(cn.date, cn);
 
             allTransactions.push({
                 date: cn.date,
                 particulars: `Credit Note${recNo} : ${cn.method} ${suffix}`,
                 debit: 0,
                 credit: parseFloat(cn.amount),
-                timestamp: new Date(convertDateToISO(cn.date)).getTime()
+                dateTimestamp: dateTs,
+                createdTimestamp: createdTs
             });
         });
     }
 
-    // Sort & Render
-    allTransactions.sort((a, b) => a.timestamp - b.timestamp);
+    // --- UPDATED SORT LOGIC ---
+    // 1. Sort by Date (Chronological)
+    // 2. If Same Date, Sort by Creation Time (Chronological)
+    allTransactions.sort((a, b) => {
+        if (a.dateTimestamp !== b.dateTimestamp) {
+            return a.dateTimestamp - b.dateTimestamp;
+        }
+        return a.createdTimestamp - b.createdTimestamp;
+    });
 
+    // Render Rows
     allTransactions.forEach(tx => {
         totalDebit += tx.debit;
         totalCredit += tx.credit;
@@ -5359,12 +5672,12 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
     if (netAmount > 0) balanceAmount = netAmount;
     else advanceDeposit = Math.abs(netAmount);
 
+    // Closing date is the date of the last transaction or end of period
     const closingDate = allTransactions.length > 0 ?
         convertToDisplayFormat(allTransactions[allTransactions.length - 1].date) :
         (dateRange ? dateRange.endDate : new Date().toLocaleDateString('en-GB').replace(/\//g, '-'));
 
     if (tfoot) {
-        // FIX: Conditional Advance Deposit Row
         const advanceRow = advanceDeposit > 0 ? `
             <tr class="total-row highlight">
                 <td colspan="2" class="right bold">Advance Deposit</td>
@@ -10342,15 +10655,16 @@ function updateSavedBillsFilterOptions(bills) {
     });
 }
 
+/* 1. APPLY SAVED BILLS FILTER (Updated with Payment & CN Button) */
 async function applySavedBillsFilter() {
-    // 1. Determine Context (Mode, Filter Type, Search Term)
+    // 1. Determine Context
     const isGST = (typeof currentBillsMode !== 'undefined' && currentBillsMode === 'gst');
     const selectedType = document.getElementById('saved-prefix-filter') ? document.getElementById('saved-prefix-filter').value : 'all';
     const searchInput = document.getElementById('saved-bills-search').value.trim().toLowerCase();
     const billsList = document.getElementById('saved-bills-list');
 
     try {
-        // 2. Fetch Data from appropriate DB Store
+        // 2. Fetch Data
         let source;
         if (isGST) {
             source = await getAllFromDB('gstSavedBills');
@@ -10397,8 +10711,7 @@ async function applySavedBillsFilter() {
                 // Command: Month (/month/)
                 else if (searchInput.startsWith('/month/')) {
                     let term = searchInput.replace('/month/', '').trim();
-                    // Handle single digit input (e.g., '5' -> '05')
-                    if (term.length === 1) term = '0' + term;
+                    if (term.length === 1) term = '0' + term; // Handle single digit
 
                     const dateStr = (val.date || ''); // Format: DD-MM-YYYY
                     const parts = dateStr.split('-');
@@ -10411,7 +10724,7 @@ async function applySavedBillsFilter() {
                 // Command: Year (/year/)
                 else if (searchInput.startsWith('/year/')) {
                     const term = searchInput.replace('/year/', '').trim();
-                    const dateStr = (val.date || ''); // Format: DD-MM-YYYY
+                    const dateStr = (val.date || '');
                     const parts = dateStr.split('-');
                     if (parts.length === 3) {
                         matchesSearch = (parts[2] === term);
@@ -10426,12 +10739,10 @@ async function applySavedBillsFilter() {
 
                     let nameMatch = false;
                     if (isGST) {
-                        // GST: Search Bill To / Ship To names
                         const billToName = val.customer?.billTo?.name?.toLowerCase() || '';
                         const shipToName = val.customer?.shipTo?.name?.toLowerCase() || '';
                         nameMatch = billToName.includes(searchInput) || shipToName.includes(searchInput);
                     } else {
-                        // Regular: Search Simple Name, Bill To Name, Customer Name
                         const custName = val.customer?.name?.toLowerCase() || '';
                         const simpleName = state.simple?.name?.toLowerCase() || '';
                         const billToName = state.billTo?.name?.toLowerCase() || '';
@@ -10445,7 +10756,7 @@ async function applySavedBillsFilter() {
             return matchesType && matchesSearch;
         });
 
-        // 4. Sort Data (CreatedAt - Ascending/Descending)
+        // 4. Sort Data
         filtered.sort((a, b) => {
             const timeA = a.value.createdAt || a.value.timestamp || 0;
             const timeB = b.value.createdAt || b.value.timestamp || 0;
@@ -10478,6 +10789,13 @@ async function applySavedBillsFilter() {
                 const custName = val.customer?.billTo?.name || 'N/A';
                 const gstin = val.customer?.billTo?.gstin || 'No GSTIN';
 
+                // --- DATA FOR PREFILL ---
+                const prefillData = JSON.stringify({
+                    type: 'Tax Invoice',
+                    prefix: '',
+                    no: billNo
+                }).replace(/"/g, '&quot;');
+
                 billCard.innerHTML = `
                     <div class="card-header-row">
                         <div class="card-info">
@@ -10494,6 +10812,9 @@ async function applySavedBillsFilter() {
                                     <span class="material-icons">more_vert</span>
                                 </button>
                                 <div id="${menuId}" class="action-dropdown">
+                                    <button class="dropdown-item" onclick="openPaymentDialog('${custName}', '${gstin}', 'gst', ${prefillData})">
+                                        <span class="material-icons">payments</span> Payment & CN
+                                    </button>
                                     <button class="dropdown-item" onclick="downloadBillAsJson('${bill.id}', 'gst', event)">
                                         <span class="material-icons">download</span> Download JSON
                                     </button>
@@ -10515,7 +10836,6 @@ async function applySavedBillsFilter() {
 
                 billCard.addEventListener('click', async (e) => {
                     if (e.target.closest('.card-controls')) return;
-
                     if (typeof resetEditMode === 'function') resetEditMode();
                     if (typeof clearAllData === 'function') await clearAllData(true);
 
@@ -10527,7 +10847,6 @@ async function applySavedBillsFilter() {
                     if (typeof loadGSTSavedBill === 'function') await loadGSTSavedBill(bill.id);
                     closeSavedBillsModal();
 
-                    // Refresh Calculations
                     setTimeout(() => {
                         if (typeof copyItemsToGSTBill === 'function') copyItemsToGSTBill();
                         if (typeof updateGSTTaxCalculation === 'function') updateGSTTaxCalculation();
@@ -10550,7 +10869,15 @@ async function applySavedBillsFilter() {
                 else if (viewFormat === 'bill_to' || viewFormat === 'both') custName = state.billTo?.name;
                 if (!custName) custName = val.customer?.name || 'N/A';
 
-                const displayBillNo = prefix ? `${prefix}/${rawBillNo}` : rawBillNo;
+                const displayBillNo = prefix ? `${prefix}${rawBillNo}` : rawBillNo;
+                const gstin = val.customer?.gstin || '';
+
+                // --- DATA FOR PREFILL ---
+                const prefillData = JSON.stringify({
+                    type: billType,
+                    prefix: prefix,
+                    no: rawBillNo
+                }).replace(/"/g, '&quot;');
 
                 billCard.innerHTML = `
                     <div class="card-header-row">
@@ -10568,6 +10895,9 @@ async function applySavedBillsFilter() {
                                     <span class="material-icons">more_vert</span>
                                 </button>
                                 <div id="${menuId}" class="action-dropdown">
+                                    <button class="dropdown-item" onclick="openPaymentDialog('${custName}', '${gstin}', 'regular', ${prefillData})">
+                                        <span class="material-icons">payments</span> Payment & CN
+                                    </button>
                                     <button class="dropdown-item" onclick="downloadBillAsJson('${bill.id}', 'regular', event)">
                                         <span class="material-icons">download</span> Download JSON
                                     </button>
@@ -10588,7 +10918,6 @@ async function applySavedBillsFilter() {
 
                 billCard.addEventListener('click', async (e) => {
                     if (e.target.closest('.card-controls')) return;
-
                     if (typeof resetEditMode === 'function') resetEditMode();
                     if (typeof clearAllData === 'function') await clearAllData(true);
 
