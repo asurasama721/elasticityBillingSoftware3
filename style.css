@@ -736,7 +736,7 @@ body.gst-mode #tools button:hover .material-icons {
     border-radius: 0 0 8px 8px;
 }
 
-#discount-type-select{
+#discount-type-select {
     padding: 8px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
@@ -1296,9 +1296,12 @@ body.gst-mode .settings-btn:hover .material-icons {
         margin-left: 0;
     } */
 
+
+
     #manual-item-container .size-input {
         align-items: stretch;
     }
+
 
     #addItemScan {
         width: 30px;
@@ -1311,6 +1314,8 @@ body.gst-mode .settings-btn:hover .material-icons {
         margin-left: 0;
     }
 
+
+
     #manual-item-container .size-input #addItemScan {
         width: 45px;
         margin-left: 0;
@@ -1320,6 +1325,7 @@ body.gst-mode .settings-btn:hover .material-icons {
         width: 85%;
         margin-left: 0;
     }
+
     #custAddr {
         width: 78%;
     }
@@ -1604,7 +1610,8 @@ body.gst-mode .settings-btn:hover .material-icons {
         max-height: calc(90vh - 120px);
     }
 
-    .modal-body , .payment-dialog-body{
+    .modal-body,
+    .payment-dialog-body {
         zoom: 0.8;
     }
 }
@@ -2134,7 +2141,7 @@ input:checked+.toggle-slider:before {
 
 .delete-payment-btn {
     background: inherit;
-     color: rgb(235, 12, 12);
+    color: rgb(235, 12, 12);
 }
 
 /* Ledger Styles */
@@ -2716,10 +2723,12 @@ body.gst-mode #addTermsListSectionBtn {
 }
 
 .dimension-toggle {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     cursor: pointer;
 }
+
+
 
 .dimension-inputs-group {
     display: flex;
@@ -2737,8 +2746,22 @@ body.gst-mode #addTermsListSectionBtn {
     flex: 1;
 }
 
+#dimensionInputs input[type="checkbox"] {
+    flex: none;
+}
+
 #dimensionInputs input[type="number"] {
     flex: 1;
+}
+
+@media (max-width: 768px) {
+
+    #dimensionInputs input[type="checkbox"] {
+        flex: 1;
+    }
+    .dimension-input-with-toggle{
+        gap: 0px;
+    }
 }
 
 /* Red dimension labels for unchecked dimensions */
@@ -3436,6 +3459,90 @@ terms modal
     }
 }
 
+/* FOR IMAGE GENERATION */
+
+
+/* ============================================================
+   IMAGE GENERATION STYLES (.pdf-mode)
+   These styles apply ONLY when generating the Bill Image
+   ============================================================ */
+
+/* 1. Base Setup for Image Capture */
+body.pdf-mode {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    overflow: hidden !important; /* Prevent scrollbars in image */
+}
+
+/* 2. Force Bill Containers to A4 Width (matches PDF) */
+.pdf-mode #bill-container, 
+.pdf-mode #gst-bill-container {
+    width: 210mm !important;       /* Exact A4 Width */
+    max-width: 210mm !important;
+    min-width: 210mm !important;
+    margin: 0 auto !important;     /* Center it */
+    padding: 10mm !important;      /* Standard print padding */
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    position: absolute !important; /* Remove from normal flow */
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 9999 !important;      /* Sit on top of everything */
+}
+
+/* 3. Text & Layout Fixes */
+.pdf-mode table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+}
+
+.pdf-mode tr {
+    page-break-inside: avoid !important;
+}
+
+/* .pdf-mode td, 
+.pdf-mode th {
+    padding: 4px 2px !important; 
+    font-size: 14px !important;  
+    white-space: normal !important; 
+} */
+
+/* 4. Hide EVERYTHING else */
+.pdf-mode #tools,
+.pdf-mode #settings-sidebar,
+.pdf-mode #settings-overlay,
+.pdf-mode #manual-item-container,
+.pdf-mode .modal,
+.pdf-mode .notification-container,
+.pdf-mode #reg-footer-btn,
+.pdf-mode .add-payment-form,
+.pdf-mode .payment-dialog,
+.pdf-mode .ledger-dialog,
+.pdf-mode #share-modal,
+.pdf-mode .btn-share,
+.pdf-mode .action-menu-container, /* Hide 3-dot menus */
+.pdf-mode .icon-btn,              /* Hide small icons */
+.pdf-mode button {                /* Hide all buttons */
+    display: none !important;
+}
+
+/* 5. Input Cleaning (Remove borders from inputs for clean look) */
+/* .pdf-mode input,
+.pdf-mode textarea,
+.pdf-mode select {
+    border: none !important;
+    background: transparent !important;
+    resize: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+} */
+
+/* FOR IMAGE GENERATION END */
+
 /* --- Card UI Overhaul --- */
 .card-header-row {
     display: flex;
@@ -3460,7 +3567,7 @@ terms modal
 .card-sub-info {
     font-size: 0.85em;
     color: #4b4b4b;
-    font-weight:normal;
+    font-weight: normal;
 }
 
 .card-controls {
@@ -4575,7 +4682,7 @@ terms modal
         width: 82%;
     }
 
-    #billNo{
+    #billNo {
         width: 66%;
     }
 
@@ -5743,7 +5850,8 @@ body {
 
 /* --- HISTORY CARD UPDATES --- */
 .history-item {
-    position: relative; /* For absolute positioning of remove button */
+    position: relative;
+    /* For absolute positioning of remove button */
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -5762,7 +5870,8 @@ body {
     font-weight: 700;
     font-size: 1.1rem;
     color: var(--text-color);
-    padding-right: 30px; /* Space for delete button */
+    padding-right: 30px;
+    /* Space for delete button */
 }
 
 /* Row 2: Bill Type */
@@ -5821,3 +5930,4 @@ body {
 #vendor-bills-sort-btn.ascending .material-icons {
     transform: scaleY(-1);
 }
+
