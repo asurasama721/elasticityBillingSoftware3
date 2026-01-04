@@ -304,8 +304,8 @@ async function savePaymentRecord(customerName, gstin, paymentData, type = 'payme
         timestamp: now, // Legacy timestamp
         createdAt: now, // NEW: Creation timestamp for sorting
         updatedAt: now, // NEW: Last updated timestamp
-        mode: mode, 
-        ...paymentData 
+        mode: mode,
+        ...paymentData
     };
 
     await setInDB(storeName, recordId, record);
@@ -677,7 +677,7 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
 async function getCustomerPayments(customerName, gstin, type = 'payment', filters = {}, mode = 'regular') {
     // Determine Store based on Mode
     let storeName = '';
-    
+
     if (mode === 'vendor') {
         storeName = type === 'payment' ? 'vendorPayments' : 'vendorCreditNotes';
     } else {
@@ -699,8 +699,8 @@ async function getCustomerPayments(customerName, gstin, type = 'payment', filter
             const recGST = (rVal.gstin || '').toLowerCase().trim();
 
             if (mode === 'vendor') {
-                 // Vendor Match: Strict Name match
-                 return recName === searchName;
+                // Vendor Match: Strict Name match
+                return recName === searchName;
             } else if (mode === 'gst') {
                 // GST Mode: Must match GSTIN strictly
                 if (searchGST.length > 2) {
@@ -980,17 +980,29 @@ function toggleDimensionInputs() {
     const container = document.getElementById('dimension-inputs-container');
     const button = document.getElementById('toggleDimensionBtn');
     const convertBtn = document.getElementById('toggleConvertBtn');
+    const dimensionSelect = document.getElementById('dimensionType');
 
     if (container.style.display === 'none') {
+        // --- SHOW ---
         container.style.display = 'flex';
         button.style.backgroundColor = '#3498db';
         if (convertBtn) convertBtn.style.display = 'inline-block';
     } else {
+        // --- HIDE ---
         container.style.display = 'none';
         button.style.backgroundColor = '';
         if (convertBtn) {
             convertBtn.style.display = 'none';
             convertBtn.classList.remove('active');
+        }
+
+        // --- FIX: Reset Dimension Type to None ---
+        if (dimensionSelect) {
+            dimensionSelect.value = 'none';
+            // Trigger handler to hide inner inputs (dim1, dim2, etc.) and units
+            if (typeof handleDimensionTypeChange === 'function') {
+                handleDimensionTypeChange();
+            }
         }
 
         // Reset convert state
@@ -999,7 +1011,7 @@ function toggleDimensionInputs() {
             convertSelect.style.display = 'none';
             convertSelect.value = 'none';
         }
-        currentConvertUnit = 'none';
+        if (typeof currentConvertUnit !== 'undefined') currentConvertUnit = 'none';
     }
 }
 
@@ -2083,7 +2095,7 @@ async function selectItemSuggestion(itemName) {
         if (item && item.convertUnit && item.convertUnit !== 'none') {
             const convertSelect = document.getElementById('convertUnit');
             const convertBtn = document.getElementById('toggleConvertBtn');
-            
+
             if (convertSelect) {
                 convertSelect.value = item.convertUnit;
                 // Force UI Visible
@@ -2717,7 +2729,7 @@ async function editItem(itemName) {
             // --- DIMENSIONS & UNITS ---
             document.getElementById('saved-dimension-type').value = item.dimensionType || 'none';
             document.getElementById('saved-measurement-unit').value = item.measurementUnit || 'ft';
-            
+
             // *** FIX: Populate Convert Unit ***
             if (document.getElementById('saved-convert-unit')) {
                 document.getElementById('saved-convert-unit').value = item.convertUnit || 'none';
@@ -2760,14 +2772,14 @@ async function editItem(itemName) {
             document.getElementById('saved-purchase-rate').value = item.purchaseRate || '';
             document.getElementById('saved-other-names').value = item.otherNames || '';
             document.getElementById('saved-notes').value = item.notes || '';
-            
+
             // Reset UI State
             document.getElementById('more-options-container').style.display = 'none';
             document.getElementById('toggle-more-options-btn').innerHTML = 'More Options <span class="material-icons">keyboard_arrow_down</span>';
 
             // Trigger Visibility Update for new values
             handleSavedDimensionTypeChange();
-            
+
             document.getElementById('add-item-modal').style.display = 'block';
         }
     } catch (error) {
@@ -2804,7 +2816,7 @@ async function saveItem() {
                     lastStockUpdate = Date.now();
                 }
             }
-        } catch (e) {}
+        } catch (e) { }
     }
 
     const itemData = {
@@ -2822,13 +2834,13 @@ async function saveItem() {
         mrpTaxType: document.getElementById('saved-mrp-tax-type').value,
         defaultRate: (parseFloat(document.getElementById('saved-sale-price').value) || 0) || (parseFloat(document.getElementById('saved-mrp').value) || 0),
         taxType: document.getElementById('saved-sale-tax-type').value,
-        
+
         dimensionType: document.getElementById('saved-dimension-type').value,
         measurementUnit: document.getElementById('saved-measurement-unit').value,
         convertUnit: convertUnit, // --- SAVED HERE ---
         dimensionValues: [dimension1, dimension2, dimension3],
         dimensionToggles: toggleStates,
-        
+
         defaultQuantity: parseFloat(document.getElementById('saved-default-quantity').value) || 1,
         defaultUnit: document.getElementById('saved-select-unit').value.trim(),
         discountType: document.getElementById('saved-discount-type').value,
@@ -3005,13 +3017,20 @@ async function reduceStockOnSave() {
 
         for (const row of rows) {
             const itemName = row.children[1].querySelector('.itemNameClass')?.textContent.trim();
+            // Handle data attribute or direct text content
             const quantity = parseFloat(row.getAttribute('data-original-quantity')) || parseFloat(row.children[2].textContent);
 
             if (itemName && quantity > 0) {
                 const savedItem = await getFromDB('savedItems', itemName);
                 if (savedItem && savedItem.stockQuantity !== undefined) {
-                    const newStock = Math.max(0, savedItem.stockQuantity - quantity);
+
+                    // --- NEW: Allow Negative Stock ---
+                    const newStock = savedItem.stockQuantity - quantity;
+                    // ---------------------------------
+
                     savedItem.stockQuantity = newStock;
+                    savedItem.lastStockUpdate = Date.now(); // Good practice to update timestamp
+
                     await setInDB('savedItems', itemName, savedItem);
                 }
             }
@@ -3101,11 +3120,11 @@ async function loadItemsList() {
 
             let dimensionInfo = '';
             let unitInfo = '';
-            
+
             if (item.value.dimensionType && item.value.dimensionType !== 'none') {
                 dimensionInfo += `<div>Dimension Type: ${item.value.dimensionType}</div>`;
                 unitInfo = `<div>Measurement Unit: ${item.value.measurementUnit || 'ft'}</div>`;
-                
+
                 // --- UPDATED: Display Convert Unit ---
                 if (item.value.convertUnit && item.value.convertUnit !== 'none') {
                     unitInfo += `<div>Convert To: <b>${item.value.convertUnit}</b></div>`;
@@ -4208,25 +4227,21 @@ async function saveCurrentBill() {
                 }
             };
 
-            // --- NEW: HANDLE CREATED_AT LOGIC ---
+            // --- CREATED_AT LOGIC ---
             let createdAtTimestamp = Date.now();
-
-            // If editing, try to retrieve the original creation time
             if (editMode && currentEditingBillId) {
                 const originalBill = await getFromDB('savedBills', currentEditingBillId);
                 if (originalBill) {
-                    // Use existing createdAt, or fallback to timestamp if it's an old legacy bill
                     createdAtTimestamp = originalBill.createdAt || originalBill.timestamp || Date.now();
                 }
             }
-            // ------------------------------------
 
             const savedBill = {
                 ...currentData,
                 title: `${customerName} - ${billNo}`,
                 totalAmount: totalAmount,
-                timestamp: Date.now(), // Always updates on save (Last Modified)
-                createdAt: createdAtTimestamp, // Remains constant for life of bill
+                timestamp: Date.now(),
+                createdAt: createdAtTimestamp,
                 date: document.getElementById('billDate').value || new Date().toLocaleDateString(),
                 itemCount: itemCount,
                 modalState: modalState
@@ -4236,16 +4251,27 @@ async function saveCurrentBill() {
             if (editMode && currentEditingBillId) {
                 // EDIT MODE
                 await restoreStockFromOriginalBill(currentEditingBillId);
+
                 billId = currentEditingBillId;
                 await setInDB('savedBills', billId, savedBill);
-                await reduceStockOnSave();
+
+                // --- NEW: ONLY REDUCE IF INVOICE ---
+                if (currentType === 'Invoice') {
+                    await reduceStockOnSave();
+                }
+
                 showNotification('Bill updated successfully!');
                 resetEditMode();
             } else {
                 // NORMAL MODE
                 billId = `saved-bill-${Date.now()}`;
                 await setInDB('savedBills', billId, savedBill);
-                await reduceStockOnSave();
+
+                // --- NEW: ONLY REDUCE IF INVOICE ---
+                if (currentType === 'Invoice') {
+                    await reduceStockOnSave();
+                }
+
                 showNotification('Bill saved successfully!');
             }
 
@@ -4497,7 +4523,7 @@ async function loadVendorBill(billId) {
                     const td = document.createElement('td');
                     td.colSpan = 7;
                     td.style.cssText = item.style || 'background-color: #ffe8b5; color: #000000; font-size: 14px; font-weight: 600; text-transform: none; text-align: left; padding-left: 75px;';
-                    td.innerHTML = item.html; 
+                    td.innerHTML = item.html;
                     sectionRow.appendChild(td);
 
                     createListTbody.appendChild(sectionRow);
@@ -4521,7 +4547,7 @@ async function loadVendorBill(billId) {
                         createListTbody.appendChild(totalRow);
                         copyListTbody.appendChild(totalRow.cloneNode(true));
                     }
-                } 
+                }
                 // === STANDARD ITEM LOGIC ===
                 else {
                     const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
@@ -4533,10 +4559,10 @@ async function loadVendorBill(billId) {
                         { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
                         item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
                     );
-                    
+
                     if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
                     if (item.convertUnit) row1.setAttribute('data-convert-unit', item.convertUnit);
-                    
+
                     createListTbody.appendChild(row1);
 
                     const row2 = createTableRowManual(
@@ -4544,7 +4570,7 @@ async function loadVendorBill(billId) {
                         '', false, item.quantity, item.dimensionType || 'none', item.quantity,
                         { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
                     );
-                    
+
                     if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
                     copyListTbody.appendChild(row2);
                 }
@@ -4648,7 +4674,7 @@ async function editVendorSavedBill(billId, event) {
                     const td = document.createElement('td');
                     td.colSpan = 7;
                     td.style.cssText = item.style || 'background-color: #ffe8b5; color: #000000; font-size: 14px; font-weight: 600; text-transform: none; text-align: left; padding-left: 75px;';
-                    td.innerHTML = item.html; 
+                    td.innerHTML = item.html;
                     sectionRow.appendChild(td);
 
                     createListTbody.appendChild(sectionRow);
@@ -4672,7 +4698,7 @@ async function editVendorSavedBill(billId, event) {
                         createListTbody.appendChild(totalRow);
                         copyListTbody.appendChild(totalRow.cloneNode(true));
                     }
-                } 
+                }
                 // === STANDARD ITEM LOGIC ===
                 else {
                     const rowId = item.id || `row-manual-${Date.now()}-${Math.random()}`;
@@ -4684,7 +4710,7 @@ async function editVendorSavedBill(billId, event) {
                         { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 },
                         item.dimensionUnit || 'ft', item.hsn || '', '', item.discountType || 'none', item.discountValue || 0
                     );
-                    
+
                     if (item.particularsHtml) row1.children[1].innerHTML = item.particularsHtml;
                     if (item.convertUnit) row1.setAttribute('data-convert-unit', item.convertUnit);
 
@@ -4695,7 +4721,7 @@ async function editVendorSavedBill(billId, event) {
                         '', false, item.quantity, item.dimensionType || 'none', item.quantity,
                         { values: item.dimensionValues || [0, 0, 0], toggle1: toggleStates.toggle1, toggle2: toggleStates.toggle2, toggle3: toggleStates.toggle3 }
                     );
-                    
+
                     if (item.particularsHtml) row2.children[1].innerHTML = item.particularsHtml;
                     copyListTbody.appendChild(row2);
                 }
@@ -4717,7 +4743,7 @@ async function editVendorSavedBill(billId, event) {
 
         // 6. UI Updates
         updateSerialNumbers();
-        updateTotal(); 
+        updateTotal();
         closeVendorSavedBillsModal();
         showNotification("Purchase bill loaded for editing", "info");
 
@@ -4773,7 +4799,7 @@ function getVendorItemsData() {
             const sectionId = row.getAttribute('data-section-id');
             const cell = row.querySelector('td');
             const collapseBtn = row.querySelector('.collapse-btn');
-            
+
             // Extract text content carefully (ignoring buttons)
             let sectionName = '';
             for (let node of cell.childNodes) {
@@ -4792,7 +4818,7 @@ function getVendorItemsData() {
                 html: cell.innerHTML, // Save inner HTML to preserve buttons/layout
                 showTotal: row.getAttribute('data-show-total') === 'true'
             });
-        } 
+        }
         // CASE B: Item Row
         else if (row.getAttribute('data-id')) {
             const cells = row.children;
@@ -4845,7 +4871,7 @@ async function saveVendorPurchaseBill() {
     // === DUPLICATE CHECK START ===
     try {
         const allBills = await getAllFromDB('vendorSavedBills');
-        
+
         // Normalize for comparison
         const newNameClean = vendorName.toLowerCase();
         const newInvoiceClean = invoiceNo.toLowerCase();
@@ -4994,7 +5020,7 @@ async function processPurchaseItems(items) {
 
         const qty = parseFloat(item.quantity) || 0;
         // Skip if invalid, unless it's a pure update (optional)
-        if (qty <= 0 && item.rate <= 0) continue; 
+        if (qty <= 0 && item.rate <= 0) continue;
 
         // 1. Get Existing Item
         let savedItemObj = await getFromDB('savedItems', item.itemName);
@@ -5003,17 +5029,17 @@ async function processPurchaseItems(items) {
         const commonData = {
             purchaseRate: parseFloat(item.rate),
             defaultUnit: item.unit,
-            
+
             // Dimensions & Toggles
             dimensionType: item.dimensionType,
             dimensionValues: item.dimensionValues,
-            
+
             // *** FIX: Save BOTH properties to satisfy bill row logic AND item manager logic ***
             dimensionUnit: item.dimensionUnit, // Used by Bill Row logic
             measurementUnit: item.dimensionUnit, // Used by Edit Item Modal logic
-            
+
             dimensionToggles: item.dimensionToggles,
-            convertUnit: item.convertUnit || 'none', 
+            convertUnit: item.convertUnit || 'none',
 
             discountType: item.discountType,
             discountValue: item.discountValue,
@@ -5025,25 +5051,25 @@ async function processPurchaseItems(items) {
             // === UPDATE EXISTING ITEM ===
             savedItemObj.lastStockQuantity = savedItemObj.stockQuantity || 0;
             const currentStock = parseFloat(savedItemObj.stockQuantity) || 0;
-            
+
             // Increment Stock
             savedItemObj.stockQuantity = currentStock + qty;
-            
+
             // Merge new details
             Object.assign(savedItemObj, commonData);
-            
+
             await setInDB('savedItems', item.itemName, savedItemObj);
         } else {
             // === CREATE NEW ITEM ===
             const newItem = {
                 name: item.itemName,
                 stockQuantity: qty,
-                lastStockQuantity: 0, 
-                salePrice: 0, 
+                lastStockQuantity: 0,
+                salePrice: 0,
                 category: 'Uncategorized',
-                defaultQuantity: 1, 
+                defaultQuantity: 1,
                 timestamp: Date.now(),
-                ...commonData 
+                ...commonData
             };
             await setInDB('savedItems', item.itemName, newItem);
         }
@@ -5078,7 +5104,7 @@ function toggleVendorListMode() {
 
 function toggleVendorSort() {
     isVendorSortAscending = !isVendorSortAscending;
-    
+
     // Toggle Animation Class
     const btn = document.getElementById('vendor-sort-btn');
     if (btn) {
@@ -5088,7 +5114,7 @@ function toggleVendorSort() {
             btn.classList.add('ascending');    // Z-A (Flipped)
         }
     }
-    
+
     loadVendorList();
 }
 
@@ -5096,7 +5122,7 @@ async function loadVendorList() {
     const list = document.getElementById('vendors-list');
     const searchInput = document.getElementById('vendor-search');
     const searchTerm = searchInput ? searchInput.value.trim().toLowerCase() : '';
-    
+
     list.innerHTML = '';
 
     try {
@@ -5112,14 +5138,14 @@ async function loadVendorList() {
             const val = v.value;
             const type = (val.type || 'Regular').toLowerCase();
             const matchesType = type === currentVendorListMode;
-            
+
             const name = (val.name || '').toLowerCase();
             const gstin = (val.gstin || '').toLowerCase();
             const phone = (val.phone || '').toLowerCase();
-            
+
             return matchesType && (
-                name.includes(searchTerm) || 
-                gstin.includes(searchTerm) || 
+                name.includes(searchTerm) ||
+                gstin.includes(searchTerm) ||
                 phone.includes(searchTerm)
             );
         });
@@ -5141,12 +5167,12 @@ async function loadVendorList() {
         filtered.forEach(v => {
             const val = v.value;
             const menuId = `menu-vendor-${v.id}-${Date.now()}`;
-            
+
             let detailsHtml = '';
             if (val.address) detailsHtml += `<div>Address: ${val.address}</div>`;
-            if (val.phone)   detailsHtml += `<div>Phone: ${val.phone}</div>`;
-            if (val.gstin)   detailsHtml += `<div>GSTIN: ${val.gstin}</div>`;
-            if (val.email)   detailsHtml += `<div>Email: ${val.email}</div>`;
+            if (val.phone) detailsHtml += `<div>Phone: ${val.phone}</div>`;
+            if (val.gstin) detailsHtml += `<div>GSTIN: ${val.gstin}</div>`;
+            if (val.email) detailsHtml += `<div>Email: ${val.email}</div>`;
             if (detailsHtml === '') detailsHtml = '<div>No additional details provided</div>';
 
             const card = document.createElement('div');
@@ -5325,13 +5351,13 @@ async function handleVendorSearch() {
 }
 function handleVendorTypeChange() {
     const type = document.getElementById('vendorType').value;
-    
+
     if (type === 'GST') {
         // Open the existing GST settings modal
         openGSTModal();
     } else {
         // === REGULAR MODE SELECTED ===
-        
+
         // 1. Reset GST Percent
         gstPercent = 0;
 
@@ -5493,7 +5519,7 @@ async function loadVendorSavedBillsList() {
             // --- NEW: PREFILL DATA FOR PAYMENT ---
             // Vendors usually imply 'Tax Invoice'. We pass the invoice number.
             const prefillData = JSON.stringify({
-                type: 'Tax Invoice', 
+                type: 'Tax Invoice',
                 prefix: '',
                 no: val.billDetails.invoiceNo
             }).replace(/"/g, '&quot;');
@@ -5821,17 +5847,35 @@ function searchVendors() {
 
 async function restoreStockFromOriginalBill(billId) {
     try {
-        const originalBill = await getFromDB('savedBills', billId);
-        if (!originalBill || !originalBill.tableStructure) return;
+        // Attempt to find bill in Regular store first, then GST store
+        let originalBill = await getFromDB('savedBills', billId);
+        if (!originalBill) {
+            originalBill = await getFromDB('gstSavedBills', billId);
+        }
 
-        // Restore stock for each item in the original bill
-        for (const rowData of originalBill.tableStructure) {
-            if (rowData.type === 'item' && rowData.itemName) {
+        if (!originalBill) return;
+
+        // --- NEW: TYPE SAFETY CHECK ---
+        // If it's a Regular Bill (has modalState) and NOT an Invoice, 
+        // it didn't reduce stock originally, so don't add it back.
+        if (originalBill.modalState && originalBill.modalState.type !== 'Invoice') {
+            return;
+        }
+        // ------------------------------
+
+        const itemsToProcess = originalBill.tableStructure || originalBill.items || [];
+
+        for (const rowData of itemsToProcess) {
+            // Check for both 'item' type (regular) or just existence of itemName (legacy/simple)
+            if ((rowData.type === 'item' || !rowData.type) && rowData.itemName) {
                 const savedItem = await getFromDB('savedItems', rowData.itemName);
+
                 if (savedItem && savedItem.stockQuantity !== undefined) {
                     const originalQuantity = parseFloat(rowData.quantity) || 0;
+
                     // Add back the original quantity to stock
                     savedItem.stockQuantity += originalQuantity;
+
                     await setInDB('savedItems', rowData.itemName, savedItem);
                 }
             }
@@ -10292,55 +10336,244 @@ function closeShareModal() {
     document.getElementById('share-modal').style.display = 'none';
 }
 
+/**
+ * Unified helper to generate a high-quality canvas of the bill.
+ * Uses 'onclone' to FLATTEN inputs into plain text for perfect rendering.
+ */
+async function generateBillCanvas() {
+    // 1. Prepare View
+    let wasInputView = false;
+    if (typeof currentView !== 'undefined' && currentView === 'input') {
+        toggleView();
+        wasInputView = true;
+    }
+
+    // 2. Select Container & Filename Logic
+    let elementId;
+    let billNoVal = "";
+
+    // Determine Mode and Element ID (String)
+    if (typeof isVendorMode !== 'undefined' && isVendorMode) {
+        elementId = "vendor-bill-container";
+        // Fallback checks need to happen on the live DOM first
+        if (!document.getElementById(elementId)) elementId = "bill-container";
+        billNoVal = document.getElementById("vendorInvoiceNo").value;
+    } else if (isGSTMode) {
+        elementId = "gst-bill-container";
+        billNoVal = document.getElementById("bill-invoice-no").textContent;
+    } else {
+        elementId = "bill-container";
+        billNoVal = document.getElementById("billNo").value;
+
+        // Ensure Footer is visible for the image
+        const regFooter = document.getElementById('regular-bill-footer');
+        if (regFooter && isRegularFooterVisible) {
+            regFooter.style.display = 'table';
+            if (typeof updateRegularFooterInfo === 'function') updateRegularFooterInfo();
+        }
+    }
+
+    const liveElement = document.getElementById(elementId);
+
+    try {
+        // 3. Generate Canvas with Input Flattening
+        const canvas = await html2canvas(liveElement, {
+            scale: 2, // High Quality
+            useCORS: true,
+            logging: false,
+            letterRendering: true,
+            allowTaint: true,
+            scrollY: 0,
+            backgroundColor: '#ffffff',
+            windowWidth: 1200, // Simulate desktop to prevent wrapping
+
+            // --- THE MAGICAL FIX: onclone ---
+            // This runs on the "virtual copy" before the screenshot is taken
+            onclone: (clonedDoc) => {
+                
+                // A. Activate PDF CSS Mode on the clone
+                clonedDoc.body.classList.add('pdf-mode');
+                
+                // B. Find the specific container in the clone
+                const clonedElement = clonedDoc.getElementById(elementId);
+
+                // C. FLATTEN INPUTS: Convert all <input> and <textarea> to <span>
+                // This fixes the "text cut off" and "scroll" issues
+                const inputs = clonedElement.querySelectorAll('input, textarea');
+                
+                inputs.forEach(input => {
+                    // Create a text node replacement
+                    const span = clonedDoc.createElement('span');
+                    
+                    // Set content to the current value
+                    span.innerText = input.value || input.getAttribute('placeholder') || '';
+                    
+                    // Copy crucial styles so it looks the same (font, alignment, color)
+                    const style = window.getComputedStyle(input);
+                    span.style.fontFamily = style.fontFamily;
+                    span.style.fontSize = style.fontSize;
+                    span.style.fontWeight = style.fontWeight;
+                    span.style.textAlign = style.textAlign;
+                    span.style.color = style.color;
+                    span.style.display = 'inline-block';
+                    span.style.width = '100%'; // Ensure it fills the space
+                    span.style.whiteSpace = 'pre-wrap'; // Preserve line breaks for textareas
+                    
+                    // Replace the input with the span
+                    if(input.parentNode) {
+                        input.parentNode.replaceChild(span, input);
+                    }
+                });
+
+                // D. Force specific visibility hacks for the clone
+                // Example: Ensure suggestion boxes are definitely hidden
+                const suggestions = clonedElement.querySelectorAll('.customer-suggestions');
+                suggestions.forEach(el => el.style.display = 'none');
+            }
+        });
+
+        // 4. Return Result
+        return { 
+            canvas: canvas, 
+            filename: `bill-${billNoVal || 'image'}.jpg`,
+            wasInputView: wasInputView
+        };
+
+    } catch (error) {
+        if (wasInputView) toggleView();
+        throw error;
+    }
+}
+
+async function handleShareImage() {
+    if (!navigator.share || !navigator.canShare) {
+        showNotification("Sharing is not supported on this device/browser.", "error");
+        return;
+    }
+
+    showNotification("Generating Image...", "info");
+
+    try {
+        const result = await generateBillCanvas();
+        
+        result.canvas.toBlob(async (blob) => {
+            if (!blob) {
+                showNotification("Failed to generate image.", "error");
+                if (result.wasInputView) toggleView();
+                return;
+            }
+
+            const file = new File([blob], result.filename, { type: "image/jpeg" });
+
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'Bill Image',
+                    text: `Here is the bill image: ${result.filename}`,
+                    files: [file]
+                });
+                closeShareModal();
+            }
+
+            if (result.wasInputView) toggleView();
+
+        }, 'image/jpeg', 0.9);
+
+    } catch (error) {
+        console.error("Image share failed:", error);
+        showNotification("Error generating image", "error");
+    }
+}
+
+async function handleDownloadImage() {
+    showNotification("Generating Image for download...", "info");
+
+    try {
+        const result = await generateBillCanvas();
+
+        // Convert to data URL and download
+        const link = document.createElement('a');
+        link.download = result.filename;
+        link.href = result.canvas.toDataURL('image/jpeg', 0.9);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        showNotification("Image downloaded successfully!", "success");
+        closeShareModal();
+
+        if (result.wasInputView) toggleView();
+
+    } catch (error) {
+        console.error("Image download failed:", error);
+        showNotification("Error downloading image", "error");
+    }
+}
+
 // 1. WhatsApp "Say Hi" Logic
 function handleSayHi() {
     let phone = '';
 
-    if (isGSTMode) {
+    // 1. CHECK VENDOR MODE
+    if (typeof isVendorMode !== 'undefined' && isVendorMode) {
+        phone = document.getElementById('vendorPhone').value;
+    }
+    // 2. CHECK GST MODE
+    else if (isGSTMode) {
+        // Try text content first (View Mode), then input value (Edit Mode)
         phone = document.getElementById('billToContact').textContent;
-
         if (!phone || phone.trim() === 'Not provided' || phone.trim() === '') {
-            phone = document.getElementById('consignee-contact').value;
+            const consigneeInput = document.getElementById('consignee-contact');
+            if (consigneeInput) phone = consigneeInput.value;
         }
-    } else {
-        phone = document.getElementById('custPhone').value;
+    }
+    // 3. CHECK REGULAR MODE
+    else {
+        // Check which View Format is selected in the modal
+        const viewSelect = document.getElementById('reg-modal-cust-view-select');
+        const viewFormat = viewSelect ? viewSelect.value : 'simple';
+
+        if (viewFormat === 'simple') {
+            // Try modal input first, then main screen input
+            phone = document.getElementById('reg-modal-simple-phone').value;
+            if (!phone) phone = document.getElementById('custPhone').value;
+        } else {
+            // Advanced Views (Bill To / Both) -> Use Bill To Phone
+            phone = document.getElementById('reg-modal-bill-phone').value;
+        }
     }
 
-    // Clean: remove spaces, dashes, brackets
+    // --- CLEANING & VALIDATION ---
+    // Remove spaces, dashes, brackets
     phone = (phone || '').replace(/[\s\-()]/g, '');
 
-    // If it starts with + -> keep as is
-    if (phone.startsWith('+')) {
-        // already correct international format
-    }
-    // If it starts with '00' -> convert to '+'
-    else if (phone.startsWith('00')) {
-        phone = '+' + phone.substring(2);
-    }
-    // If it starts with '91' AND length > 10 -> assume missing '+'
-    else if (phone.startsWith('91') && phone.length > 10) {
-        phone = '+' + phone;
-    }
-    // Else -> assume India default
-    else {
-        // Remove all non-digits again
-        phone = phone.replace(/\D/g, '');
-        // Must be at least 10 digits
-        if (phone.length < 10) {
-            showNotification("No valid phone number found!", "error");
-            return;
-        }
-        phone = '+91' + phone;
-    }
-
-    // Validate length (minimum international length)
-    const numeric = phone.replace(/\D/g, '');
-    if (numeric.length < 10) {
-        showNotification("No valid phone number found!", "error");
+    if (!phone) {
+        showNotification("No phone number found!", "error");
         return;
     }
 
-    // Final WhatsApp Message
+    // Format Logic
+    if (phone.startsWith('+')) {
+        // Already international
+    } else if (phone.startsWith('00')) {
+        phone = '+' + phone.substring(2);
+    } else if (phone.startsWith('91') && phone.length > 10) {
+        phone = '+' + phone;
+    } else {
+        // Assume India default if just digits
+        const numeric = phone.replace(/\D/g, '');
+        if (numeric.length === 10) {
+            phone = '+91' + numeric;
+        }
+    }
+
+    // Final Valid Check
+    const numericFinal = phone.replace(/\D/g, '');
+    if (numericFinal.length < 10) {
+        showNotification("Invalid phone number length!", "error");
+        return;
+    }
+
+    // Open WhatsApp
     const msg = encodeURIComponent("Hi");
     window.open(`https://wa.me/${phone}?text=${msg}`, "_blank");
 }
