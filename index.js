@@ -6714,19 +6714,24 @@ async function updateRowManual() {
     // Pass selectedConvertUnit
     let particularsHtml = formatParticularsManual(itemName, notes, dimensionText, formattedDisplayQuantity, finalQuantity, numericRate, dimensionType, dimensionUnit, unit, discountType, discountValue, toggleStates, selectedConvertUnit);
 
+    // --- FIX START: Capture Master Visibility from Input Row ---
+    const inputRow = document.querySelector(`#createListManual tr[data-id="${currentlyEditingRowIdManual}"]`);
+    const masterVisibility = inputRow ? inputRow.getAttribute('data-dimensions-visible') !== 'false' : true;
+    // -----------------------------------------------------------
+
     const rows = document.querySelectorAll(`tr[data-id="${currentlyEditingRowIdManual}"]`);
     rows.forEach(row => {
-        // --- FIX: Preserve Visibility State ---
-        const wasVisible = row.getAttribute('data-dimensions-visible') !== 'false';
-
         const cells = row.children;
         cells[1].innerHTML = particularsHtml;
 
-        // Re-apply visibility to the new HTML
+        // --- FIX START: Apply Master Visibility to ALL matching rows ---
         const dimDiv = cells[1].querySelector('.dimensions');
         if (dimDiv) {
-            dimDiv.style.display = wasVisible ? 'block' : 'none';
+            dimDiv.style.display = masterVisibility ? 'block' : 'none';
         }
+        // Sync the attribute so Bill View matches Input View
+        row.setAttribute('data-dimensions-visible', masterVisibility);
+        // -------------------------------------------------------------
 
         const formattedQuantity = originalQuantity % 1 === 0 ?
             originalQuantity.toString() :
