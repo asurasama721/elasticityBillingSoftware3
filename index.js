@@ -318,6 +318,8 @@ async function toggleAutoApplyRates() {
     try {
         autoApplyCustomerRates = !autoApplyCustomerRates;
         updateAutoApplyButton();
+        //
+        
         showNotification(`Auto-apply customer rates: ${autoApplyCustomerRates ? 'ON' : 'OFF'}`, 'info', 2000);
 
         // Save the setting to DB with error handling
@@ -336,11 +338,14 @@ async function toggleAutoApplyRates() {
 function updateAutoApplyButton() {
     const button = document.querySelector('.auto-apply-rates-btn');
     if (button) {
+        // We assume the button has an icon inside, or we prepend it
         if (autoApplyCustomerRates) {
-            button.style.backgroundColor = '#27ae60';
-            button.innerHTML = '<span class="material-icons">auto_awesome</span>Auto Rate : ON';
+            button.style.backgroundColor = '#e8f5e9'; // Light Green
+            // button.style.color = '#000'; // Ensure text is dark
+            button.innerHTML = '<span class="material-icons" style="color: #2ecc71;">auto_awesome</span>Auto Rate : ON';
         } else {
-            button.style.backgroundColor = '';
+            button.style.backgroundColor = ''; // Default
+            button.style.color = '';
             button.innerHTML = '<span class="material-icons">auto_awesome</span>Auto Rate : OFF';
         }
     }
@@ -968,14 +973,19 @@ function toggleDiscountInputs() {
     const button = document.getElementById('toggleDiscountBtn');
 
     if (container.style.display === 'none') {
+        // Show inputs
         container.style.display = 'flex';
         button.style.backgroundColor = '#27ae60'; // Green when active
     } else {
+        // Hide inputs AND Reset Values (The Fix)
         container.style.display = 'none';
-        button.style.backgroundColor = ''; // Reset to default
+        button.style.backgroundColor = ''; // Reset button color
+
+        // Clear the data so it doesn't get saved/updated
+        document.getElementById('discountType').value = 'none';
+        document.getElementById('discountValue').value = '';
     }
 }
-
 function toggleDimensionInputs() {
     const container = document.getElementById('dimension-inputs-container');
     const button = document.getElementById('toggleDimensionBtn');
@@ -1086,6 +1096,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         await loadSavedCustomers();
         await loadBillHeadings();
         await loadBrandingSettings();
+        await loadAllSettings();
 
         // Load GST mode settings
         const gstModeSetting = await getFromDB('gstMode', 'isGSTMode');
@@ -1357,18 +1368,18 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         // AUTO SCROLL ON LOAD
         // Restore Auto Scroll Button State
-        const btn = document.getElementById('btn-auto-scroll');
-        if (btn) {
-            if (autoScrollEnabled) {
-                btn.style.backgroundColor = '#80a2c2c4';
-                const label = btn.querySelector('.sidebar-label');
-                if (label) label.textContent = 'Auto Scroll : ON';
-            } else {
-                btn.style.backgroundColor = '';
-                const label = btn.querySelector('.sidebar-label');
-                if (label) label.textContent = 'Auto Scroll : OFF';
-            }
-        }
+        // const btn = document.getElementById('btn-auto-scroll');
+        // if (btn) {
+        //     if (autoScrollEnabled) {
+        //         btn.style.backgroundColor = '#80a2c2c4';
+        //         const label = btn.querySelector('.sidebar-label');
+        //         if (label) label.textContent = 'Auto Scroll : ON';
+        //     } else {
+        //         btn.style.backgroundColor = '';
+        //         const label = btn.querySelector('.sidebar-label');
+        //         if (label) label.textContent = 'Auto Scroll : OFF';
+        //     }
+        // }
         // 
 
 
@@ -1387,18 +1398,27 @@ document.addEventListener('DOMContentLoaded', async function () {
         // if (itemNameManual) {
         //     itemNameManual.addEventListener('input', handleItemNameInput);
         // }
+        // loadDimensionConvertSetting();
 
         // Load custom payment methods on startup
         await loadCustomPaymentMethods();
 
         // Add this to your DOMContentLoaded function
-        await loadAutoApplySetting();
+        // await loadAutoApplySetting();
         // Load customer dialog state
         await loadCustomerDialogState();
         setupCustomerDialogAutoSave();
 
         await loadVendorState();   // Restore mode and inputs
         setupVendorAutoSave();     // Attach listeners for future typing
+
+        // Sync "Previous Unit" Tracker
+        setTimeout(() => {
+            const convertSelect = document.getElementById('convertUnit');
+            if (convertSelect) {
+                previousConvertUnit = convertSelect.value;
+            }
+        }, 1000);
 
     } catch (error) {
         console.error('Error during initialization:', error);
@@ -1579,13 +1599,129 @@ function handleDimensionTypeChange() {
 function updateDimensionCalculation() {
     calculateDimensions();
 }
+async function loadAllSettings() {
+    try {
+        if (typeof getFromDB !== 'function') return;
+
+        // 1. Load Auto Scroll
+        const savedScroll = await getFromDB('settings', 'autoScrollEnabled');
+        if (savedScroll !== undefined) {
+            autoScrollEnabled = savedScroll;
+            // Manually update UI since we don't have a separate UI function for Scroll
+            const btn = document.getElementById('btn-auto-scroll');
+            if (btn) {
+                const label = btn.querySelector('.sidebar-label');
+                const icon = btn.querySelector('.material-icons');
+                if (autoScrollEnabled) {
+                    if (label) label.textContent = 'Auto Scroll : ON';
+                    if (icon) icon.style.color = '#2ecc71';
+                    btn.style.backgroundColor = '#e8f5e9';
+                }
+            }
+        }
+
+        // 2. Load Auto Rate Conversion
+        const savedRateConv = await getFromDB('settings', 'autoRateConversion');
+        if (savedRateConv !== undefined) {
+            autoRateConversion = savedRateConv;
+            if (typeof updateAutoRateUI === 'function') updateAutoRateUI();
+        }
+
+        // 3. Load Auto Apply Rates
+        const savedAutoApply = await getFromDB('settings', 'autoApplyCustomerRates');
+        if (savedAutoApply !== undefined) {
+            autoApplyCustomerRates = savedAutoApply;
+            updateAutoApplyButton();
+        }
+
+        // 4. Load Dim Convert (Already done previously)
+        const savedDimConv = await getFromDB('settings', 'isDimensionConvertEnabled');
+        if (savedDimConv !== undefined) {
+            isDimensionConvertEnabled = savedDimConv;
+            if (typeof updateDimensionConvertButtonUI === 'function') updateDimensionConvertButtonUI();
+        }
+
+    } catch (error) {
+        console.warn('Error loading settings:', error);
+    }
+}
+
+// Default state is ON
+let isDimensionConvertEnabled = true;
+// Helper to update button visual state
+function updateDimensionConvertButtonUI() {
+    const btn = document.getElementById('btn-dim-convert');
+    if (!btn) return;
+
+    const label = btn.querySelector('.sidebar-label');
+    const icon = btn.querySelector('.material-icons');
+
+    if (isDimensionConvertEnabled) {
+        if (label) label.textContent = 'Dim Convert : ON';
+        if (icon) icon.style.color = '#2ecc71'; // Green Icon
+        btn.style.backgroundColor = '#e8f5e9'; // Light Green Background
+    } else {
+        if (label) label.textContent = 'Dim Convert : OFF';
+        if (icon) icon.style.color = ''; // Reset Icon
+        btn.style.backgroundColor = ''; // Reset Background
+    }
+}
+
+async function loadDimensionConvertSetting() {
+    try {
+        if (typeof getFromDB === 'function') {
+            const storedValue = await getFromDB('settings', 'isDimensionConvertEnabled');
+
+            // Only update if a value actually exists in DB
+            if (storedValue !== undefined && storedValue !== null) {
+                isDimensionConvertEnabled = storedValue;
+            }
+
+            // Apply the visual state based on loaded value
+            updateDimensionConvertButtonUI();
+        }
+    } catch (error) {
+        console.warn('Error loading dimension convert setting:', error);
+    }
+}
+
+async function toggleDimensionConvert() {
+    try {
+        isDimensionConvertEnabled = !isDimensionConvertEnabled;
+
+        // Update UI immediately
+        updateDimensionConvertButtonUI();
+
+        // Show Notification
+        // const msg = isDimensionConvertEnabled ? "Dimension Conversion Enabled" : "Dimension Conversion Disabled";
+        // const type = isDimensionConvertEnabled ? "success" : "info";
+        // if (typeof showNotification === 'function') {
+        //     showNotification(msg, type);
+        // }
+
+        // Save the setting to DB with error handling
+        try {
+            if (typeof setInDB === 'function') {
+                await setInDB('settings', 'isDimensionConvertEnabled', isDimensionConvertEnabled);
+            }
+        } catch (error) {
+            console.warn('Could not save dimension convert setting:', error);
+        }
+
+    } catch (error) {
+        console.error('Error toggling dimension convert:', error);
+    }
+}
 
 function handleMeasurementUnitChange() {
     const newUnit = document.getElementById('measurementUnit').value;
     const oldUnit = currentDimensions.unit;
 
     if (oldUnit !== newUnit) {
-        convertDimensions(oldUnit, newUnit);
+        // --- THE FIX: Only convert if the feature is enabled ---
+        if (typeof isDimensionConvertEnabled !== 'undefined' && isDimensionConvertEnabled) {
+            convertDimensions(oldUnit, newUnit);
+        }
     }
 
     currentDimensions.unit = newUnit;
@@ -1783,20 +1919,31 @@ function getDimensionDisplayText(dimensionType = null, dimensionValues = null, d
 let autoRateConversion = false;
 let previousConvertUnit = 'none';
 
-function toggleAutoRateConversion() {
-    autoRateConversion = !autoRateConversion;
+async function toggleAutoRateConversion() {
+    try {
+        autoRateConversion = !autoRateConversion;
 
-    // 1. Save state
-    localStorage.setItem('billApp_autoRate', autoRateConversion);
+        // Update UI (Uses your existing Light Green UI function)
+        if (typeof updateAutoRateUI === 'function') {
+            updateAutoRateUI();
+        }
 
-    // 2. Update UI
-    updateAutoRateUI();
+        // // Show Notification
+        // if (typeof showNotification === 'function') {
+        //     showNotification(`Rate Conversion: ${autoRateConversion ? 'ON' : 'OFF'}`, 'info');
+        // }
 
-    // 3. Notify
-    if (autoRateConversion) {
-        showNotification("Auto Rate Conversion Enabled", "success");
-    } else {
-        showNotification("Auto Rate Conversion Disabled", "info");
+        // --- SAVE TO DB (Standardized) ---
+        try {
+            if (typeof setInDB === 'function') {
+                await setInDB('settings', 'autoRateConversion', autoRateConversion);
+            }
+        } catch (error) {
+            console.warn('Could not save auto-rate conversion setting:', error);
+        }
+
+    } catch (error) {
+        console.error('Error toggling auto rate conversion:', error);
     }
 }
 
@@ -1826,22 +1973,22 @@ function isConvertModeActive() {
 }
 
 // LOAD STATE ON STARTUP
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Restore Auto Rate Toggle
-    const savedState = localStorage.getItem('billApp_autoRate');
-    if (savedState === 'true') {
-        autoRateConversion = true;
-        setTimeout(updateAutoRateUI, 100);
-    }
+// document.addEventListener('DOMContentLoaded', () => {
+//     // 1. Restore Auto Rate Toggle
+//     const savedState = localStorage.getItem('billApp_autoRate');
+//     if (savedState === 'true') {
+//         autoRateConversion = true;
+//         setTimeout(updateAutoRateUI, 100);
+//     }
 
-    // 2. Sync "Previous Unit" Tracker
-    setTimeout(() => {
-        const convertSelect = document.getElementById('convertUnit');
-        if (convertSelect) {
-            previousConvertUnit = convertSelect.value;
-        }
-    }, 1000);
-});
+//     // 2. Sync "Previous Unit" Tracker
+//     setTimeout(() => {
+//         const convertSelect = document.getElementById('convertUnit');
+//         if (convertSelect) {
+//             previousConvertUnit = convertSelect.value;
+//         }
+//     }, 1000);
+// });
 
 // --- MATH HELPERS ---
 
@@ -6155,7 +6302,7 @@ function formatNumber(value) {
     }
 }
 
-function formatParticularsManual(itemName, notes, dimensions = '', quantity = 0, finalQuantity = 0, rate = 0, dimensionType = 'none', dimensionUnit = 'ft', unit = '', discountType = 'none', discountValue = '', toggleStates = null, convertUnit = 'none') {
+function formatParticularsManual(itemName, notes, dimensions = '', quantity = 0, finalQuantity = 0, rate = 0, dimensionType = 'none', dimensionUnit = 'ft', unit = '', discountType = 'none', discountValue = '', toggleStates = null, convertUnit = 'none', isVisible = true) {
     let particularsHtml = `<div class="itemNameClass">${itemName}</div>`;
 
     // Format the values using the helper function
@@ -6194,18 +6341,10 @@ function formatParticularsManual(itemName, notes, dimensions = '', quantity = 0,
 
         // ADJUST for unchecked toggles
         if (toggleStates) {
-            let actualUsedDimensions = 0;
-            // Recalculate based on what is actually physically present in the calculation
-            // We can't just map type to toggles blindly because different types use different toggles
-            // But since we only need the count for the unit suffix (ft, sq.ft, cu.ft), we can count true toggles
-            // LIMITED by the geometric max of that type.
-
             let activeCount = 0;
             if (toggleStates.toggle1) activeCount++;
             if (toggleStates.toggle2) activeCount++;
             if (toggleStates.toggle3) activeCount++;
-
-            // If type is 2D but 3 toggles are active (shouldn't happen logic-wise but safety check), cap it
             geometricDimensionsCount = Math.min(geometricDimensionsCount, activeCount);
         }
 
@@ -6214,17 +6353,10 @@ function formatParticularsManual(itemName, notes, dimensions = '', quantity = 0,
         let unitSuffix = '';
 
         switch (geometricDimensionsCount) {
-            case 1:
-                unitSuffix = displayUnit; // Linear
-                break;
-            case 2:
-                unitSuffix = displayUnit + '²'; // Area
-                break;
-            case 3:
-                unitSuffix = displayUnit + '³'; // Volume
-                break;
-            default:
-                unitSuffix = displayUnit; // Fallback
+            case 1: unitSuffix = displayUnit; break;
+            case 2: unitSuffix = displayUnit + '²'; break;
+            case 3: unitSuffix = displayUnit + '³'; break;
+            default: unitSuffix = displayUnit;
         }
 
         calculationText = `${dimensions} X ${formattedQuantity}${unit} = ${formattedFinalQuantity}${unitSuffix}`;
@@ -6235,26 +6367,18 @@ function formatParticularsManual(itemName, notes, dimensions = '', quantity = 0,
     // Build discount text based on discount type
     if (discountType !== 'none' && discountValue) {
         switch (discountType) {
-            case 'percent_per_unit':
-                discountText = ` (Less : ${discountValue}%/${unit})`;
-                break;
-            case 'amt_per_unit':
-                discountText = ` (Less : ${discountValue}₹/${unit})`;
-                break;
-            case 'percent_on_amount':
-                discountText = ` (Less : ${discountValue}%/amt)`;
-                break;
-            case 'amt_on_amount':
-                discountText = ` (Less : ${discountValue}₹/amt)`;
-                break;
+            case 'percent_per_unit': discountText = ` (Less : ${discountValue}%/${unit})`; break;
+            case 'amt_per_unit': discountText = ` (Less : ${discountValue}₹/${unit})`; break;
+            case 'percent_on_amount': discountText = ` (Less : ${discountValue}%/amt)`; break;
+            case 'amt_on_amount': discountText = ` (Less : ${discountValue}₹/amt)`; break;
         }
     }
 
-    if (dimensionType !== 'none' && showDimensions) {
-        particularsHtml += `<div class="dimensions" style="font-size: 0.8em; color: #666; margin: 5px 0;">${calculationText}${discountText}</div>`;
-    } else if (showDimensions) {
-        particularsHtml += `<div class="dimensions" style="font-size: 0.8em; color: #666; margin: 5px 0;">${calculationText}${discountText}</div>`;
-    }
+    // --- FIX: Logic to handle display based on isVisible param ---
+    // If it's a simple item (no dimensions), showDimensions is effectively controlled by isVisible now
+    // We explicitly set display style based on isVisible
+    const displayStyle = isVisible ? 'block' : 'none';
+    particularsHtml += `<div class="dimensions" style="font-size: 0.8em; color: #666; margin: 5px 0; display: ${displayStyle};">${calculationText}${discountText}</div>`;
 
     if (notes) {
         particularsHtml += `<p class="notes">${notes}</p>`;
@@ -6392,6 +6516,11 @@ async function addRowManual() {
 
     const id = 'row-manual-' + rowCounterManual++;
 
+    // --- LOGIC FIX: Determine Default Visibility ---
+    // Only show details if Dimensions exist OR Discount exists. Otherwise hide (simple view).
+    const shouldShowDetails = (currentDimType !== 'none' || (discountType !== 'none' && discountValue > 0));
+    // -----------------------------------------------
+
     const row1 = createTableRowManual(
         id,
         itemName,
@@ -6416,8 +6545,8 @@ async function addRowManual() {
         productCode,
         discountType,
         discountValue,
-        true,
-        selectedConvertUnit // Pass convert unit
+        shouldShowDetails, // Use calculated boolean
+        selectedConvertUnit
     );
 
     row1.setAttribute('data-amount', storeWithPrecision(finalAmount));
@@ -6447,8 +6576,8 @@ async function addRowManual() {
         productCode,
         discountType,
         discountValue,
-        true,
-        selectedConvertUnit // Pass convert unit
+        shouldShowDetails, // Sync visibility to the Bill View as well
+        selectedConvertUnit
     );
 
     document.getElementById("createListManual").querySelector('tbody').appendChild(row1);
@@ -6483,7 +6612,6 @@ async function addRowManual() {
     // --- RESET DISCOUNT UI ---
     document.getElementById("discountType").value = "none";
     document.getElementById("discountValue").value = "";
-    // Hide container and reset button style
     document.getElementById("discount-inputs-container").style.display = "none";
     document.getElementById("toggleDiscountBtn").style.backgroundColor = "";
 
@@ -6491,7 +6619,6 @@ async function addRowManual() {
     document.getElementById('dimensionType').value = 'none';
     document.getElementById('measurementUnit').style.display = 'none';
     document.getElementById('dimensionInputs').style.display = 'none';
-    // Hide container and reset button style
     document.getElementById("dimension-inputs-container").style.display = "none";
     document.getElementById("toggleDimensionBtn").style.backgroundColor = "";
 
@@ -6514,7 +6641,6 @@ async function addRowManual() {
 
     applyColumnVisibility();
     updateGlobalDimensionButtonState();
-    // Auto-apply rates for the newly added item (if applicable)
     await checkAndApplyCustomerRates();
 }
 
@@ -6594,6 +6720,7 @@ function cancelUpdateManual() {
 async function updateRowManual() {
     if (!currentlyEditingRowIdManual) return;
 
+    // --- 1. CAPTURE INPUT VALUES ---
     let itemName = document.getElementById("itemNameManual").value.trim();
     let quantityInput = document.getElementById("quantityManual").value.trim();
     let quantity = parseFloat(quantityInput);
@@ -6617,6 +6744,7 @@ async function updateRowManual() {
 
     const dimensionType = currentDimensions.type;
 
+    // Toggle States
     const dim1Toggle = document.getElementById('dimension1-toggle');
     const dim2Toggle = document.getElementById('dimension2-toggle');
     const dim3Toggle = document.getElementById('dimension3-toggle');
@@ -6626,6 +6754,7 @@ async function updateRowManual() {
         toggle3: dim3Toggle ? dim3Toggle.checked : true
     };
 
+    // Update Dimension Logic
     const dim1Value = parseFloat(document.getElementById('dimension1').value) || 0;
     const dim2Value = parseFloat(document.getElementById('dimension2').value) || 0;
     const dim3Value = parseFloat(document.getElementById('dimension3').value) || 0;
@@ -6653,8 +6782,8 @@ async function updateRowManual() {
     }
     const selectedConvertUnit = document.getElementById('convertUnit').value;
     const conversionFactor = getConversionFactor(currentDimensions.unit, selectedConvertUnit, power);
-    // ----------------------------
 
+    // --- CALCULATE AMOUNTS ---
     let calculatedQuantity = quantity;
     let baseAmount = 0;
 
@@ -6691,16 +6820,11 @@ async function updateRowManual() {
         if (finalAmount < 0) finalAmount = 0;
     }
 
-    if (isNaN(quantity) || isNaN(rate) || !itemName) {
-        return;
-    }
+    if (isNaN(quantity) || isNaN(rate) || !itemName) return;
 
     const numericRate = typeof rate === 'string' ? parseFloat(rate) : Number(rate);
     const dimensionUnit = currentDimensions.unit;
-
-    const formattedDisplayQuantity = originalQuantity % 1 === 0 ?
-        originalQuantity.toString() :
-        originalQuantity.toFixed(2);
+    const formattedDisplayQuantity = originalQuantity % 1 === 0 ? originalQuantity.toString() : originalQuantity.toFixed(2);
 
     let finalQuantity = calculatedQuantity;
     if (currentDimensions.type !== 'none' && currentDimensions.type !== 'dozen' && currentDimensions.calculatedArea > 0) {
@@ -6711,40 +6835,70 @@ async function updateRowManual() {
         finalQuantity = quantity;
     }
 
-    // Pass selectedConvertUnit
-    let particularsHtml = formatParticularsManual(itemName, notes, dimensionText, formattedDisplayQuantity, finalQuantity, numericRate, dimensionType, dimensionUnit, unit, discountType, discountValue, toggleStates, selectedConvertUnit);
+    // --- 2. INTELLIGENT VISIBILITY LOGIC ---
 
-    // --- FIX START: Capture Master Visibility from Input Row ---
+    // A. Capture current state from the DOM *before* update
     const inputRow = document.querySelector(`#createListManual tr[data-id="${currentlyEditingRowIdManual}"]`);
+
+    // Check if the OLD row was "Simple" (No Dim, No Discount)
+    const oldDimType = inputRow.getAttribute('data-dimension-type');
+    const oldDiscType = inputRow.getAttribute('data-discount-type');
+    const oldDiscVal = parseFloat(inputRow.getAttribute('data-discount-value')) || 0;
+
+    const wasSimple = (oldDimType === 'none' || !oldDimType) && (oldDiscType === 'none' || !oldDiscType || oldDiscVal === 0);
+
+    // Get the previous visibility preference (toggle state)
     const masterVisibility = inputRow ? inputRow.getAttribute('data-dimensions-visible') !== 'false' : true;
-    // -----------------------------------------------------------
+
+    // B. Check if the NEW state is "Complex" (Has Dim or Discount)
+    const isNowComplex = (dimensionType !== 'none') || (discountType !== 'none' && discountValue > 0);
+
+    // C. Determine Final Visibility
+    let finalVisibility;
+
+    if (!isNowComplex) {
+        // CASE 1: It is now Simple -> ALWAYS HIDE details (redundant)
+        finalVisibility = false;
+    } else if (wasSimple && isNowComplex) {
+        // CASE 2: Was Simple, became Complex -> FORCE SHOW details
+        finalVisibility = true;
+    } else {
+        // CASE 3: Was Complex, stays Complex -> PRESERVE previous user toggle
+        finalVisibility = masterVisibility;
+    }
+    // ----------------------------------------
+
+    // Generate HTML with correct visibility
+    let particularsHtml = formatParticularsManual(itemName, notes, dimensionText, formattedDisplayQuantity, finalQuantity, numericRate, dimensionType, dimensionUnit, unit, discountType, discountValue, toggleStates, selectedConvertUnit, finalVisibility);
 
     const rows = document.querySelectorAll(`tr[data-id="${currentlyEditingRowIdManual}"]`);
     rows.forEach(row => {
         const cells = row.children;
         cells[1].innerHTML = particularsHtml;
 
-        // --- FIX START: Apply Master Visibility to ALL matching rows ---
+        // Apply Final Visibility to the row attribute
+        row.setAttribute('data-dimensions-visible', finalVisibility);
+
+        // Update Toggle Icon
+        const dimBtn = row.querySelector('.dimensions-btn span');
+        if (dimBtn) {
+            dimBtn.textContent = finalVisibility ? 'layers' : 'layers_clear';
+        }
+
+        // Apply visibility to the div (Just in case innerHTML didn't catch it, though formatParticularsManual should)
         const dimDiv = cells[1].querySelector('.dimensions');
         if (dimDiv) {
-            dimDiv.style.display = masterVisibility ? 'block' : 'none';
+            dimDiv.style.display = finalVisibility ? 'block' : 'none';
         }
-        // Sync the attribute so Bill View matches Input View
-        row.setAttribute('data-dimensions-visible', masterVisibility);
-        // -------------------------------------------------------------
 
-        const formattedQuantity = originalQuantity % 1 === 0 ?
-            originalQuantity.toString() :
-            originalQuantity.toFixed(2);
+        const formattedQuantity = originalQuantity % 1 === 0 ? originalQuantity.toString() : originalQuantity.toFixed(2);
         cells[2].textContent = formattedQuantity;
-
         cells[3].textContent = unit;
         cells[4].textContent = parseFloat(rate).toFixed(2);
         cells[5].textContent = roundToTwoDecimals(finalAmount).toFixed(2);
 
         row.setAttribute('data-amount', storeWithPrecision(finalAmount));
         row.setAttribute('data-rate', storeWithPrecision(rate));
-
         row.setAttribute('data-dimension-type', dimensionType);
         row.setAttribute('data-dimension-values', JSON.stringify([...currentDimensions.values]));
         row.setAttribute('data-dimension-unit', currentDimensions.unit);
@@ -6756,7 +6910,6 @@ async function updateRowManual() {
             row.setAttribute('data-hsn', hsnCode);
             row.setAttribute('data-product-code', productCode);
         }
-
         row.setAttribute('data-discount-type', discountType);
         row.setAttribute('data-discount-value', discountValue);
     });
@@ -6771,7 +6924,6 @@ async function updateRowManual() {
     await saveToLocalStorage();
     saveStateToHistory();
 
-    // --- RESET UI (Same as cancel logic) ---
     cancelUpdateManual();
 }
 
@@ -7064,8 +7216,8 @@ function createTableRowManual(id, itemName, quantity, unit, rate, amount, notes,
     const numericRate = typeof rate === 'string' ? parseFloat(rate) : Number(rate);
     const numericAmount = typeof amount === 'string' ? parseFloat(amount) : Number(amount);
 
-    // Pass convertUnit to formatParticularsManual
-    let particularsHtml = formatParticularsManual(itemName, notes, dimensions, displayQuantity, finalQuantity, numericRate, dimensionType, dimensionUnit, unit, discountType, discountValue, toggleStates, convertUnit);
+    // --- FIX: Pass dimensionsVisible to formatParticularsManual ---
+    let particularsHtml = formatParticularsManual(itemName, notes, dimensions, displayQuantity, finalQuantity, numericRate, dimensionType, dimensionUnit, unit, discountType, discountValue, toggleStates, convertUnit, dimensionsVisible);
 
     const removeFn = editable ? `removeRowManual('${id}')` : `removeRowManual('${id}', true)`;
 
@@ -7085,8 +7237,6 @@ function createTableRowManual(id, itemName, quantity, unit, rate, amount, notes,
                 </button>
             </div>
         `;
-    } else {
-        // actionsHtml = `<button onclick="${removeFn}" class="remove-btn"><span class="material-icons">close</span></button>`;
     }
 
     tr.innerHTML = `
@@ -7179,9 +7329,21 @@ function createGSTTableRowManual(id, itemName, quantity, unit, rate, amount, not
 
 // Function: Remove Row Manual
 function removeRowManual(id, skipConfirm = false) {
+    // --- SAFETY CHECK START: Prevent deleting the active edit row ---
+    if (typeof currentlyEditingRowIdManual !== 'undefined' && currentlyEditingRowIdManual === id) {
+        if (typeof showNotification === 'function') {
+            showNotification("Finish editing first", "error");
+        } else {
+            alert("Finish editing first");
+        }
+        return; // Stop execution here
+    }
+    // --- SAFETY CHECK END ---
+
     // Note: Kept skipConfirm logic but ensured deletion happens
     document.querySelectorAll(`tr[data-id="${id}"]`).forEach(row => row.remove());
 
+    // Also remove from GST hidden table if it exists there
     const gstRows = document.querySelectorAll(`#gstCopyListManual tr[data-id="${id}"]`);
     gstRows.forEach(row => row.remove());
 
@@ -7196,24 +7358,39 @@ function removeRowManual(id, skipConfirm = false) {
     saveToLocalStorage();
     saveStateToHistory();
 
-    updateGlobalDimensionButtonState(); // <--- ADDED THIS
+    updateGlobalDimensionButtonState();
 }
 
-function toggleAutoScroll() {
-    autoScrollEnabled = !autoScrollEnabled;
+async function toggleAutoScroll() {
+    try {
+        autoScrollEnabled = !autoScrollEnabled;
 
-    // SAVE TO LOCAL STORAGE
-    localStorage.setItem('billApp_autoScroll', autoScrollEnabled);
+        // --- UPDATE UI (Light Green Style) ---
+        const btn = document.getElementById('btn-auto-scroll');
+        const label = btn.querySelector('.sidebar-label');
+        const icon = btn.querySelector('.material-icons');
 
-    const btn = document.getElementById('btn-auto-scroll');
-    const label = btn.querySelector('.sidebar-label');
+        if (autoScrollEnabled) {
+            if (label) label.textContent = 'Auto Scroll : ON';
+            if (icon) icon.style.color = '#2ecc71'; // Green Icon
+            btn.style.backgroundColor = '#e8f5e9'; // Light Green BG
+        } else {
+            if (label) label.textContent = 'Auto Scroll : OFF';
+            if (icon) icon.style.color = ''; // Reset Icon
+            btn.style.backgroundColor = ''; // Reset BG
+        }
 
-    if (autoScrollEnabled) {
-        btn.style.backgroundColor = '#27ae60'; // Green
-        label.textContent = 'Auto Scroll : ON';
-    } else {
-        btn.style.backgroundColor = ''; // Default
-        label.textContent = 'Auto Scroll : OFF';
+        // --- SAVE TO DB (Standardized) ---
+        try {
+            if (typeof setInDB === 'function') {
+                await setInDB('settings', 'autoScrollEnabled', autoScrollEnabled);
+            }
+        } catch (error) {
+            console.warn('Could not save auto-scroll setting:', error);
+        }
+
+    } catch (error) {
+        console.error('Error toggling auto scroll:', error);
     }
 }
 function editRowManual(id) {
@@ -10395,24 +10572,24 @@ async function generateBillCanvas() {
             // --- THE MAGICAL FIX: onclone ---
             // This runs on the "virtual copy" before the screenshot is taken
             onclone: (clonedDoc) => {
-                
+
                 // A. Activate PDF CSS Mode on the clone
                 clonedDoc.body.classList.add('pdf-mode');
-                
+
                 // B. Find the specific container in the clone
                 const clonedElement = clonedDoc.getElementById(elementId);
 
                 // C. FLATTEN INPUTS: Convert all <input> and <textarea> to <span>
                 // This fixes the "text cut off" and "scroll" issues
                 const inputs = clonedElement.querySelectorAll('input, textarea');
-                
+
                 inputs.forEach(input => {
                     // Create a text node replacement
                     const span = clonedDoc.createElement('span');
-                    
+
                     // Set content to the current value
                     span.innerText = input.value || input.getAttribute('placeholder') || '';
-                    
+
                     // Copy crucial styles so it looks the same (font, alignment, color)
                     const style = window.getComputedStyle(input);
                     span.style.fontFamily = style.fontFamily;
@@ -10423,9 +10600,9 @@ async function generateBillCanvas() {
                     span.style.display = 'inline-block';
                     span.style.width = '100%'; // Ensure it fills the space
                     span.style.whiteSpace = 'pre-wrap'; // Preserve line breaks for textareas
-                    
+
                     // Replace the input with the span
-                    if(input.parentNode) {
+                    if (input.parentNode) {
                         input.parentNode.replaceChild(span, input);
                     }
                 });
@@ -10438,8 +10615,8 @@ async function generateBillCanvas() {
         });
 
         // 4. Return Result
-        return { 
-            canvas: canvas, 
+        return {
+            canvas: canvas,
             filename: `bill-${billNoVal || 'image'}.jpg`,
             wasInputView: wasInputView
         };
@@ -10460,7 +10637,7 @@ async function handleShareImage() {
 
     try {
         const result = await generateBillCanvas();
-        
+
         result.canvas.toBlob(async (blob) => {
             if (!blob) {
                 showNotification("Failed to generate image.", "error");
