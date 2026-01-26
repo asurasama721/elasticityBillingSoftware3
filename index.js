@@ -71,6 +71,8 @@ let paymentDraftState = {
 let currentPaymentPrefill = null;
 
 let isCustomerSortAscending = true; // Default A-Z
+// Change this line in index.js
+let showBillPaymentTable = localStorage.getItem('showBillPaymentTable') === 'true'; // Default State
 
 // Add this with other global variables
 let sectionModalState = {
@@ -319,7 +321,7 @@ async function toggleAutoApplyRates() {
         autoApplyCustomerRates = !autoApplyCustomerRates;
         updateAutoApplyButton();
         //
-        
+
         showNotification(`Auto-apply customer rates: ${autoApplyCustomerRates ? 'ON' : 'OFF'}`, 'info', 2000);
 
         // Save the setting to DB with error handling
@@ -6190,6 +6192,9 @@ async function loadSavedBillsList() {
 
 //VENDOR END
 
+/* ==========================================================================
+   LOAD SAVED BILL (Updated with Button Sync)
+   ========================================================================== */
 async function loadSavedBill(billId) {
     try {
         const savedBill = await getFromDB('savedBills', billId);
@@ -6273,10 +6278,31 @@ async function loadSavedBill(billId) {
                 if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
             }
 
+            // --- [UPDATE START] ---
+            // Restore Payment Table Visibility Preference
+            if (state.hasOwnProperty('showPaymentTable')) {
+                showBillPaymentTable = !!state.showPaymentTable;
+            } else {
+                showBillPaymentTable = false; // Default off for legacy bills
+            }
+
+            // Sync the Toolbar Button Color
+            if (typeof updateShowPaidButtonState === 'function') {
+                updateShowPaidButtonState();
+            }
+            // --- [UPDATE END] ---
+
             // 9. SYNC TO MAIN VIEW
             if (typeof saveRegularBillDetails === 'function') {
                 saveRegularBillDetails(true);
             }
+
+            // --- [UPDATE START] ---
+            // 10. RENDER PAYMENT TABLE (Must be called AFTER saveRegularBillDetails)
+            if (typeof renderBillSpecificPayments === 'function') {
+                renderBillSpecificPayments();
+            }
+            // --- [UPDATE END] ---
         }
         // ------------------------------------------------------------
 
@@ -6630,9 +6656,12 @@ async function addRowManual() {
     document.getElementById('convertUnit').value = 'none';
     currentConvertUnit = 'none';
 
+    const stickyUnit = document.getElementById('measurementUnit').value || 'ft';
+
+    // Capture the current dropdown value so internal state matches UI
     currentDimensions = {
         type: 'none',
-        unit: 'ft',
+        unit: stickyUnit, // CHANGED: Was 'ft', now uses the dropdown value
         values: [0, 0, 0],
         calculatedArea: 0
     };
@@ -6993,8 +7022,12 @@ function duplicateRow(rowId) {
     const discountType = sourceRow.getAttribute('data-discount-type') || 'none';
     const discountValue = sourceRow.getAttribute('data-discount-value') || '';
 
-    // --- FIX: GET CONVERT UNIT ---
+    // FIX: GET CONVERT UNIT
     const convertUnit = sourceRow.getAttribute('data-convert-unit') || 'none';
+
+    // --- FIX START: Capture Visibility State ---
+    const dimensionsVisible = sourceRow.getAttribute('data-dimensions-visible') !== 'false';
+    // -------------------------------------------
 
     const unit = cells[3].textContent;
     const rate = parseFloat(cells[4].textContent);
@@ -7003,7 +7036,7 @@ function duplicateRow(rowId) {
     // Create new unique ID
     const newId = 'row-manual-' + rowCounterManual++;
 
-    // --- FIX: Calculate final quantity using NEW CONVERSION LOGIC ---
+    // Calculate final quantity using NEW CONVERSION LOGIC
     let finalQuantity = originalQuantity;
 
     // 1. Determine dimensionality (power)
@@ -7023,11 +7056,7 @@ function duplicateRow(rowId) {
 
     // 3. Calculate Final Quantity
     if (dimensionType !== 'none' && dimensionType !== 'dozen') {
-        const calculatedArea = calculateAreaFromDimensions(dimensionType, dimensionValues);
-        // Apply toggles to calculation (simplified check, ideally use calculateAreaWithToggles if strict)
-        // But for duplication, we can rely on the source row's logic logic being consistent
-
-        // Re-calculate area with toggles specifically
+        // Re-calculate area with toggles specifically (simplified logic for duplication)
         let effectiveArea = calculateAreaWithToggles(dimensionType, dimensionValues, toggleStates);
         finalQuantity = (originalQuantity * effectiveArea) * conversionFactor;
     } else if (dimensionType === 'dozen') {
@@ -7037,7 +7066,7 @@ function duplicateRow(rowId) {
     // Get dimension text
     const dimensionText = getDimensionDisplayText(dimensionType, dimensionValues, dimensionUnit, toggleStates);
 
-    // Create duplicate row with PROPER CONVERT UNIT
+    // Create duplicate row using Captured Visibility
     const newRow = createTableRowManual(
         newId,
         itemName,
@@ -7060,30 +7089,28 @@ function duplicateRow(rowId) {
         dimensionUnit,
         hsnCode,
         productCode,
-
-
         discountType,
         discountValue,
-        true, // dimensionsVisible
-        convertUnit // <--- PASS CONVERT UNIT
+        dimensionsVisible, // <--- PASS CAPTURED VISIBILITY
+        convertUnit
     );
 
     // Insert the duplicate below the source row
     sourceRow.parentNode.insertBefore(newRow, sourceRow.nextSibling);
 
-    // Sync to other tables
-    syncDuplicatedRowToOtherTables(newId, sourceRow, itemName, originalQuantity, unit, rate, amount, notes, dimensionType, dimensionValues, dimensionUnit, hsnCode, productCode, discountType, discountValue, finalQuantity, dimensionText, toggleStates, convertUnit);
+    // Sync to other tables (Passing dimensionsVisible at the end to ensure sync)
+    syncDuplicatedRowToOtherTables(newId, sourceRow, itemName, originalQuantity, unit, rate, amount, notes, dimensionType, dimensionValues, dimensionUnit, hsnCode, productCode, discountType, discountValue, finalQuantity, dimensionText, toggleStates, convertUnit, dimensionsVisible);
 
     // Update everything
     updateSerialNumbers();
     updateTotal();
-    refreshCopyTableTotal(); // Ensure copy table total updates
+    refreshCopyTableTotal();
     saveToLocalStorage();
     saveStateToHistory();
     applyColumnVisibility();
 
     if (isGSTMode) {
-        copyItemsToGSTBill(); // Ensure sync
+        copyItemsToGSTBill();
         updateGSTTaxCalculation();
     }
 }
@@ -11417,6 +11444,13 @@ function updateUIForGSTMode() {
     const gstToolBtn = document.getElementById('gst-tool-btn');
     if (gstToolBtn) gstToolBtn.style.display = isGSTMode ? 'none' : 'inline-block';
 
+    // === FIX START: Hide "SHOW PAID" button in GST Mode ===
+    const btnTogglePayments = document.getElementById('btn-toggle-payments');
+    if (btnTogglePayments) {
+        btnTogglePayments.style.display = isGSTMode ? 'none' : 'inline-block';
+    }
+    // === FIX END ===
+
     // Handle Regular Footer Button Visibility
     if (regFooterBtn) {
         // Only show in Regular Mode AND Bill View
@@ -11468,4 +11502,3 @@ function updateUIForGSTMode() {
     const addTermsBtn = document.getElementById('addTermsListSectionBtn');
     if (addTermsBtn) addTermsBtn.style.display = isGSTMode ? 'none' : 'flex';
 }
-
