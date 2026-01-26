@@ -37,7 +37,7 @@
     <div class="payment-dialog" id="payment-dialog">
         <div class="payment-dialog-content">
             <div class="payment-dialog-header">
-                <h3 id="payment-dialog-title">Payments - Customer Name</h3>
+                <h3 id="payment-dialog-title">Payments</h3>
                 <button class="close-payment-dialog" id="close-payment-dialog">×</button>
             </div>
             <div class="payment-dialog-body">
@@ -1402,6 +1402,14 @@
             <span class="material-icons" translate="no">picture_as_pdf</span>
             <span>PDF</span>
         </button> -->
+        <button onclick="openCurrentBillPaymentDialog()" style="display: inline-block;">
+            <span class="material-icons" translate="no">payments</span>
+            <span>PAYMENTS</span>
+        </button>
+        <button id="btn-toggle-payments" onclick="toggleBillPaymentDisplay()" style="display: inline-block;">
+            <span class="material-icons" translate="no">currency_rupee</span>
+            <span>SHOW PAID</span>
+        </button>
         <button onclick="openShareModal()">
             <span class="material-icons" translate="no">share</span>
             <span>SHARE</span>
@@ -1629,6 +1637,15 @@
                         </tr>
                     </tbody>
                 </table>
+                <!-- load payments and cn related to this bill -->
+                <div id="bill-payments-container" style="display: none;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <tbody id="bill-payments-tbody">
+                        </tbody>
+                        <tfoot id="bill-payments-tfoot">
+                        </tfoot>
+                    </table>
+                </div>
                 <table class="bill-footer" id="regular-bill-footer" style="display: none; margin-top: 20px;">
                     <tbody>
                         <tr>
