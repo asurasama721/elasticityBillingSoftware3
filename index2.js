@@ -2719,7 +2719,7 @@ async function handlePaymentRefInput(input) {
                     prefix: '',
                     no: bill.value.billDetails?.invoiceNo
                 }));
-        } 
+        }
         // === 2. GST MODE ===
         else if (mode === 'gst') {
             const allGstBills = await getAllFromDB('gstSavedBills');
@@ -2748,7 +2748,7 @@ async function handlePaymentRefInput(input) {
                     no: bill.value.invoiceDetails?.number
                 }));
 
-        } 
+        }
         // === 3. REGULAR MODE ===
         else {
             const allBills = await getAllFromDB('savedBills');
@@ -2820,6 +2820,285 @@ document.addEventListener('click', function (e) {
 });
 //new payment functions end
 
+// --- ADD TO EVENT LISTENERS OR NEW FUNCTIONS SECTION ---
+
+// Toolbar Action: Opens Dialog Prefilled with Current Bill Details
+function openCurrentBillPaymentDialog() {
+    // 1. Get Current Customer Name
+    let customerName = '';
+    if (isGSTMode) {
+        // GST Mode Logic
+        const billToName = document.getElementById('gst-bill-to-name');
+        customerName = billToName ? billToName.value : '';
+    } else {
+        // Regular Mode Logic
+        const viewMode = regBillConfig.viewMode || 'simple';
+        if (viewMode === 'simple') {
+            customerName = document.getElementById('reg-modal-simple-name').value;
+        } else {
+            customerName = document.getElementById('reg-modal-bill-name').value;
+        }
+    }
+
+    if (!customerName) {
+        alert("Please enter a Customer Name first.");
+        return;
+    }
+
+    // 2. Get Current Bill Details
+    const state = getCurrentBillDetails(); // Helper function (defined below in index2.js)
+
+    // 3. Open Dialog
+    openPaymentDialog(customerName, '', isGSTMode ? 'gst' : 'regular', {
+        type: state.type,
+        prefix: state.prefix,
+        no: state.no
+    });
+
+    // 4. Sync the Checkbox State in the Dialog
+    const toggleEl = document.getElementById('toggle-bill-payment-table');
+    if (toggleEl) toggleEl.checked = showBillPaymentTable;
+}
+/* ==========================================================================
+   CORE: SINGLE RENDER FUNCTION (Fixed ID/Type Logic)
+   ========================================================================== */
+
+/* ==========================================================================
+SHOW PAID TOGGLE LOGIC
+========================================================================== */
+
+// 1. The Click Handler
+/* ==========================================================================
+   SHOW PAID TOGGLE LOGIC (Updated for Persistence)
+   ========================================================================== */
+function toggleBillPaymentDisplay() {
+    showBillPaymentTable = !showBillPaymentTable;
+
+    // 1. SAVE TO LOCALSTORAGE (This fixes the refresh issue)
+    localStorage.setItem('showBillPaymentTable', showBillPaymentTable);
+
+    // 2. Update UI
+    updateShowPaidButtonState();
+
+    // 3. Render Table
+    if (typeof renderBillSpecificPayments === 'function') {
+        renderBillSpecificPayments();
+    }
+
+    // 4. Save to Current Draft (Optional, but good for DB sync)
+    if (!isGSTMode && typeof saveRegularBillDetails === 'function') {
+        saveRegularBillDetails(true);
+    }
+}
+
+// 2. The Visual Sync (Green when active)
+function updateShowPaidButtonState() {
+    const btn = document.getElementById('btn-toggle-payments');
+    if (!btn) return;
+
+    if (showBillPaymentTable) {
+        btn.style.backgroundColor = 'var(--primary-color)';
+        btn.style.color = 'white';
+    } else {
+        btn.style.backgroundColor = ''; // Revert to default CSS
+        btn.style.color = '';
+    }
+}
+
+
+async function renderBillSpecificPayments() {
+    const container = document.getElementById('bill-payments-container');
+    const tbody = document.getElementById('bill-payments-tbody');
+    const tfoot = document.getElementById('bill-payments-tfoot');
+    const thead = container ? container.querySelector('thead') : null;
+
+    // Safety Check
+    if (!container || !tbody || !tfoot) return;
+
+    // 1. Hide if toggle is OFF
+    if (!showBillPaymentTable) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // 2. Get Current Bill Context
+    const billDetails = getCurrentBillDetails();
+    if (!billDetails.name) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // 3. Fetch Payments & Credit Notes (Explicitly Tagging Types)
+    const mode = isGSTMode ? 'gst' : 'regular';
+
+    let payments = await getCustomerPayments(billDetails.name, '', 'payment', {}, mode);
+    // Explicitly tag as payment
+    payments = payments.map(p => ({ ...p, recordType: 'payment' }));
+
+    let creditNotes = await getCustomerPayments(billDetails.name, '', 'credit-note', {}, mode);
+    // Explicitly tag as credit-note
+    creditNotes = creditNotes.map(cn => ({ ...cn, recordType: 'credit-note' }));
+
+    const allRecords = [...payments, ...creditNotes];
+
+    // 4. Filter for THIS specific Bill
+    const linkedRecords = allRecords.filter(p => {
+        const pType = (p.refType || 'Invoice').toLowerCase();
+        const bType = (billDetails.type || 'Invoice').toLowerCase();
+
+        const pPrefix = (p.refPrefix || '').toLowerCase();
+        const bPrefix = (billDetails.prefix || '').toLowerCase();
+
+        const pNo = (p.refBillNo || '').toString();
+        const bNo = (billDetails.no || '').toString();
+
+        return pType === bType && pPrefix === bPrefix && pNo === bNo;
+    });
+
+    if (linkedRecords.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    // 5. Setup View
+    container.style.display = 'block';
+
+    // Ensure Header is Hidden (Cleanup)
+    if (thead) thead.style.display = 'none';
+
+    tbody.innerHTML = '';
+
+    let totalPaid = 0;
+
+    // Sort by Date
+    linkedRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+    linkedRecords.forEach(rec => {
+        // --- FIX: Use the explicit tag we added above ---
+        const isCN = rec.recordType === 'credit-note';
+
+        const typeLabel = isCN ? 'CN' : 'Payment';
+        const amount = parseFloat(rec.amount || 0);
+
+        totalPaid += amount;
+
+        const row = `
+            <tr style="border-bottom: 1px solid #eee;">
+                <td colspan="5" style="padding: 5px; padding-left:20px;text-align: left;">
+                    <span style="font-weight: bold; color: var(--primary-color);">${typeLabel}</span> 
+                    #${rec.receiptNo || '-'} 
+                    <span style="color: #666; font-size: 0.9em;">(${convertToDisplayFormat(rec.date)})</span>
+                    <span style="font-size: 0.85em; color: #555;"> - ${rec.method} ${rec.notes ? '(' + rec.notes + ')' : ''}</span>
+                </td>
+                <td style="padding: 5px; text-align: center;width:20%">
+                    ${amount.toFixed(2)}
+                </td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+
+    // 6. Calculate Balance & Advance
+    let grandTotal = 0;
+
+    if (isGSTMode) {
+        const el = document.getElementById('gst-grand-total');
+        if (el) grandTotal = parseFloat(el.textContent.replace(/,/g, '') || 0);
+    } else {
+        const elCopy = document.getElementById('copyTotalAmount');
+        if (elCopy && elCopy.textContent) {
+            grandTotal = parseFloat(elCopy.textContent.replace(/,/g, '') || 0);
+        } else {
+            const totalRows = document.querySelectorAll('#bill-total-tbody tr');
+            if (totalRows.length > 0) {
+                const lastRowCells = totalRows[totalRows.length - 1].querySelectorAll('td');
+                if (lastRowCells.length > 0) {
+                    const text = lastRowCells[lastRowCells.length - 1].textContent;
+                    grandTotal = parseFloat(text.replace(/,/g, '') || 0);
+                }
+            }
+        }
+    }
+
+    if (isNaN(grandTotal)) grandTotal = 0;
+
+    // Logic: Handle Overpayment
+    let balance = grandTotal - totalPaid;
+    let advanceDeposit = 0;
+
+    if (balance < 0) {
+        advanceDeposit = Math.abs(balance);
+        balance = 0;
+    }
+
+    // 7. Render Footer
+    let tfootHtml = `
+        <tr>
+            <td colspan="5" class="total-cell" style="text-align: right; padding: 5px; border-top: 1px solid #000; font-weight: 700;">Total Paid/CN</td>
+            <td class="total-cell" style="text-align: center; padding: 5px; border-top: 1px solid #000; font-weight: 700;">${totalPaid.toFixed(2)}</td>
+        </tr>`;
+
+    const balanceColor = balance > 0.01 ? '#d35400' : 'green';
+    tfootHtml += `
+        <tr style="background-color: #f0f0f0; color: ${balanceColor}; font-weight: bold;">
+            <td colspan="5" class="total-cell" style="text-align: right; padding: 5px;">Balance Due</td>
+            <td class="total-cell" style="text-align: center; padding: 5px;">${balance.toFixed(2)}</td>
+        </tr>`;
+
+    if (advanceDeposit > 0) {
+        tfootHtml += `
+        <tr style="background-color: #e8f5e9; color: #27ae60; font-weight: bold;">
+            <td colspan="5" class="total-cell" style="text-align: right; padding: 5px;">Advance Deposit</td>
+            <td class="total-cell" style="text-align: center; padding: 5px;">${advanceDeposit.toFixed(2)}</td>
+        </tr>`;
+    }
+
+    tfoot.innerHTML = tfootHtml;
+}
+
+/* ==========================================================================
+   2. HELPER: GET CURRENT BILL DETAILS
+   ========================================================================== */
+function getCurrentBillDetails() {
+    let type = 'Invoice';
+    let prefix = '';
+    let no = '';
+    let name = '';
+
+    if (isGSTMode) {
+        // GST Mode Logic
+        name = document.getElementById('gst-bill-to-name')?.value || '';
+        type = 'Tax Invoice'; // Usually fixed for GST
+        no = document.getElementById('gstInvoiceNo')?.value || '';
+        // GST typically doesn't use the prefix field the same way, but add if you have it
+    } else {
+        // Regular Mode Logic
+        const viewMode = regBillConfig.viewMode || 'simple';
+        if (viewMode === 'simple') {
+            name = document.getElementById('reg-modal-simple-name')?.value || '';
+        } else {
+            name = document.getElementById('reg-modal-bill-name')?.value || '';
+        }
+
+        type = document.getElementById('reg-modal-type-select')?.value || 'Invoice';
+        prefix = document.getElementById('reg-modal-prefix')?.value || '';
+        no = document.getElementById('reg-modal-invoice-no')?.value || '';
+    }
+
+    return { name, type, prefix, no };
+}
+
+/* ==========================================================================
+   3. HELPER: TOGGLE FUNCTION
+   ========================================================================== */
+function toggleBillPaymentTable(isChecked) {
+    showBillPaymentTable = isChecked;
+    renderBillSpecificPayments();
+
+    // Auto-save the preference to the current bill details
+    if (!isGSTMode) saveRegularBillDetails(true); // Silent save
+}
+
 /* 1. OPEN PAYMENT DIALOG (Updated: Clears Drafts on Open) */
 async function openPaymentDialog(customerName, gstin, explicitMode, prefillData = null) {
     // 1. SAVE GLOBAL STATE
@@ -2866,7 +3145,7 @@ async function openPaymentDialog(customerName, gstin, explicitMode, prefillData 
 
     // 4. Setup HTML Structure (Select vs Input)
     const refContainer = document.getElementById('payment-ref-type').parentNode;
-    
+
     // UPDATED: Handle text display for Vendor vs GST
     if (mode === 'gst' || mode === 'vendor') {
         let displayLabel = 'TAX INVOICE';
@@ -2881,7 +3160,7 @@ async function openPaymentDialog(customerName, gstin, explicitMode, prefillData 
             try {
                 const vendors = await getAllFromDB('vendorList');
                 const match = vendors.find(v => v.value.name.toLowerCase().trim() === customerName.toLowerCase().trim());
-                
+
                 if (match && match.value.type === 'GST') {
                     displayLabel = 'Tax Invoice';
                     valueLabel = 'Tax Invoice';
@@ -3050,7 +3329,7 @@ async function openLedgerDialog(customerName, gstin, explicitMode) {
 /* 4. CLOSE DIALOG (Critical: Clears Prefill Data) */
 function closePaymentDialog() {
     document.getElementById('payment-dialog').classList.remove('active');
-    
+
     // Reset Global States
     currentPaymentCustomer = null;
     currentPaymentPrefill = null; // FIX: Ensure prefill is cleared on close
@@ -3062,7 +3341,7 @@ function closeLedgerDialog() {
 /* 1. SAVE DRAFT (No Changes, just keeping for completeness) */
 function saveFormToDraft(type) {
     if (!paymentDraftState[type]) paymentDraftState[type] = {};
-    
+
     paymentDraftState[type] = {
         date: document.getElementById('payment-date').value,
         method: document.getElementById('payment-method').value,
@@ -3105,7 +3384,7 @@ function restoreFormFromDraft(type) {
 
     if (currentPaymentPrefill) {
         // === LOCKED PREFILL MODE (Override Draft) ===
-        
+
         // 1. Force Type Selection (Regular Mode)
         if (mode === 'regular' && typeSelect) {
             // Force inject the specific option to ensure it exists
@@ -3133,11 +3412,11 @@ function restoreFormFromDraft(type) {
         if (mode === 'regular' && typeSelect) {
             typeSelect.disabled = false; // Unlock
             typeSelect.style.backgroundColor = "white";
-            
+
             // Re-populate if options are missing (e.g. was locked)
             if (typeSelect.options.length <= 1) {
                 populatePaymentBillTypes().then(() => {
-                    if(draft.refType) typeSelect.value = draft.refType;
+                    if (draft.refType) typeSelect.value = draft.refType;
                 });
             } else {
                 typeSelect.value = draft.refType || '';
@@ -3172,7 +3451,7 @@ function getTodayDateStr() {
 /* 3. TOGGLE HANDLER (Updated: Calls Restore which handles logic) */
 function setupPaymentTypeToggle() {
     const toggleBtns = document.querySelectorAll('.toggle-btn');
-    
+
     toggleBtns.forEach(btn => {
         btn.addEventListener('click', async function () {
             // 1. Save Draft
@@ -3205,7 +3484,7 @@ function setupPaymentTypeToggle() {
 async function editPaymentRecord(recordId, recordType = null) {
     try {
         const type = recordType || currentPaymentType;
-        
+
         // --- FIX: Determine Store based on Mode ---
         const mode = currentPaymentCustomer?.mode || 'regular';
         let storeName = '';
@@ -3288,7 +3567,7 @@ function resetPaymentForm(setDate = false) {
 
     if (currentPaymentPrefill) {
         // === LOCKED MODE (Specific Bill) ===
-        
+
         // A. Force Type Selection (Regular Mode)
         if (mode === 'regular' && typeSelect) {
             // Force inject option to guarantee it exists and is selected
@@ -3303,24 +3582,24 @@ function resetPaymentForm(setDate = false) {
         refInput.value = displayNo;
         refInput.readOnly = true;
         refInput.style.backgroundColor = "#f0f0f0";
-        refInput.removeAttribute('onfocus'); 
-        
+        refInput.removeAttribute('onfocus');
+
         // C. Fill Hidden Data
         refPrefixInput.value = currentPaymentPrefill.prefix || '';
         refBillNoInput.value = currentPaymentPrefill.no || '';
 
     } else {
         // === NORMAL MODE (Editable) ===
-        
+
         // A. Reset Type Select (Regular Mode)
         if (mode === 'regular' && typeSelect) {
             typeSelect.disabled = false;
             typeSelect.style.backgroundColor = "white";
             typeSelect.value = ''; // Clear selection
-            
+
             // Re-populate if it was locked (has only 1 option)
             if (typeSelect.options.length <= 1) {
-                populatePaymentBillTypes(); 
+                populatePaymentBillTypes();
             }
         }
 
@@ -3329,7 +3608,7 @@ function resetPaymentForm(setDate = false) {
         refInput.readOnly = false;
         refInput.style.backgroundColor = "white";
         refInput.setAttribute('onfocus', 'handlePaymentRefInput(this)');
-        
+
         // C. Clear Hidden Data
         refPrefixInput.value = '';
         refBillNoInput.value = '';
@@ -3591,6 +3870,11 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('ledger-dialog').addEventListener('click', function (e) {
         if (e.target === this) closeLedgerDialog();
     });
+
+    // Sync the "Show Paid" button color immediately on load
+    if (typeof updateShowPaidButtonState === 'function') {
+        updateShowPaidButtonState();
+    }
 });
 
 /* 1. GET BILLS (Fixed: Logic for Regular Bills) */
@@ -3605,7 +3889,7 @@ async function getCustomerBills(customerName, gstin, mode = 'regular') {
         // === 1. VENDOR MODE ===
         if (mode === 'vendor') {
             const vendorBills = await getAllFromDB('vendorSavedBills');
-            
+
             const filtered = vendorBills.filter(bill => {
                 const bVal = bill.value;
                 const vName = (bVal.vendor?.name || '').toLowerCase().trim();
@@ -3614,8 +3898,8 @@ async function getCustomerBills(customerName, gstin, mode = 'regular') {
 
             // Normalization: Map vendor bill fields to match what Ledger expects
             bills = filtered.map(bill => ({
-                ...bill.value, 
-                source: 'vendor', 
+                ...bill.value,
+                source: 'vendor',
                 id: bill.id,
                 // Ledger expects 'invoiceDetails' for display
                 invoiceDetails: {
@@ -3838,22 +4122,22 @@ async function addNewPayment() {
 
     // --- CRITICAL: DETERMINE REF TYPE & MODE ---
     let refType = '';
-    const mode = currentPaymentCustomer.mode || 'regular'; 
+    const mode = currentPaymentCustomer.mode || 'regular';
 
     if (mode === 'gst') {
         // 1. GST CUSTOMER (Existing Logic)
-        refType = 'Tax Invoice'; 
-    } 
+        refType = 'Tax Invoice';
+    }
     else if (mode === 'vendor') {
         // 2. VENDOR (New Logic)
         // Check if this specific vendor has a valid GSTIN
         const gstin = (currentPaymentCustomer.gstin || '').toLowerCase().trim();
-        const isGSTVendor = gstin.length > 5 && 
-                            !gstin.includes('not provided') && 
-                            !gstin.includes('n/a');
-        
+        const isGSTVendor = gstin.length > 5 &&
+            !gstin.includes('not provided') &&
+            !gstin.includes('n/a');
+
         refType = isGSTVendor ? 'Tax Invoice' : 'Invoice';
-    } 
+    }
     else {
         // 3. REGULAR CUSTOMER (Existing Logic)
         const selectEl = document.getElementById('payment-ref-type');
@@ -3948,7 +4232,7 @@ async function downloadLedgerPDF() {
 
         // 1. Get Company Info
         const company = await getFromDB('companyInfo', 'companyInfo') || {};
-        
+
         // 2. Determine Mode & Details
         const mode = currentPaymentCustomer.mode || 'regular';
         let addressText = '';
@@ -5546,7 +5830,7 @@ function displayUnifiedLedgerTable(financialData, openingBalance, dateRange) {
         const dateTs = new Date(convertDateToISO(dateStr)).getTime(); // Date Only (Midnight)
         // Prefer createdAt, fallback to timestamp, fallback to 0. 
         // This ensures correct ordering for items added on the same day.
-        const createdTs = item.createdAt || item.timestamp || 0; 
+        const createdTs = item.createdAt || item.timestamp || 0;
         return { dateTs, createdTs };
     };
 
@@ -6710,7 +6994,6 @@ function closeAdjustmentModal() {
 }
 
 // Core Logic: The Chain Calculator (Handles Regular & GST Modes)
-// Core Logic: The Chain Calculator (Handles Regular & GST Modes)
 function calculateAdjustments(subtotal) {
     let runningBalance = subtotal;
     let mainBillRows = '';
@@ -6976,6 +7259,13 @@ function calculateAdjustments(subtotal) {
         previewBody.innerHTML = modalPreviewRows;
         addAdjDragListeners();
     }
+
+    // --- [UPDATE START] ---
+    // 6. RENDER PAYMENT TABLE ON BILL (Update Balance Due based on new Grand Total)
+    if (typeof renderBillSpecificPayments === 'function') {
+        renderBillSpecificPayments();
+    }
+    // --- [UPDATE END] ---
 }
 
 // Helper: Get raw item total
@@ -11075,6 +11365,7 @@ async function saveRegularModalState() {
         type: document.getElementById('reg-modal-type-select').value,
         prefix: document.getElementById('reg-modal-prefix').value,
         invoiceNo: document.getElementById('reg-modal-invoice-no').value,
+        showPaymentTable: showBillPaymentTable,
         date: document.getElementById('reg-modal-date').value,
         viewMode: document.getElementById('reg-modal-cust-view-select').value,
         isLocked: regBillConfig.isLocked,
