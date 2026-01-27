@@ -9669,7 +9669,7 @@ async function clearAllData(silent = false) {
             const el = document.getElementById(id);
             if (el) {
                 if (id.includes('state') && !id.includes('place')) el.value = '';
-                else if (id.includes('code')) el.value = '27';
+                else if (id.includes('code')) el.value = '';
                 else el.value = '';
             }
         });
