@@ -21,8 +21,8 @@ async function loadCompanyInfo() {
             if (document.getElementById('company-gst')) document.getElementById('company-gst').value = info.gstin || '';
             if (document.getElementById('company-mobile')) document.getElementById('company-mobile').value = info.mobile || '';
             if (document.getElementById('company-email')) document.getElementById('company-email').value = info.email || '';
-            if (document.getElementById('company-state')) document.getElementById('company-state').value = info.state || 'Maharashtra';
-            if (document.getElementById('company-code')) document.getElementById('company-code').value = info.stateCode || '27';
+            if (document.getElementById('company-state')) document.getElementById('company-state').value = info.state || '';
+            if (document.getElementById('company-code')) document.getElementById('company-code').value = info.stateCode || '';
             if (document.getElementById('account-number')) document.getElementById('account-number').value = info.accountNumber || '';
             if (document.getElementById('ifsc-code')) document.getElementById('ifsc-code').value = info.ifscCode || '';
             if (document.getElementById('branch')) document.getElementById('branch').value = info.branch || '';
@@ -261,9 +261,9 @@ function fillCustomerDetails(type, customer) {
     // 2. GSTIN
     if (document.getElementById(`${type}-gst`)) document.getElementById(`${type}-gst`).value = customer.gstin || '';
 
-    // 3. State & Code (Default to Maharashtra/27 if missing)
-    if (document.getElementById(`${type}-state`)) document.getElementById(`${type}-state`).value = customer.state || 'Maharashtra';
-    if (document.getElementById(`${type}-code`)) document.getElementById(`${type}-code`).value = customer.stateCode || '27';
+    // 3. State & Code (Default to ""/27 if missing)
+    if (document.getElementById(`${type}-state`)) document.getElementById(`${type}-state`).value = customer.state || '';
+    if (document.getElementById(`${type}-code`)) document.getElementById(`${type}-code`).value = customer.stateCode || '';
 
     // 4. Contact/Phone (Check multiple property names)
     const phoneVal = customer.phone || customer.contact || '';
@@ -625,8 +625,8 @@ function openAddGSTCustomerModal() {
     document.getElementById('saved-gst-customer-address').value = '';
     document.getElementById('saved-gst-customer-phone').value = '';
     document.getElementById('saved-gst-customer-gstin').value = '';
-    document.getElementById('saved-gst-customer-state').value = 'Maharashtra';
-    document.getElementById('saved-gst-customer-state-code').value = '27';
+    document.getElementById('saved-gst-customer-state').value = '';
+    document.getElementById('saved-gst-customer-state-code').value = '';
     document.getElementById('saved-gst-customer-email').value = '';
 
     document.getElementById('add-gst-customer-modal').style.display = 'block';
@@ -854,8 +854,8 @@ async function editGSTCustomer(customerId) {
             document.getElementById('saved-gst-customer-address').value = customer.address || '';
             document.getElementById('saved-gst-customer-phone').value = customer.phone || '';
             document.getElementById('saved-gst-customer-gstin').value = customer.gstin || '';
-            document.getElementById('saved-gst-customer-state').value = customer.state || 'Maharashtra';
-            document.getElementById('saved-gst-customer-state-code').value = customer.stateCode || '27';
+            document.getElementById('saved-gst-customer-state').value = customer.state || '';
+            document.getElementById('saved-gst-customer-state-code').value = customer.stateCode || '';
             document.getElementById('saved-gst-customer-email').value = customer.email || '';
 
             document.getElementById('add-gst-customer-modal').style.display = 'block';
@@ -893,8 +893,8 @@ async function autoSaveGSTCustomer() {
     let name = document.getElementById('consignee-name') ? document.getElementById('consignee-name').value.trim() : '';
     let gstin = document.getElementById('consignee-gst') ? document.getElementById('consignee-gst').value.trim() : '';
     let address = document.getElementById('consignee-address') ? document.getElementById('consignee-address').value.trim() : '';
-    let state = document.getElementById('consignee-state') ? document.getElementById('consignee-state').value.trim() : 'Maharashtra';
-    let stateCode = document.getElementById('consignee-code') ? document.getElementById('consignee-code').value.trim() : '27';
+    let state = document.getElementById('consignee-state') ? document.getElementById('consignee-state').value.trim() : '';
+    let stateCode = document.getElementById('consignee-code') ? document.getElementById('consignee-code').value.trim() : '';
     let phone = document.getElementById('consignee-contact') ? document.getElementById('consignee-contact').value.trim() : '';
 
     // Check for Email input (safely)
@@ -953,8 +953,8 @@ async function autoSaveGSTCustomer() {
                 ...customerData,
                 phone: phone || oldData.value.phone || '',
                 email: email || oldData.value.email || '',
-                state: state || oldData.value.state || 'Maharashtra',
-                stateCode: stateCode || oldData.value.stateCode || '27'
+                state: state || oldData.value.state || '',
+                stateCode: stateCode || oldData.value.stateCode || ''
             };
 
             await setInDB('gstCustomers', oldData.id, mergedData);
@@ -1273,15 +1273,15 @@ async function loadGSTSavedBill(billId) {
             document.getElementById('billToAddr').textContent = savedBill.customer.billTo?.address || '';
             document.getElementById('billToGstin').textContent = savedBill.customer.billTo?.gstin || 'customer 15-digit GSTIN';
             document.getElementById('billToContact').textContent = savedBill.customer.billTo?.contact || '';
-            document.getElementById('billToState').textContent = savedBill.customer.billTo?.state || 'maharashtra';
-            document.getElementById('billToStateCode').textContent = savedBill.customer.billTo?.stateCode || '27';
+            document.getElementById('billToState').textContent = savedBill.customer.billTo?.state || '';
+            document.getElementById('billToStateCode').textContent = savedBill.customer.billTo?.stateCode || '';
 
             // ALSO FILL CUSTOMER DETAILS DIALOG FORM
             document.getElementById('consignee-name').value = savedBill.customer.billTo?.name || '';
             document.getElementById('consignee-address').value = savedBill.customer.billTo?.address || '';
             document.getElementById('consignee-gst').value = savedBill.customer.billTo?.gstin || '';
-            document.getElementById('consignee-state').value = savedBill.customer.billTo?.state || 'Maharashtra';
-            document.getElementById('consignee-code').value = savedBill.customer.billTo?.stateCode || '27';
+            document.getElementById('consignee-state').value = savedBill.customer.billTo?.state || '';
+            document.getElementById('consignee-code').value = savedBill.customer.billTo?.stateCode || '';
             document.getElementById('consignee-contact').value = savedBill.customer.billTo?.contact || '';
 
             // Handle ship to section - USE THE SAVED CUSTOMER TYPE
@@ -1300,10 +1300,10 @@ async function loadGSTSavedBill(billId) {
                 document.getElementById('buyer-name').value = savedBill.customer.shipTo?.name || '';
                 document.getElementById('buyer-address').value = savedBill.customer.shipTo?.address || '';
                 document.getElementById('buyer-gst').value = savedBill.customer.shipTo?.gstin || '';
-                document.getElementById('buyer-state').value = savedBill.customer.shipTo?.state || 'Maharashtra';
-                document.getElementById('buyer-code').value = savedBill.customer.shipTo?.stateCode || '27';
+                document.getElementById('buyer-state').value = savedBill.customer.shipTo?.state || '';
+                document.getElementById('buyer-code').value = savedBill.customer.shipTo?.stateCode || '';
                 document.getElementById('buyer-contact').value = savedBill.customer.shipTo?.contact || '';
-                document.getElementById('place-of-supply').value = savedBill.customer.shipTo?.placeOfSupply || 'Maharashtra';
+                document.getElementById('place-of-supply').value = savedBill.customer.shipTo?.placeOfSupply || '';
             } else {
                 shipToDiv.style.display = 'none';
             }
@@ -1765,7 +1765,7 @@ async function loadCustomerDialogState() {
             document.getElementById('billToAddr').textContent = customerState.consigneeAddress || '';
             document.getElementById('billToGstin').textContent = customerState.consigneeGst || 'customer 15-digit GSTIN';
             document.getElementById('billToContact').textContent = customerState.consigneeContact || 'Not provided';
-            document.getElementById('billToState').textContent = customerState.consigneeState || 'Maharashtra';
+            document.getElementById('billToState').textContent = customerState.consigneeState || '';
             document.getElementById('billToStateCode').textContent = customerState.consigneeCode || '27';
 
             if (customerState.customerType === 'both') {
@@ -1774,9 +1774,9 @@ async function loadCustomerDialogState() {
                 document.getElementById('shipToAddr').textContent = customerState.buyerAddress || '';
                 document.getElementById('shipToGstin').textContent = customerState.buyerGst || 'customer 15-digit GSTIN';
                 document.getElementById('shipToContact').textContent = customerState.buyerContact || 'Not provided';
-                document.getElementById('shipToState').textContent = customerState.buyerState || 'Maharashtra';
-                document.getElementById('shipToStateCode').textContent = customerState.buyerCode || '27';
-                document.getElementById('shipToPOS').textContent = customerState.placeOfSupply || 'Maharashtra';
+                document.getElementById('shipToState').textContent = customerState.buyerState || '';
+                document.getElementById('shipToStateCode').textContent = customerState.buyerCode || '';
+                document.getElementById('shipToPOS').textContent = customerState.placeOfSupply || '';
             } else {
                 document.getElementById('shipTo').style.display = 'none';
             }
@@ -1785,11 +1785,11 @@ async function loadCustomerDialogState() {
             document.getElementById('customer-type').value = 'bill-to';
             document.getElementById('gst-percent-input').value = '18';
             document.getElementById('transaction_type').value = 'intrastate';
-            document.getElementById('consignee-state').value = 'Maharashtra';
-            document.getElementById('consignee-code').value = '27';
-            document.getElementById('buyer-state').value = 'Maharashtra';
-            document.getElementById('buyer-code').value = '27';
-            document.getElementById('place-of-supply').value = 'Maharashtra';
+            document.getElementById('consignee-state').value = '';
+            document.getElementById('consignee-code').value = '';
+            document.getElementById('buyer-state').value = '';
+            document.getElementById('buyer-code').value = '';
+            document.getElementById('place-of-supply').value = '';
 
             // ADD THIS: Set today's date as default
             const today = new Date();
@@ -6377,17 +6377,17 @@ async function loadRegularRestoredBill(billId) {
                 if (document.getElementById('reg-modal-bill-addr')) document.getElementById('reg-modal-bill-addr').value = state.billTo.addr || '';
                 if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
                 if (document.getElementById('reg-modal-bill-phone')) document.getElementById('reg-modal-bill-phone').value = state.billTo.phone || '';
-                if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || '';
+                if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '';
             }
             if (state.shipTo) {
                 if (document.getElementById('reg-modal-ship-name')) document.getElementById('reg-modal-ship-name').value = state.shipTo.name || '';
                 if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
                 if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
                 if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || '';
+                if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '';
+                if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || '';
             }
 
             // E. Sync to Main View
@@ -6514,8 +6514,8 @@ async function loadRestoredBill(billId, event) {
                     if (elPhone) elPhone.value = state.billTo.phone || (state.billTo.name ? '' : mainPhone);
 
                     if (document.getElementById('reg-modal-bill-gst')) document.getElementById('reg-modal-bill-gst').value = state.billTo.gst || '';
-                    if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || 'Maharashtra';
-                    if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '27';
+                    if (document.getElementById('reg-modal-bill-state')) document.getElementById('reg-modal-bill-state').value = state.billTo.state || '';
+                    if (document.getElementById('reg-modal-bill-code')) document.getElementById('reg-modal-bill-code').value = state.billTo.code || '';
                 }
 
                 if (state.shipTo) {
@@ -6523,9 +6523,9 @@ async function loadRestoredBill(billId, event) {
                     if (document.getElementById('reg-modal-ship-addr')) document.getElementById('reg-modal-ship-addr').value = state.shipTo.addr || '';
                     if (document.getElementById('reg-modal-ship-gst')) document.getElementById('reg-modal-ship-gst').value = state.shipTo.gst || '';
                     if (document.getElementById('reg-modal-ship-phone')) document.getElementById('reg-modal-ship-phone').value = state.shipTo.phone || '';
-                    if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || 'Maharashtra';
-                    if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '27';
-                    if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || 'Maharashtra';
+                    if (document.getElementById('reg-modal-ship-state')) document.getElementById('reg-modal-ship-state').value = state.shipTo.state || '';
+                    if (document.getElementById('reg-modal-ship-code')) document.getElementById('reg-modal-ship-code').value = state.shipTo.code || '';
+                    if (document.getElementById('reg-modal-ship-pos')) document.getElementById('reg-modal-ship-pos').value = state.shipTo.pos || '';
                 }
 
                 // Sync to View
@@ -6562,8 +6562,8 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('consignee-name').value = gstCustomerData.billTo.name || '';
         document.getElementById('consignee-address').value = gstCustomerData.billTo.address || '';
         document.getElementById('consignee-gst').value = gstCustomerData.billTo.gstin || '';
-        document.getElementById('consignee-state').value = gstCustomerData.billTo.state || 'Maharashtra';
-        document.getElementById('consignee-code').value = gstCustomerData.billTo.stateCode || '27';
+        document.getElementById('consignee-state').value = gstCustomerData.billTo.state || '';
+        document.getElementById('consignee-code').value = gstCustomerData.billTo.stateCode || '';
         document.getElementById('consignee-contact').value = gstCustomerData.billTo.contact || '';
     }
 
@@ -6572,10 +6572,10 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('buyer-name').value = gstCustomerData.shipTo.name || '';
         document.getElementById('buyer-address').value = gstCustomerData.shipTo.address || '';
         document.getElementById('buyer-gst').value = gstCustomerData.shipTo.gstin || '';
-        document.getElementById('buyer-state').value = gstCustomerData.shipTo.state || 'Maharashtra';
-        document.getElementById('buyer-code').value = gstCustomerData.shipTo.stateCode || '27';
+        document.getElementById('buyer-state').value = gstCustomerData.shipTo.state || '';
+        document.getElementById('buyer-code').value = gstCustomerData.shipTo.stateCode || '';
         document.getElementById('buyer-contact').value = gstCustomerData.shipTo.contact || '';
-        document.getElementById('place-of-supply').value = gstCustomerData.shipTo.placeOfSupply || 'Maharashtra';
+        document.getElementById('place-of-supply').value = gstCustomerData.shipTo.placeOfSupply || '';
     }
 
     // Update visibility based on customer type
@@ -6591,7 +6591,7 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('billToAddr').textContent = gstCustomerData.billTo.address || '';
         document.getElementById('billToGstin').textContent = gstCustomerData.billTo.gstin || 'customer 15-digit GSTIN';
         document.getElementById('billToContact').textContent = gstCustomerData.billTo.contact || 'Not provided';
-        document.getElementById('billToState').textContent = gstCustomerData.billTo.state || 'Maharashtra';
+        document.getElementById('billToState').textContent = gstCustomerData.billTo.state || '';
         document.getElementById('billToStateCode').textContent = gstCustomerData.billTo.stateCode || '27';
     }
 
@@ -6603,7 +6603,7 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('shipToAddr').textContent = gstCustomerData.shipTo.address || '';
         document.getElementById('shipToGstin').textContent = gstCustomerData.shipTo.gstin || 'customer 15-digit GSTIN';
         document.getElementById('shipToContact').textContent = gstCustomerData.shipTo.contact || 'Not provided';
-        document.getElementById('shipToState').textContent = gstCustomerData.shipTo.state || 'Maharashtra';
+        document.getElementById('shipToState').textContent = gstCustomerData.shipTo.state || '';
         document.getElementById('shipToStateCode').textContent = gstCustomerData.shipTo.stateCode || '27';
         document.getElementById('shipToPOS').textContent = gstCustomerData.shipTo.placeOfSupply || '';
     } else {
@@ -6628,16 +6628,16 @@ async function populateGSTCustomerDetailsFromLegacy(billData) {
             address: billData.customer?.billTo?.address || '',
             gstin: billData.customer?.billTo?.gstin || '',
             contact: billData.customer?.billTo?.contact || '',
-            state: billData.customer?.billTo?.state || 'Maharashtra',
-            stateCode: billData.customer?.billTo?.stateCode || '27'
+            state: billData.customer?.billTo?.state || '',
+            stateCode: billData.customer?.billTo?.stateCode || ''
         },
         shipTo: {
             name: billData.customer?.shipTo?.name || '',
             address: billData.customer?.shipTo?.address || '',
             gstin: billData.customer?.shipTo?.gstin || '',
             contact: billData.customer?.shipTo?.contact || '',
-            state: billData.customer?.shipTo?.state || 'Maharashtra',
-            stateCode: billData.customer?.shipTo?.stateCode || '27',
+            state: billData.customer?.shipTo?.state || '',
+            stateCode: billData.customer?.shipTo?.stateCode || '',
             placeOfSupply: billData.customer?.shipTo?.placeOfSupply || ''
         }
     };
@@ -10909,10 +10909,10 @@ function resetRegularModal() {
     });
 
     // 2. Set Default Defaults
-    document.getElementById('reg-modal-bill-state').value = 'Maharashtra';
-    document.getElementById('reg-modal-bill-code').value = '27';
-    document.getElementById('reg-modal-ship-state').value = 'Maharashtra';
-    document.getElementById('reg-modal-ship-code').value = '27';
+    document.getElementById('reg-modal-bill-state').value = '';
+    document.getElementById('reg-modal-bill-code').value = '';
+    document.getElementById('reg-modal-ship-state').value = '';
+    document.getElementById('reg-modal-ship-code').value = '';
 
     // 3. RESET TYPE TO "Invoice"
     const select = document.getElementById('reg-modal-type-select');
