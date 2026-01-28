@@ -3065,27 +3065,53 @@ function getCurrentBillDetails() {
     let no = '';
     let name = '';
 
-    if (isGSTMode) {
-        // GST Mode Logic
-        name = document.getElementById('gst-bill-to-name')?.value || '';
-        type = 'Tax Invoice'; // Usually fixed for GST
-        no = document.getElementById('gstInvoiceNo')?.value || '';
-        // GST typically doesn't use the prefix field the same way, but add if you have it
+    if (typeof isGSTMode !== 'undefined' && isGSTMode) {
+        // --- GST MODE LOGIC ---
+        // Try getting name from input (Edit Mode), fallback to View Text
+        const billToInput = document.getElementById('gst-bill-to-name');
+        const billToView = document.getElementById('billToName');
+        name = billToInput ? billToInput.value : (billToView ? billToView.textContent : '');
+        
+        type = 'Tax Invoice'; // Fixed for GST
+        
+        const gstNoInput = document.getElementById('gstInvoiceNo');
+        const gstNoView = document.getElementById('bill-invoice-no');
+        no = gstNoInput ? gstNoInput.value : (gstNoView ? gstNoView.textContent : '');
+
     } else {
-        // Regular Mode Logic
-        const viewMode = regBillConfig.viewMode || 'simple';
-        if (viewMode === 'simple') {
-            name = document.getElementById('reg-modal-simple-name')?.value || '';
+        // --- REGULAR MODE LOGIC ---
+        
+        // 1. Determine which View is Active (Simple vs Advanced)
+        const defaultView = document.getElementById('reg-default-view');
+        // Check if Simple View is visible
+        const isSimpleView = defaultView && (defaultView.style.display === 'block' || getComputedStyle(defaultView).display === 'block');
+
+        if (isSimpleView) {
+            // In Simple View, #custName is the master
+            name = document.getElementById('custName')?.value || '';
         } else {
+            // In Advanced View, #reg-modal-bill-name is the master
             name = document.getElementById('reg-modal-bill-name')?.value || '';
         }
 
-        type = document.getElementById('reg-modal-type-select')?.value || 'Invoice';
-        prefix = document.getElementById('reg-modal-prefix')?.value || '';
-        no = document.getElementById('reg-modal-invoice-no')?.value || '';
+        // 2. Get Bill Type, Prefix, and Number
+        // The Modal Inputs are the 'Source of Truth' for these fields in Regular Mode
+        const typeSelect = document.getElementById('reg-modal-type-select');
+        const prefixInput = document.getElementById('reg-modal-prefix');
+        const noInput = document.getElementById('reg-modal-invoice-no');
+
+        type = typeSelect ? typeSelect.value : 'Invoice';
+        prefix = prefixInput ? prefixInput.value : '';
+        no = noInput ? noInput.value : '';
     }
 
-    return { name, type, prefix, no };
+    // Return trimmed values to ensure matching works
+    return { 
+        name: name.trim(), 
+        type: type, 
+        prefix: prefix.trim(), 
+        no: no.trim() 
+    };
 }
 
 /* ==========================================================================
@@ -5367,10 +5393,20 @@ function saveTermsList() {
     if (!window.currentEditingTermsDiv) {
         const billTotalTable = document.getElementById('bill-total-table');
         const gstBillTotalsTable = document.getElementById('gst-bill-totals-table');
+        
+        // [UPDATE START] - Target the Payment Container first
+        const billPaymentsContainer = document.getElementById('bill-payments-container');
 
-        if (billTotalTable && !isGSTMode) {
-            billTotalTable.parentNode.insertBefore(listContainer, billTotalTable.nextSibling);
-        } else if (gstBillTotalsTable && isGSTMode) {
+        if (!isGSTMode) {
+            // Regular Mode: Try to insert after Payment Table, fallback to Total Table
+            const targetElement = billPaymentsContainer || billTotalTable;
+            
+            if (targetElement && targetElement.parentNode) {
+                targetElement.parentNode.insertBefore(listContainer, targetElement.nextSibling);
+            }
+        } 
+        // [UPDATE END]
+        else if (gstBillTotalsTable && isGSTMode) {
             gstBillTotalsTable.parentNode.insertBefore(listContainer, gstBillTotalsTable.nextSibling);
         } else {
             const listContainerParent = document.querySelector('.list-of-items');
@@ -10334,10 +10370,7 @@ function initRegBillTypes() {
     // 1. Preserve currently selected value
     let currentVal = select.value;
 
-    // Force Invoice as default if the browser sees "Estimate" (HTML default)
-    if (currentVal === 'Estimate') {
-        currentVal = 'Invoice';
-    }
+    // [REMOVED] The logic that forced 'Estimate' to become 'Invoice' is deleted here.
 
     // 2. Clear existing options
     select.innerHTML = '';
@@ -10349,13 +10382,7 @@ function initRegBillTypes() {
     const customTypes = JSON.parse(localStorage.getItem('customRegTypes') || '[]');
 
     // 5. Add Defaults (Strict Order)
-    // We filter out any defaults that might be overridden in customTypes (though usually we just edit prefix)
-    // But per your request, we want defaults first.
     defaults.forEach(defName => {
-        // Check if this default name exists in custom types (in case user "edited" a default)
-        // If user edited "Estimate", we still want it to appear in the "Estimate" slot, 
-        // but we might want to use the custom label. 
-        // For simplicity and strict order, we just list the names here.
         const opt = document.createElement('option');
         opt.value = defName;
         opt.textContent = defName;
@@ -10363,7 +10390,6 @@ function initRegBillTypes() {
     });
 
     // 6. Add Custom Types (Only those that are NOT in the defaults list)
-    // This ensures "My Custom Bill" appears AFTER "Work Order"
     const purelyCustomTypes = customTypes.filter(ct => !defaults.includes(ct.name));
 
     purelyCustomTypes.forEach(t => {
@@ -10392,7 +10418,9 @@ function initRegBillTypes() {
     }
 
     // 9. Update UI (Hide/Show 3-dots)
-    handleRegTypeChange(true);
+    if (typeof handleRegTypeChange === 'function') {
+        handleRegTypeChange(true);
+    }
 }
 
 function toggleRegTypeMenu() {
