@@ -10677,7 +10677,7 @@ async function handleShareImage() {
             if (navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     title: 'Bill Image',
-                    text: `Here is the bill image: ${result.filename}`,
+                    //text: `Here is the bill image: ${result.filename}`,
                     files: [file]
                 });
                 closeShareModal();
@@ -10851,7 +10851,7 @@ async function handleSharePDF() {
         if (navigator.canShare({ files: [file] })) {
             await navigator.share({
                 title: 'Bill PDF',
-                text: `Here is the bill: ${filename}`,
+                //text: `Here is the bill: ${filename}`,
                 files: [file]
             });
             closeShareModal();
