@@ -1766,7 +1766,7 @@ async function loadCustomerDialogState() {
             document.getElementById('billToGstin').textContent = customerState.consigneeGst || 'customer 15-digit GSTIN';
             document.getElementById('billToContact').textContent = customerState.consigneeContact || 'Not provided';
             document.getElementById('billToState').textContent = customerState.consigneeState || '';
-            document.getElementById('billToStateCode').textContent = customerState.consigneeCode || '27';
+            document.getElementById('billToStateCode').textContent = customerState.consigneeCode || '';
 
             if (customerState.customerType === 'both') {
                 document.getElementById('shipTo').style.display = 'block';
@@ -2874,23 +2874,31 @@ SHOW PAID TOGGLE LOGIC
 function toggleBillPaymentDisplay() {
     showBillPaymentTable = !showBillPaymentTable;
 
-    // 1. SAVE TO LOCALSTORAGE (This fixes the refresh issue)
+    // 1. SAVE TO LOCALSTORAGE
     localStorage.setItem('showBillPaymentTable', showBillPaymentTable);
 
-    // 2. Update UI
+    // 2. Update UI (Button Active State)
     updateShowPaidButtonState();
 
-    // 3. Render Table
+    // 3. Render Table (This handles showing/hiding the #bill-payments-container)
     if (typeof renderBillSpecificPayments === 'function') {
         renderBillSpecificPayments();
     }
 
-    // 4. Save to Current Draft (Optional, but good for DB sync)
+    // 4. Save to Current Draft
     if (!isGSTMode && typeof saveRegularBillDetails === 'function') {
         saveRegularBillDetails(true);
     }
-}
 
+    // 5. Force Full Update (DELAYED FIX)
+    // We wait 100ms to ensure the Payment Table is fully visible in the DOM
+    // before regenerating the QR Code.
+    setTimeout(() => {
+        if (typeof updateTotal === 'function') {
+            updateTotal();
+        }
+    }, 100);
+}
 // 2. The Visual Sync (Green when active)
 function updateShowPaidButtonState() {
     const btn = document.getElementById('btn-toggle-payments');
@@ -6628,7 +6636,7 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('billToGstin').textContent = gstCustomerData.billTo.gstin || 'customer 15-digit GSTIN';
         document.getElementById('billToContact').textContent = gstCustomerData.billTo.contact || 'Not provided';
         document.getElementById('billToState').textContent = gstCustomerData.billTo.state || '';
-        document.getElementById('billToStateCode').textContent = gstCustomerData.billTo.stateCode || '27';
+        document.getElementById('billToStateCode').textContent = gstCustomerData.billTo.stateCode || '';
     }
 
     // Update Ship To in bill view
@@ -6640,7 +6648,7 @@ async function populateGSTCustomerDetails(gstCustomerData) {
         document.getElementById('shipToGstin').textContent = gstCustomerData.shipTo.gstin || 'customer 15-digit GSTIN';
         document.getElementById('shipToContact').textContent = gstCustomerData.shipTo.contact || 'Not provided';
         document.getElementById('shipToState').textContent = gstCustomerData.shipTo.state || '';
-        document.getElementById('shipToStateCode').textContent = gstCustomerData.shipTo.stateCode || '27';
+        document.getElementById('shipToStateCode').textContent = gstCustomerData.shipTo.stateCode || '';
         document.getElementById('shipToPOS').textContent = gstCustomerData.shipTo.placeOfSupply || '';
     } else {
         shipToDiv.style.display = 'none';
