@@ -2,7 +2,7 @@
 let db = null;
 const DB_NAME = 'BillAppDB';
 
-const DB_VERSION = 8; // Changed from 5 to 6 to trigger upgrade
+const DB_VERSION = 10; // Changed from 5 to 6 to trigger upgrade
 let dbInitialized = false;
 let dbInitPromise = null;
 let isGSTMode = false;
@@ -74,6 +74,12 @@ let isCustomerSortAscending = true; // Default A-Z
 // Change this line in index.js
 let showBillPaymentTable = localStorage.getItem('showBillPaymentTable') === 'true'; // Default State
 
+// === NEW GLOBAL VARIABLES for Payment QRcode===
+let currentReceiver = null;
+// === GLOBALS ===
+let isSimpleQREnabled = false; // Default State
+// let qrCodeObj = null; // To hold the QRCode instance
+
 // Add this with other global variables
 let sectionModalState = {
     align: 'left',
@@ -86,6 +92,7 @@ let sectionModalState = {
 };
 
 // IndexedDB initialization function
+// Function: initDB
 function initDB() {
     if (dbInitPromise) {
         return dbInitPromise;
@@ -101,6 +108,26 @@ function initDB() {
         request.onsuccess = () => {
             db = request.result;
             dbInitialized = true;
+
+            // 1. === FIX: Load Receiver immediately after DB is ready ===
+            // This fixes the Race Condition where the QR code didn't load on refresh
+            if (typeof loadSelectedReceiver === 'function') {
+                console.log("DB Ready: Loading Active Receiver...");
+                loadSelectedReceiver();
+            }
+
+            // 2. === NEW: Load Simple QR Setting ===
+            // This ensures the correct footer (Regular vs Simple) is shown on reload
+            if (typeof getFromDB === 'function' && typeof applyFooterModes === 'function') {
+                getFromDB('settings', 'isSimpleQREnabled').then(val => {
+                    // Apply setting if it exists in DB
+                    if (val !== null && val !== undefined) {
+                        isSimpleQREnabled = val;
+                    }
+                    // Apply visibility logic (Show/Hide correct footer)
+                    applyFooterModes();
+                });
+            }
 
             db.onerror = (event) => {
                 console.error('Database error:', event.target.error);
@@ -178,6 +205,11 @@ function initDB() {
             }
             if (!database.objectStoreNames.contains('customerCreditNotes')) {
                 database.createObjectStore('customerCreditNotes', { keyPath: 'id' });
+            }
+            
+            // === NEW: UPI Receivers Store ===
+            if (!database.objectStoreNames.contains('upiReceivers')) {
+                database.createObjectStore('upiReceivers', { keyPath: 'id', autoIncrement: true });
             }
 
             // ADD THIS: Create settings object store
@@ -7613,51 +7645,476 @@ function updateSerialNumbers() {
 let isRegularFooterVisible = false;
 
 function toggleRegularFooter() {
-    const footer = document.getElementById('regular-bill-footer');
-    const btn = document.getElementById('reg-footer-btn');
-
+    // 1. Toggle the Regular Footer State
     isRegularFooterVisible = !isRegularFooterVisible;
 
-    if (footer) {
-        footer.style.display = isRegularFooterVisible ? 'table' : 'none';
+    // 2. MUTUAL EXCLUSION: If turning Regular ON, force Simple QR OFF
+    if (isRegularFooterVisible) {
+        if (typeof isSimpleQREnabled !== 'undefined' && isSimpleQREnabled) {
+            isSimpleQREnabled = false; // Turn off Simple flag
+            
+            // Persist the "Simple OFF" state to DB
+            if (typeof setInDB === 'function') {
+                setInDB('settings', 'isSimpleQREnabled', false);
+            }
+            
+            // Update Simple Button UI (Make it Gray)
+            if (typeof updateSimpleQRButtonUI === 'function') {
+                updateSimpleQRButtonUI();
+            }
+        }
     }
 
+    // 3. Apply Visibility to Elements
+    const regFooter = document.getElementById('regular-bill-footer');
+    const simpleFooter = document.getElementById('simple-bill-footer');
+    const btn = document.getElementById('reg-footer-btn');
 
-    // === UPDATED: SET BUTTON STYLE DIRECTLY ===
+    // Show/Hide Regular Footer
+    if (regFooter) {
+        regFooter.style.display = isRegularFooterVisible ? 'table' : 'none';
+    }
+
+    // If Regular is Visible, force Simple Footer hidden
+    if (isRegularFooterVisible && simpleFooter) {
+        simpleFooter.style.display = 'none';
+    }
+
+    // 4. Update Regular Button UI
     if (btn) {
         btn.style.backgroundColor = isRegularFooterVisible ? 'var(--primary-color)' : '';
         btn.style.color = isRegularFooterVisible ? 'white' : '';
     }
 
-    // Update info if showing
+    // 5. Update Data if Showing
     if (isRegularFooterVisible) {
         updateRegularFooterInfo();
-        // Also update amount in words immediately
-        updateTotal();
+        if (typeof updateTotal === 'function') updateTotal();
     }
 
     applyColumnVisibility();
 }
 
+// ==========================================
+// 1. UPI RECEIVER MANAGEMENT (Modal Logic)
+// ==========================================
+
+function openReceiverModal() {
+    // 1. Toggle (Close) the sidebar if the function exists
+    if (typeof toggleSettingsSidebar === 'function') {
+        toggleSettingsSidebar();
+    }
+    // 2. Open Modal
+    document.getElementById('receiver-modal').style.display = 'block';
+    loadReceiversIntoSelect();
+}
+
+function closeReceiverModal() {
+    document.getElementById('receiver-modal').style.display = 'none';
+    hideReceiverForm();
+}
+
+function hideReceiverForm() {
+    document.getElementById('receiverForm').style.display = 'none';
+    document.getElementById('rName').value = '';
+    document.getElementById('rUpi').value = '';
+    document.getElementById('editReceiverId').value = '';
+}
+
+function loadReceiversIntoSelect() {
+    const select = document.getElementById('receiverSelect');
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    getAllFromDB('upiReceivers').then(receivers => {
+        select.innerHTML = '';
+        if (!receivers || receivers.length === 0) {
+            select.innerHTML = '<option value="">No receivers added</option>';
+            return;
+        }
+        
+        // Populate select
+        receivers.forEach(r => {
+            // SAFE UNWRAP: Handle if data is wrapped in 'value' or is raw
+            const data = r.value ? r.value : r;
+            const id = r.id || data.id;
+
+            if (data && data.name) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = data.name + (data.isSelected ? ' (Active)' : '');
+                if (data.isSelected) opt.selected = true;
+                select.appendChild(opt);
+            }
+        });
+    });
+}
+
+function prepareAddReceiver() {
+    document.getElementById('receiverForm').style.display = 'block';
+    document.getElementById('editReceiverId').value = '';
+    document.getElementById('rName').value = '';
+    document.getElementById('rUpi').value = '';
+    
+    // === UI UPDATE: Set Button Text for "Add Mode" ===
+    const saveBtn = document.querySelector('#receiverForm .btn-apply');
+    const cancelBtn = document.querySelector('#receiverForm .btn-cancel');
+    
+    if (saveBtn) saveBtn.textContent = 'Add Receiver';
+    if (cancelBtn) cancelBtn.textContent = 'Cancel';
+
+    document.getElementById('rName').focus();
+}
+
+function prepareEditReceiver() {
+    const select = document.getElementById('receiverSelect');
+    const id = parseInt(select.value);
+    if (!id) {
+        alert("Please select a receiver to edit");
+        return;
+    }
+
+    getFromDB('upiReceivers', id).then(data => {
+        // Safe unwrap
+        const r = (data && data.value) ? data.value : data;
+        
+        if (r) {
+            document.getElementById('receiverForm').style.display = 'block';
+            document.getElementById('editReceiverId').value = id;
+            document.getElementById('rName').value = r.name;
+            document.getElementById('rUpi').value = r.upi;
+
+            // === UI UPDATE: Set Button Text for "Edit Mode" ===
+            const saveBtn = document.querySelector('#receiverForm .btn-apply');
+            const cancelBtn = document.querySelector('#receiverForm .btn-cancel');
+            
+            if (saveBtn) saveBtn.textContent = 'Update Details';
+            if (cancelBtn) cancelBtn.textContent = 'Cancel Edit';
+        }
+    });
+}
+
+function saveReceiver() {
+    const name = document.getElementById('rName').value.trim();
+    const upi = document.getElementById('rUpi').value.trim();
+    const editId = document.getElementById('editReceiverId').value;
+
+    if (!name || !upi) {
+        alert("Please fill in all fields");
+        return;
+    }
+
+    // Generate ID
+    const id = editId ? parseInt(editId) : Date.now();
+
+    // Create payload 
+    const receiverData = { id: id, name: name, upi: upi };
+
+    // Check existing to preserve "Active" status or set if first
+    getAllFromDB('upiReceivers').then(all => {
+        // === LOGIC FIX: Check if list is effectively empty (ignoring the one we might be editing) ===
+        // If no receivers exist yet, this new one MUST be active.
+        if (!all || all.length === 0) {
+            receiverData.isSelected = true;
+        } else if (editId) {
+             // If editing, find the original to preserve its 'Active' status
+             const existingWrap = all.find(x => (x.id || (x.value && x.value.id)) == id);
+             const existing = existingWrap ? (existingWrap.value || existingWrap) : null;
+             if (existing && existing.isSelected) {
+                 receiverData.isSelected = true;
+             }
+        } else {
+            // Adding new, but list is not empty. 
+            // If NO receiver is currently active (edge case), make this one active.
+            const hasActive = all.some(r => {
+                const d = r.value || r;
+                return d.isSelected === true;
+            });
+            if (!hasActive) {
+                receiverData.isSelected = true;
+            }
+        }
+        
+        setInDB('upiReceivers', id, receiverData).then(() => {
+            hideReceiverForm();
+            loadReceiversIntoSelect();
+            // === IMMEDIATE UPDATE ===
+            // If this receiver became active (e.g. it was the first one), load it globally now.
+            if (receiverData.isSelected) {
+                loadSelectedReceiver();
+            }
+        });
+    });
+}
+
+function deleteReceiver() {
+    const select = document.getElementById('receiverSelect');
+    const id = parseInt(select.value);
+    if (!id) return;
+
+    if (confirm("Delete this receiver?")) {
+        removeFromDB('upiReceivers', id).then(() => {
+            loadReceiversIntoSelect();
+            // If we deleted the active receiver, clear global state
+            if (currentReceiver && (currentReceiver.id === id)) {
+                currentReceiver = null;
+                updateRegularFooterInfo(); // This will clear QR
+            }
+        });
+    }
+}
+
+function handleReceiverSelect() {
+    const select = document.getElementById('receiverSelect');
+    const selectedId = parseInt(select.value);
+    if (!selectedId) return;
+
+    getAllFromDB('upiReceivers').then(receivers => {
+        const promises = receivers.map(r => {
+            // UNWRAP
+            const data = r.value ? r.value : r;
+            const id = r.id || data.id;
+            
+            // Modify
+            data.isSelected = (id === selectedId);
+            
+            // Save back (setInDB will handle wrapping)
+            return setInDB('upiReceivers', id, data);
+        });
+
+        Promise.all(promises).then(() => {
+            loadSelectedReceiver();
+            loadReceiversIntoSelect(); // Refresh labels
+        });
+    });
+}
+
+// === LOAD ACTIVE RECEIVER INTO MEMORY ===
+function loadSelectedReceiver() {
+    getAllFromDB('upiReceivers').then(receivers => {
+        if (!receivers) return;
+
+        // Find the active one from the list
+        const activeWrapper = receivers.find(r => {
+            const data = r.value ? r.value : r;
+            return data.isSelected === true;
+        });
+
+        // Unwrap it for global use
+        currentReceiver = activeWrapper ? (activeWrapper.value || activeWrapper) : null;
+        
+        // Refresh UI immediately
+        updateRegularFooterInfo();
+    });
+}
+
+// ==========================================
+// 2. QR GENERATION LOGIC (ROBUST)
+// ==========================================
+
+function generateBillQRCode() {
+    // Target BOTH containers
+    const containers = [
+        document.getElementById('reg-bill-qr-code'),
+        document.getElementById('simple-bill-qr-code')
+    ];
+
+    if (!currentReceiver) {
+        containers.forEach(c => {
+            if(c) c.innerHTML = '<span style="font-size: 10px; color: #999;">Select Receiver</span>';
+        });
+        return;
+    }
+
+    // === Calculate Amount (Same Logic) ===
+    let amount = 0;
+    const paymentContainer = document.getElementById('bill-payments-container');
+    const isPaymentVisible = paymentContainer && paymentContainer.style.display !== 'none';
+
+    if (isPaymentVisible) {
+        let balanceVal = 0;
+        let advanceVal = 0;
+        const footerRows = document.querySelectorAll('#bill-payments-tfoot tr');
+        footerRows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            const valCell = row.lastElementChild; 
+            const val = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
+            if (text.includes('balance due')) balanceVal = val;
+            else if (text.includes('advance deposit')) advanceVal = val;
+        });
+        if (balanceVal > 0) amount = balanceVal;
+        else if (advanceVal > 0) amount = advanceVal;
+    } else {
+        let grandTotalVal = 0;
+        const totalRows = document.querySelectorAll('#bill-total-tbody tr');
+        totalRows.forEach(row => {
+            if (row.textContent.toUpperCase().includes('GRAND TOTAL')) {
+                const valCell = row.querySelector('.total-cell:last-child');
+                grandTotalVal = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
+            }
+        });
+        if (grandTotalVal === 0) {
+            const gstGrandTotal = document.getElementById('gst-grand-total');
+            const subTotal = document.getElementById('createTotalAmountManual');
+            if (gstGrandTotal && parseFloat(gstGrandTotal.textContent) > 0) grandTotalVal = parseFloat(gstGrandTotal.textContent);
+            else if (subTotal) grandTotalVal = parseFloat(subTotal.textContent);
+        }
+        amount = grandTotalVal;
+    }
+
+    // === Render to ALL Containers ===
+    containers.forEach(container => {
+        if (!container) return;
+        
+        container.innerHTML = ''; // Clear
+        
+        if (amount <= 0) {
+            container.innerHTML = '<span style="font-size: 10px; color: #999;">Enter Amount</span>';
+            return;
+        }
+
+        const upiUrl = `upi://pay?pa=${currentReceiver.upi}&pn=${encodeURIComponent(currentReceiver.name)}&am=${amount.toFixed(2)}&cu=INR`;
+        container.title = upiUrl;
+
+        try {
+            new QRCode(container, {
+                text: upiUrl,
+                width: 100, // Standard size
+                height: 100,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.M
+            });
+        } catch (e) {
+            console.error("QR Error", e);
+            container.innerHTML = 'Error';
+        }
+    });
+}
+
+// ==========================================
+// 1. TOGGLE LOGIC (Mutual Exclusion)
+// ==========================================
+
+async function toggleSimpleQRFooter() {
+    try {
+        // 1. Toggle Simple QR State
+        isSimpleQREnabled = !isSimpleQREnabled;
+
+        // 2. MUTUAL EXCLUSION: If turning Simple ON, force Regular OFF
+        if (isSimpleQREnabled) {
+            if (typeof isRegularFooterVisible !== 'undefined' && isRegularFooterVisible) {
+                isRegularFooterVisible = false; // Turn off Regular flag
+                
+                // Update Regular Button UI (Make it Gray)
+                const regBtn = document.getElementById('reg-footer-btn');
+                if (regBtn) {
+                    regBtn.style.backgroundColor = '';
+                    regBtn.style.color = '';
+                }
+            }
+        }
+
+        // 3. Save "Simple QR" setting to DB
+        if (typeof setInDB === 'function') {
+            await setInDB('settings', 'isSimpleQREnabled', isSimpleQREnabled);
+        }
+
+        // 4. Apply Logic
+        applyFooterModes();
+
+    } catch (error) {
+        console.error('Error toggling Simple QR:', error);
+    }
+}
+
+function applyFooterModes() {
+    const regularFooter = document.getElementById('regular-bill-footer');
+    const simpleFooter = document.getElementById('simple-bill-footer');
+    
+    // Update Simple Button UI
+    updateSimpleQRButtonUI();
+
+    if (isSimpleQREnabled) {
+        // === MODE: Simple QR ON ===
+        // Show Simple, Hide Regular
+        if (simpleFooter) simpleFooter.style.display = 'table';
+        if (regularFooter) regularFooter.style.display = 'none';
+        
+        // Ensure data is fresh
+        updateRegularFooterInfo(); 
+    } else {
+        // === MODE: Simple QR OFF ===
+        // Hide Simple
+        if (simpleFooter) simpleFooter.style.display = 'none';
+        
+        // Check Regular Footer state (It might be OFF too)
+        if (regularFooter) {
+            // Respect the global variable controlled by toggleRegularFooter
+            regularFooter.style.display = (typeof isRegularFooterVisible !== 'undefined' && isRegularFooterVisible) ? 'table' : 'none';
+        }
+    }
+}
+
+function updateSimpleQRButtonUI() {
+    const btn = document.getElementById('btn-simple-qr');
+    if (!btn) return;
+
+    const label = btn.querySelector('.sidebar-label');
+    const icon = btn.querySelector('.material-icons');
+
+    if (isSimpleQREnabled) {
+        if (label) label.textContent = 'Simple QR : ON';
+        if (icon) icon.style.color = '#2ecc71'; 
+        btn.style.backgroundColor = '#e8f5e9'; 
+    } else {
+        if (label) label.textContent = 'Simple QR : OFF';
+        if (icon) icon.style.color = ''; 
+        btn.style.backgroundColor = ''; 
+    }
+}
+
+// ==========================================
+// 3. UPDATED FOOTER INFO
+// ==========================================
+
 function updateRegularFooterInfo() {
     if (!companyInfo) return;
 
-    // Update Text Fields
-    const signatory = document.getElementById('reg-bill-company-signatory');
-    const accHolder = document.getElementById('reg-bill-account-holder');
-    const accNo = document.getElementById('reg-bill-account-number');
-    const ifsc = document.getElementById('reg-bill-ifsc-code');
-    const branch = document.getElementById('reg-bill-branch');
-    const bank = document.getElementById('reg-bill-bank-name');
+    // Map Element IDs for Regular Footer
+    const fields = {
+        signatory: 'reg-bill-company-signatory',
+        accHolder: 'reg-bill-account-holder',
+        accNo: 'reg-bill-account-number',
+        ifsc: 'reg-bill-ifsc-code',
+        branch: 'reg-bill-branch',
+        bank: 'reg-bill-bank-name',
+        upi: 'reg-bill-upi-id'
+    };
 
-    if (signatory) signatory.textContent = `for ${companyInfo.name || 'COMPANY NAME'}`;
-    if (accHolder) accHolder.textContent = companyInfo.accountHolder || '-';
-    if (accNo) accNo.textContent = companyInfo.accountNumber || '-';
-    if (ifsc) ifsc.textContent = companyInfo.ifscCode || '-';
-    if (branch) branch.textContent = companyInfo.branch || '-';
-    if (bank) bank.textContent = companyInfo.bankName || '-';
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val || '-';
+    };
 
-    // Update Branding (Sign & Stamp) for Regular Bill
+    // 1. Set Company Details (Regular Footer)
+    setText(fields.signatory, `for ${companyInfo.name || 'COMPANY NAME'}`);
+    setText(fields.accHolder, companyInfo.accountHolder);
+    setText(fields.accNo, companyInfo.accountNumber);
+    setText(fields.ifsc, companyInfo.ifscCode);
+    setText(fields.branch, companyInfo.branch);
+    setText(fields.bank, companyInfo.bankName);
+    
+    // Set UPI Text (Regular Footer)
+    setText(fields.upi, currentReceiver ? currentReceiver.upi : '-');
+
+    // 2. === NEW: Update Simple Footer Info (Sync) ===
+    const simpleName = document.getElementById('simple-footer-name');
+    const simpleUpi = document.getElementById('simple-footer-upi');
+    
+    if (simpleName) simpleName.textContent = currentReceiver ? currentReceiver.name : '-';
+    if (simpleUpi) simpleUpi.textContent = currentReceiver ? currentReceiver.upi : '-';
+
+    // 3. Branding (Stamp/Sign) - Applies only to Regular Footer structure
     const regStampCell = document.getElementById('reg-stamp-cell');
     const regSignatureCell = document.getElementById('reg-signature-cell');
 
@@ -7679,8 +8136,26 @@ function updateRegularFooterInfo() {
             regSignatureCell.appendChild(signImg);
         }
     }
+    
+    // 4. Always trigger QR Generation when footer updates
+    generateBillQRCode();
 }
 
+// Initialize Receiver on Load
+// This ensures that if the script is loaded after DB init, we still fetch the receiver.
+if (typeof dbInitialized !== 'undefined' && dbInitialized) {
+    loadSelectedReceiver();
+}
+
+
+
+
+
+
+
+
+
+// Function: updateTotal
 function updateTotal() {
     // 1. Calculate Item Subtotal
     const createListId = getModeSpecificVars().createListId;
@@ -7690,9 +8165,7 @@ function updateTotal() {
             return sum + (amountCell ? (parseFloat(amountCell.textContent) || 0) : 0);
         }, 0);
 
-    // === NEW: UPDATE DISCOUNT & GST BUTTONS BASED ON ACTIVE CHAIN ===
-
-    // Check Discount
+    // === Update Discount & GST Buttons ===
     const hasDiscount = adjustmentChain && adjustmentChain.some(a => a.name.toLowerCase().includes('discount'));
     const discBtn = document.getElementById('discount-tool-btn');
     if (discBtn) {
@@ -7700,10 +8173,8 @@ function updateTotal() {
         discBtn.style.color = hasDiscount ? 'white' : '';
     }
 
-    // Check GST (Only in Regular Mode)
     const gstBtn = document.getElementById('gst-tool-btn');
     if (gstBtn) {
-        // GST button active if GST exists in chain AND we are NOT in GST mode (since GST mode handles tax differently)
         const hasGST = adjustmentChain && adjustmentChain.some(a => a.name.toLowerCase().includes('gst'));
         if (hasGST && !isGSTMode) {
             gstBtn.style.backgroundColor = 'var(--primary-color)';
@@ -7717,6 +8188,12 @@ function updateTotal() {
     // 2. Run Sequential Adjustment Calculation
     calculateAdjustments(subtotal);
     updateSectionTotals();
+
+    // 3. === NEW: Generate QR Code ===
+    // This ensures QR updates whenever total changes
+    if (typeof generateBillQRCode === 'function') {
+        generateBillQRCode();
+    }
 
     if (isVendorMode) {
         saveVendorState();
