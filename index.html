@@ -1240,6 +1240,15 @@
                     <span class="material-icons">business</span>
                     <span class="sidebar-label">Company Info</span>
                 </button>
+                <button onclick="openReceiverModal()" class="sidebar-action-btn">
+                    <span class="material-icons">qr_code_2</span>
+                    <span class="sidebar-label">Payment Receivers</span>
+                </button>
+                <button onclick="toggleSimpleQRFooter()" id="btn-simple-qr" class="sidebar-action-btn"
+                    style="display: flex;">
+                    <span class="material-icons">qr_code</span>
+                    <span class="sidebar-label">Simple QR : OFF</span>
+                </button>
                 <button onclick="openBillHeadingModal()" class="sidebar-action-btn">
                     <span class="material-icons">title</span>
                     <span class="sidebar-label">Bill Headings</span>
@@ -1531,7 +1540,7 @@
                             <h4 style="margin: 0 0 2px 0; color: var(--primary-color);padding-bottom: 5px;">
                                 Bill To</h4>
                             <div style="font-size: 14px; line-height: 1.2;">
-                                <div id="adv-bill-name" style="font-weight: bold; font-size: 15px;"></div>
+                                <div id="adv-bill-name" style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
                                 <div id="adv-bill-addr" style="white-space: pre-wrap;color: #555;">
                                 </div>
 
@@ -1548,7 +1557,7 @@
                             <h4 style="margin: 0 0 2px 0; color: var(--primary-color); padding-bottom: 5px;">
                                 Ship To</h4>
                             <div style="font-size: 14px; line-height: 1.2;">
-                                <div id="adv-ship-name" style="font-weight: bold; font-size: 15px;"></div>
+                                <div id="adv-ship-name" style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
                                 <div id="adv-ship-addr" style="white-space: pre-wrap;color: #555;">
                                 </div>
 
@@ -1649,7 +1658,7 @@
                 <table class="bill-footer" id="regular-bill-footer" style="display: none; margin-top: 20px;">
                     <tbody>
                         <tr>
-                            <td>
+                            <td colspan="2" style="width: 57%;">
                                 <p><strong>Amount Chargeable (in words)</strong></p>
                             </td>
                             <td class="align-center" colspan="2">
@@ -1657,7 +1666,7 @@
                             </td>
                         </tr>
                         <tr>
-                            <td>
+                            <td colspan="2">
                                 <p id="reg-bill-amount-words">Rupees Zero Only</p>
                             </td>
                             <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
@@ -1666,21 +1675,47 @@
                                 id="reg-signature-cell"></td>
                         </tr>
                         <tr>
-                            <td class="bank-info">
+                            <td class="bank-info" style="width: 45%;">
                                 <p><strong>A/C Holder Name :</strong> <span id="reg-bill-account-holder">-</span></p>
                                 <p><strong>A/C No :</strong> <span id="reg-bill-account-number">-</span></p>
                                 <span><strong>IFSC :</strong> <span id="reg-bill-ifsc-code">-</span></span>
                                 <span><strong>Branch :</strong> <span id="reg-bill-branch">-</span></span>
                                 <p><strong>Bank Name :</strong> <span id="reg-bill-bank-name">-</span></p>
+                                <p><strong>UPI Id : </strong> <span id="reg-bill-upi-id">-</span></p>
+                            </td>
+                            <td
+                                style="text-align: center; vertical-align: middle;border: 1px solid var(--border-color);">
+                                <div id="reg-bill-qr-code"
+                                    style="width: 110x; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 10px; color: #999;">Scan to Pay</span>
+                                </div>
                             </td>
                         </tr>
                         <tr>
-                            <td>
+                            <td colspan="2">
                                 <b>Declaration : </b>
                                 <p><small>We declare that this invoice shows the actual price of the </small></p>
                                 <p><small>goods described and that all particulars are true and correct</small></p>
                             </td>
                             <td style="text-align:center; vertical-align: middle;" colspan="2">Authorised Signatory</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table id="simple-bill-footer"
+                    style="display: none; width: 100%; border-collapse: collapse;">
+                    <tbody>
+                        <tr>
+                            <td style="vertical-align: middle; padding: 10px;">
+                                <p style="margin: 5px 0;">Receiver Name : <strong id="simple-footer-name" style="text-transform: uppercase;">-</strong></p>
+                                <p style="margin: 5px 0;">UPI Id : <strong id="simple-footer-upi">-</strong></p>
+                            </td>
+                            <td
+                                style="width: 140px; text-align: center; vertical-align: middle;">
+                                <div id="simple-bill-qr-code"
+                                    style="width: 115px; height: 115px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 10px; color: #999;">QR Code</span>
+                                </div>
+                            </td>
                         </tr>
                     </tbody>
                 </table>
@@ -1718,8 +1753,7 @@
                         <p id="billToAddr">new york city</p>
                         <p>GSTIN : <span id="billToGstin">customer 15-digit GSTIN</span></p>
                         <p>Contact : <span id="billToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
-                        <p>State : <span id="billToState"></span>, Code : <span
-                                id="billToStateCode">27</span></p>
+                        <p>State : <span id="billToState"></span>, Code : <span id="billToStateCode">27</span></p>
                     </div>
                 </div>
 
@@ -1731,8 +1765,7 @@
                         <p id="shipToAddr">new york city</p>
                         <p>GSTIN : <span id="shipToGstin">customer 15-digit GSTIN</span></p>
                         <p>Contact : <span id="shipToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
-                        <p>State : <span id="shipToState"></span>, Code : <span
-                                id="shipToStateCode">27</span></p>
+                        <p>State : <span id="shipToState"></span>, Code : <span id="shipToStateCode">27</span></p>
                         <p>Place Of Supply: <span id="shipToPOS">pune</span></p>
                     </div>
                 </div>
@@ -3494,6 +3527,67 @@
                 <button onclick="resetRegularModal()" class="btn-clear">Reset</button>
                 <button onclick="closeRegularModal()" class="btn-cancel">Cancel</button>
                 <button onclick="saveRegularBillDetails()" class="btn-apply">Save Details</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="receiver-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Manage UPI Receivers</h3>
+                <span class="close" onclick="closeReceiverModal()">×</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="receiverSelect">Select Active Receiver:</label>
+                    <select id="receiverSelect" onchange="handleReceiverSelect()"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
+                        <option value="">Loading...</option>
+                    </select>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="prepareAddReceiver()" class="btn-apply"
+                            style="flex: 1; justify-content: center;">
+                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">add</span> New
+                        </button>
+                        <button onclick="prepareEditReceiver()" class="btn-cancel"
+                            style="flex: 1; justify-content: center; background: #fff; border: 1px solid var(--primary-color); color: var(--primary-color);">
+                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">edit</span> Edit
+                        </button>
+                        <button onclick="deleteReceiver()" class="btn-cancel"
+                            style="flex: 1; justify-content: center; background: #fff; border: 1px solid #dc3545; color: #dc3545;">
+                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">delete</span>
+                            Delete
+                        </button>
+                    </div>
+                </div>
+
+                <div class="section-divider"></div>
+
+                <div id="receiverForm" style="display: none;">
+                    <h4 style="margin-bottom: 15px; color: var(--primary-color);">Receiver Details</h4>
+                    <input type="hidden" id="editReceiverId">
+
+                    <div class="form-group">
+                        <label for="rName">Receiver Name:</label>
+                        <input type="text" id="rName" placeholder="e.g. My Shop Name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="rUpi">UPI ID:</label>
+                        <input type="text" id="rUpi" placeholder="e.g. mobile-number@upi">
+                    </div>
+
+                    <div style="text-align: right; margin-top: 10px;">
+                        <button onclick="saveReceiver()" class="btn-apply" style="width: auto; padding: 8px 20px;">Save
+                            Details</button>
+                        <button onclick="hideReceiverForm()" class="btn-cancel"
+                            style="width: auto; padding: 8px 20px; margin-left: 10px;">Cancel Edit</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeReceiverModal()" class="btn-cancel">Close</button>
             </div>
         </div>
     </div>
