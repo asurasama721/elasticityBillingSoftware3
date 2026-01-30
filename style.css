@@ -284,21 +284,21 @@ body.gst-mode #tools button:hover .material-icons {
 
 .bill-footer td {
     padding: 4px 6px;
-    vertical-align: top;
+    /* vertical-align: top; */
     border: none;
 }
 
 /* Left column - align left */
 .bill-footer td:first-child {
     text-align: left;
-    width: 55%;
+    /* width: 60%; */
     border: 1px solid var(--border-color);
 }
 
 /* Right column - align center */
 .bill-footer td:last-child {
     text-align: center;
-    width: 30%;
+    /* width: 30%; */
 }
 
 .bill-footer .bank-info {
@@ -336,6 +336,9 @@ body.gst-mode #tools button:hover .material-icons {
 
 /* Reduce spacing in declaration section */
 .bill-footer b {
+    font-size: 9p
+    
+    ;
     margin: 0;
     padding: 0;
     text-align: left;
@@ -386,7 +389,7 @@ body.gst-mode #tools button:hover .material-icons {
 /* Company signatory */
 #bill-company-signatory,
 #reg-bill-company-signatory {
-    font-size: 0.85em;
+    font-size: 0.75em;
     margin: 0;
     padding: 0;
     text-align: center;
