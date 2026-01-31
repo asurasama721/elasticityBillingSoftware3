@@ -7133,6 +7133,12 @@ function duplicateRow(rowId) {
     // Sync to other tables (Passing dimensionsVisible at the end to ensure sync)
     syncDuplicatedRowToOtherTables(newId, sourceRow, itemName, originalQuantity, unit, rate, amount, notes, dimensionType, dimensionValues, dimensionUnit, hsnCode, productCode, discountType, discountValue, finalQuantity, dimensionText, toggleStates, convertUnit, dimensionsVisible);
 
+    // === FIX: Explicitly apply visibility to View Tables (Bill View) ===
+    // This ensures the copied row in the Bill View hides dimensions if the original had them hidden
+    if (typeof setRowDimensionVisibility === 'function') {
+        setRowDimensionVisibility(newId, dimensionsVisible);
+    }
+
     // Update everything
     updateSerialNumbers();
     updateTotal();
@@ -7699,14 +7705,18 @@ function toggleRegularFooter() {
 // 1. UPI RECEIVER MANAGEMENT (Modal Logic)
 // ==========================================
 
-function openReceiverModal() {
-    // 1. Toggle (Close) the sidebar if the function exists
-    if (typeof toggleSettingsSidebar === 'function') {
+// Updated function with parameter
+function openReceiverModal(fromSidebar = false) {
+    // 1. Toggle (Close) the sidebar ONLY if clicked from the sidebar button
+    if (fromSidebar && typeof toggleSettingsSidebar === 'function') {
         toggleSettingsSidebar();
     }
     // 2. Open Modal
-    document.getElementById('receiver-modal').style.display = 'block';
-    loadReceiversIntoSelect();
+    const modal = document.getElementById('receiver-modal');
+    if (modal) {
+        modal.style.display = 'block';
+        loadReceiversIntoSelect();
+    }
 }
 
 function closeReceiverModal() {
@@ -7848,17 +7858,51 @@ function saveReceiver() {
 
 function deleteReceiver() {
     const select = document.getElementById('receiverSelect');
-    const id = parseInt(select.value);
-    if (!id) return;
+    const idToDelete = parseInt(select.value);
+    if (!idToDelete) return;
 
     if (confirm("Delete this receiver?")) {
-        removeFromDB('upiReceivers', id).then(() => {
-            loadReceiversIntoSelect();
-            // If we deleted the active receiver, clear global state
-            if (currentReceiver && (currentReceiver.id === id)) {
-                currentReceiver = null;
-                updateRegularFooterInfo(); // This will clear QR
-            }
+        // 1. Check if we are deleting the CURRENTLY ACTIVE receiver
+        // We need to know this BEFORE deletion to trigger auto-promotion later
+        const isDeletingActive = (currentReceiver && currentReceiver.id === idToDelete);
+
+        // 2. Perform Deletion
+        removeFromDB('upiReceivers', idToDelete).then(() => {
+            
+            // 3. Fetch remaining receivers to handle Auto-Promotion
+            getAllFromDB('upiReceivers').then(receivers => {
+                const remaining = receivers || [];
+
+                if (isDeletingActive) {
+                    // SCENARIO: We deleted the active receiver.
+                    if (remaining.length > 0) {
+                        // === AUTO-PROMOTE ===
+                        // Pick the first available receiver to be the new Active one
+                        const nextRaw = remaining[0];
+                        // Safe unwrap in case DB wraps data in 'value'
+                        const nextData = nextRaw.value ? nextRaw.value : nextRaw;
+                        
+                        nextData.isSelected = true;
+
+                        // Save the new Active status to DB
+                        setInDB('upiReceivers', nextData.id, nextData).then(() => {
+                            // Update Global Memory & UI immediately
+                            loadSelectedReceiver(); 
+                            loadReceiversIntoSelect();
+                        });
+                    } else {
+                        // SCENARIO: Deleted the LAST receiver.
+                        // Nothing left to promote. Clear global state.
+                        currentReceiver = null;
+                        updateRegularFooterInfo(); // Clears QR and Text
+                        loadReceiversIntoSelect();
+                    }
+                } else {
+                    // SCENARIO: Deleted a passive receiver.
+                    // The current active receiver is untouched. Just refresh the dropdown.
+                    loadReceiversIntoSelect();
+                }
+            });
         });
     }
 }
@@ -7912,12 +7956,14 @@ function loadSelectedReceiver() {
 // ==========================================
 
 function generateBillQRCode() {
-    // Target BOTH containers
+    // 1. Target ALL containers (Regular, Simple, and GST)
     const containers = [
         document.getElementById('reg-bill-qr-code'),
-        document.getElementById('simple-bill-qr-code')
+        document.getElementById('simple-bill-qr-code'),
+        document.getElementById('gst-bill-qr-code')
     ];
 
+    // 2. Check Receiver
     if (!currentReceiver) {
         containers.forEach(c => {
             if(c) c.innerHTML = '<span style="font-size: 10px; color: #999;">Select Receiver</span>';
@@ -7925,60 +7971,78 @@ function generateBillQRCode() {
         return;
     }
 
-    // === Calculate Amount (Same Logic) ===
     let amount = 0;
-    const paymentContainer = document.getElementById('bill-payments-container');
-    const isPaymentVisible = paymentContainer && paymentContainer.style.display !== 'none';
 
-    if (isPaymentVisible) {
-        let balanceVal = 0;
-        let advanceVal = 0;
-        const footerRows = document.querySelectorAll('#bill-payments-tfoot tr');
-        footerRows.forEach(row => {
-            const text = row.textContent.toLowerCase();
-            const valCell = row.lastElementChild; 
-            const val = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
-            if (text.includes('balance due')) balanceVal = val;
-            else if (text.includes('advance deposit')) advanceVal = val;
-        });
-        if (balanceVal > 0) amount = balanceVal;
-        else if (advanceVal > 0) amount = advanceVal;
-    } else {
-        let grandTotalVal = 0;
-        const totalRows = document.querySelectorAll('#bill-total-tbody tr');
-        totalRows.forEach(row => {
-            if (row.textContent.toUpperCase().includes('GRAND TOTAL')) {
-                const valCell = row.querySelector('.total-cell:last-child');
-                grandTotalVal = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
-            }
-        });
-        if (grandTotalVal === 0) {
-            const gstGrandTotal = document.getElementById('gst-grand-total');
-            const subTotal = document.getElementById('createTotalAmountManual');
-            if (gstGrandTotal && parseFloat(gstGrandTotal.textContent) > 0) grandTotalVal = parseFloat(gstGrandTotal.textContent);
-            else if (subTotal) grandTotalVal = parseFloat(subTotal.textContent);
+    // 3. Detect Mode (GST vs Regular)
+    // We check the global flag 'isGSTMode' OR check if the GST container is visible as a fallback
+    const isGST = (typeof isGSTMode !== 'undefined' && isGSTMode) || 
+                  (document.getElementById('gst-bill-container') && document.getElementById('gst-bill-container').style.display !== 'none');
+
+    if (isGST) {
+        // === GST MODE LOGIC ===
+        // In GST Mode, we strictly take the Grand Total from the GST Totals Table
+        const gstTotalEl = document.getElementById('gst-grand-total');
+        if (gstTotalEl) {
+            amount = parseFloat(gstTotalEl.textContent) || 0;
         }
-        amount = grandTotalVal;
+    } else {
+        // === REGULAR MODE LOGIC ===
+        // 1. Check for Payment Table (Balance Due / Advance)
+        const paymentContainer = document.getElementById('bill-payments-container');
+        const isPaymentVisible = paymentContainer && paymentContainer.style.display !== 'none';
+
+        if (isPaymentVisible) {
+            let balanceVal = 0;
+            let advanceVal = 0;
+            const footerRows = document.querySelectorAll('#bill-payments-tfoot tr');
+            footerRows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                const valCell = row.lastElementChild; 
+                const val = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
+                if (text.includes('balance due')) balanceVal = val;
+                else if (text.includes('advance deposit')) advanceVal = val;
+            });
+            // Priority: Balance > Advance
+            if (balanceVal > 0) amount = balanceVal;
+            else if (advanceVal > 0) amount = advanceVal;
+        } else {
+            // 2. Regular Grand Total (No Payment Table)
+            let grandTotalVal = 0;
+            const totalRows = document.querySelectorAll('#bill-total-tbody tr');
+            totalRows.forEach(row => {
+                if (row.textContent.toUpperCase().includes('GRAND TOTAL')) {
+                    const valCell = row.querySelector('.total-cell:last-child');
+                    grandTotalVal = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
+                }
+            });
+            // Fallback to Subtotal if Grand Total row not yet generated
+            if (grandTotalVal === 0) {
+                const subTotal = document.getElementById('createTotalAmountManual');
+                if (subTotal) grandTotalVal = parseFloat(subTotal.textContent);
+            }
+            amount = grandTotalVal;
+        }
     }
 
-    // === Render to ALL Containers ===
+    // 4. Render to ALL Containers
     containers.forEach(container => {
         if (!container) return;
         
-        container.innerHTML = ''; // Clear
+        container.innerHTML = ''; // Clear previous QR
         
         if (amount <= 0) {
             container.innerHTML = '<span style="font-size: 10px; color: #999;">Enter Amount</span>';
             return;
         }
 
+        // UPI Link Format
         const upiUrl = `upi://pay?pa=${currentReceiver.upi}&pn=${encodeURIComponent(currentReceiver.name)}&am=${amount.toFixed(2)}&cu=INR`;
-        container.title = upiUrl;
+        container.title = upiUrl; // Tooltip for debugging
 
         try {
             new QRCode(container, {
                 text: upiUrl,
-                width: 100, // Standard size
+                width: 100,  // Standard size for footer
                 height: 100,
                 colorDark : "#000000",
                 colorLight : "#ffffff",
@@ -7986,7 +8050,7 @@ function generateBillQRCode() {
             });
         } catch (e) {
             console.error("QR Error", e);
-            container.innerHTML = 'Error';
+            container.innerHTML = '<span style="font-size: 10px; color: red;">Error</span>';
         }
     });
 }
