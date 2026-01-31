@@ -452,6 +452,11 @@ function updateGSTTaxCalculation() {
 
     // Update amount in words (without decimal part)
     updateAmountInWords(grandTotal);
+
+    // === NEW: Trigger QR Code Update ===
+    if (typeof generateBillQRCode === 'function') {
+        generateBillQRCode();
+    }
 }
 
 /// Updated helper for GST Tax Table (Simplified for Adjustment Chain)
@@ -3079,16 +3084,16 @@ function getCurrentBillDetails() {
         const billToInput = document.getElementById('gst-bill-to-name');
         const billToView = document.getElementById('billToName');
         name = billToInput ? billToInput.value : (billToView ? billToView.textContent : '');
-        
+
         type = 'Tax Invoice'; // Fixed for GST
-        
+
         const gstNoInput = document.getElementById('gstInvoiceNo');
         const gstNoView = document.getElementById('bill-invoice-no');
         no = gstNoInput ? gstNoInput.value : (gstNoView ? gstNoView.textContent : '');
 
     } else {
         // --- REGULAR MODE LOGIC ---
-        
+
         // 1. Determine which View is Active (Simple vs Advanced)
         const defaultView = document.getElementById('reg-default-view');
         // Check if Simple View is visible
@@ -3114,11 +3119,11 @@ function getCurrentBillDetails() {
     }
 
     // Return trimmed values to ensure matching works
-    return { 
-        name: name.trim(), 
-        type: type, 
-        prefix: prefix.trim(), 
-        no: no.trim() 
+    return {
+        name: name.trim(),
+        type: type,
+        prefix: prefix.trim(),
+        no: no.trim()
     };
 }
 
@@ -5401,18 +5406,18 @@ function saveTermsList() {
     if (!window.currentEditingTermsDiv) {
         const billTotalTable = document.getElementById('bill-total-table');
         const gstBillTotalsTable = document.getElementById('gst-bill-totals-table');
-        
+
         // [UPDATE START] - Target the Payment Container first
         const billPaymentsContainer = document.getElementById('bill-payments-container');
 
         if (!isGSTMode) {
             // Regular Mode: Try to insert after Payment Table, fallback to Total Table
             const targetElement = billPaymentsContainer || billTotalTable;
-            
+
             if (targetElement && targetElement.parentNode) {
                 targetElement.parentNode.insertBefore(listContainer, targetElement.nextSibling);
             }
-        } 
+        }
         // [UPDATE END]
         else if (gstBillTotalsTable && isGSTMode) {
             gstBillTotalsTable.parentNode.insertBefore(listContainer, gstBillTotalsTable.nextSibling);
