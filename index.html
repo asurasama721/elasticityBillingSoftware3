@@ -1240,7 +1240,7 @@
                     <span class="material-icons">business</span>
                     <span class="sidebar-label">Company Info</span>
                 </button>
-                <button onclick="openReceiverModal()" class="sidebar-action-btn">
+                <button onclick="openReceiverModal(true)" class="sidebar-action-btn">
                     <span class="material-icons">qr_code_2</span>
                     <span class="sidebar-label">Payment Receivers</span>
                 </button>
@@ -1540,7 +1540,8 @@
                             <h4 style="margin: 0 0 2px 0; color: var(--primary-color);padding-bottom: 5px;">
                                 Bill To</h4>
                             <div style="font-size: 14px; line-height: 1.2;">
-                                <div id="adv-bill-name" style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
+                                <div id="adv-bill-name"
+                                    style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
                                 <div id="adv-bill-addr" style="white-space: pre-wrap;color: #555;">
                                 </div>
 
@@ -1557,7 +1558,8 @@
                             <h4 style="margin: 0 0 2px 0; color: var(--primary-color); padding-bottom: 5px;">
                                 Ship To</h4>
                             <div style="font-size: 14px; line-height: 1.2;">
-                                <div id="adv-ship-name" style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
+                                <div id="adv-ship-name"
+                                    style="font-weight: bold; font-size: 15px; text-transform: capitalize;"></div>
                                 <div id="adv-ship-addr" style="white-space: pre-wrap;color: #555;">
                                 </div>
 
@@ -1683,7 +1685,7 @@
                                 <p><strong>Bank Name :</strong> <span id="reg-bill-bank-name">-</span></p>
                                 <p><strong>UPI Id : </strong> <span id="reg-bill-upi-id">-</span></p>
                             </td>
-                            <td
+                            <td onclick="openReceiverModal()"
                                 style="text-align: center; vertical-align: middle;border: 1px solid var(--border-color);">
                                 <div id="reg-bill-qr-code"
                                     style="width: 110x; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
@@ -1701,15 +1703,15 @@
                         </tr>
                     </tbody>
                 </table>
-                <table id="simple-bill-footer"
-                    style="display: none; width: 100%; border-collapse: collapse;">
+                <table id="simple-bill-footer" style="display: none; width: 100%; border-collapse: collapse;">
                     <tbody>
                         <tr>
                             <td style="vertical-align: middle; padding: 10px;">
-                                <p style="margin: 5px 0;">Receiver Name : <strong id="simple-footer-name" style="text-transform: uppercase;">-</strong></p>
+                                <p style="margin: 5px 0;">Receiver Name : <strong id="simple-footer-name"
+                                        style="text-transform: uppercase;">-</strong></p>
                                 <p style="margin: 5px 0;">UPI Id : <strong id="simple-footer-upi">-</strong></p>
                             </td>
-                            <td
+                            <td onclick="openReceiverModal()"
                                 style="width: 140px; text-align: center; vertical-align: middle;">
                                 <div id="simple-bill-qr-code"
                                     style="width: 115px; height: 115px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
@@ -1842,38 +1844,48 @@
                     </table>
                 </div>
 
-                <table class="bill-footer">
+                <table class="bill-footer" style="display: table; margin-top: 20px;">
                     <tbody>
                         <tr>
-                            <td>
+                            <td colspan="2" style="width: 57%;">
                                 <p><strong>Amount Chargeable (in words)</strong></p>
                             </td>
                             <td class="align-center" colspan="2">
-                                <p id="bill-company-signatory">for COMPANY NAME</p>
+                                <p id="bill-company-signatory">for SHREE BALAJI PLY AND HARDWARE</p>
                             </td>
                         </tr>
+
                         <tr>
-                            <td>
-                                <p id="bill-amount-words">Rupees Zero Only</p>
+                            <td colspan="2">
+                                <p id="bill-amount-words">Zero Only</p>
                             </td>
-                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
-                                id="stamp-cell">
-                            </td>
-                            <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
-                                id="signature-cell">
-                            </td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle; text-align: center;"
+                                id="stamp-cell"></td>
+                            <td rowspan="2" style="width: 15%; vertical-align: middle; text-align: center;"
+                                id="signature-cell"></td>
                         </tr>
+
                         <tr>
-                            <td class="bank-info">
+                            <td class="bank-info" style="width: 45%;">
                                 <p><strong>A/C Holder Name :</strong> <span id="bill-account-holder">-</span></p>
                                 <p><strong>A/C No :</strong> <span id="bill-account-number">-</span></p>
                                 <span><strong>IFSC :</strong> <span id="bill-ifsc-code">-</span></span>
                                 <span><strong>Branch :</strong> <span id="bill-branch">-</span></span>
                                 <p><strong>Bank Name :</strong> <span id="bill-bank-name">-</span></p>
+                                <p><strong>UPI Id : </strong> <span id="bill-upi-id">-</span></p>
+                            </td>
+
+                            <td onclick="openReceiverModal()"
+                                style="text-align: center; vertical-align: middle; border: 1px solid var(--border-color); cursor: pointer;">
+                                <div id="gst-bill-qr-code"
+                                    style="width: 110px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                                    <span style="font-size: 10px; color: #999;">Select Receiver</span>
+                                </div>
                             </td>
                         </tr>
+
                         <tr>
-                            <td>
+                            <td colspan="2">
                                 <b>Declaration : </b>
                                 <p><small>We declare that this invoice shows the actual price of the </small></p>
                                 <p><small>goods described and that all particulars are true and correct</small></p>
@@ -3548,15 +3560,18 @@
                     <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                         <button onclick="prepareAddReceiver()" class="btn-apply"
                             style="flex: 1; justify-content: center;">
-                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">add</span> New
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">add</span> New
                         </button>
                         <button onclick="prepareEditReceiver()" class="btn-cancel"
                             style="flex: 1; justify-content: center; background: #fff; border: 1px solid var(--primary-color); color: var(--primary-color);">
-                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">edit</span> Edit
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">edit</span> Edit
                         </button>
                         <button onclick="deleteReceiver()" class="btn-cancel"
                             style="flex: 1; justify-content: center; background: #fff; border: 1px solid #dc3545; color: #dc3545;">
-                            <span class="material-icons" style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">delete</span>
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">delete</span>
                             Delete
                         </button>
                     </div>
