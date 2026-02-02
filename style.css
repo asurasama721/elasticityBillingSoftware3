@@ -5936,3 +5936,50 @@ body {
     transform: scaleY(-1);
 }
 
+/* for print button*/
+@media print {
+    /* 1. RESET PAGE MARGINS (Crucial for blank page fix) */
+    @page {
+       
+        size: auto;
+    }
+
+    /* 2. RESET BODY HEIGHT & OVERFLOW */
+    html, body {
+        height: auto !important;
+        min-height: 0 !important; /* Fixes the 100vh issue */
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important; /* Cuts off any 1px spillover */
+        background-color: #ffffff !important;
+    }
+
+    /* 3. CLEAN UP MAIN CONTAINER */
+    #main-container {
+        width: 100% !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        position: relative !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+
+    /* 4. HIDE SIDEBARS & BACKGROUNDS */
+    #app-sidebar,
+    #sidebar-categories,
+    #sidebar-submenus,
+    #settings-overlay,
+    .no-print,
+    button, 
+    .sidebar-cat-btn,
+    .sidebar-action-btn {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+    }
+
+    #app-background {
+        display: none !important;
+    }
+}
