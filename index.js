@@ -206,7 +206,7 @@ function initDB() {
             if (!database.objectStoreNames.contains('customerCreditNotes')) {
                 database.createObjectStore('customerCreditNotes', { keyPath: 'id' });
             }
-            
+
             // === NEW: UPI Receivers Store ===
             if (!database.objectStoreNames.contains('upiReceivers')) {
                 database.createObjectStore('upiReceivers', { keyPath: 'id', autoIncrement: true });
@@ -1067,7 +1067,55 @@ let rateColumnHidden = false;
 let currentView = 'input';
 let showDimensions = true;
 
-const themes = ['blue', 'green', 'red', 'purple', 'orange', 'dark', 'high-contrast', 'teal', 'indigo', 'brown', 'pink', 'cyan', 'lime', 'deep-purple', 'amber', 'deep-orange', 'blue-grey', 'navy', 'charcoal', 'burgundy', 'forest', 'slate', 'lavender', 'mint', 'peach', 'sage', 'rose-gold', 'nebula', 'cosmic', 'galaxy', 'stellar', 'asteroid', 'rainbow'];
+const themes = ['business-blue',
+    'blue',
+    'facebook-blue',
+    'green',
+    'red',
+    'purple',
+    'crimson-orange',
+    'ruby-amber',
+    'fire-red',
+    'sunset-ledger',
+    'vermilion-cash',
+    'orange',
+    'dark',
+    'high-contrast',
+    'teal',
+    'indigo',
+    'brown',
+    'pink',
+    'cyan',
+    'lime',
+    'deep-purple',
+    'amber',
+    'deep-orange',
+    'blue-grey',
+    'navy',
+    'charcoal',
+    'burgundy',
+    'forest',
+    'slate',
+    'lavender',
+    'mint',
+    'peach',
+    'sage',
+    'rose-gold',
+    'nebula',
+    'cosmic',
+    'galaxy',
+    'stellar',
+    'asteroid',
+    'rainbow',
+    'corporate-grey',
+    'invoice-green',
+    'ledger-maroon',
+    'classic-navy',
+    'steel',
+    'professional-teal',
+    'audit-purple',
+    'cashflow-olive',
+    'platinum'];
 let currentThemeIndex = 0;
 
 
@@ -7658,12 +7706,12 @@ function toggleRegularFooter() {
     if (isRegularFooterVisible) {
         if (typeof isSimpleQREnabled !== 'undefined' && isSimpleQREnabled) {
             isSimpleQREnabled = false; // Turn off Simple flag
-            
+
             // Persist the "Simple OFF" state to DB
             if (typeof setInDB === 'function') {
                 setInDB('settings', 'isSimpleQREnabled', false);
             }
-            
+
             // Update Simple Button UI (Make it Gray)
             if (typeof updateSimpleQRButtonUI === 'function') {
                 updateSimpleQRButtonUI();
@@ -7741,7 +7789,7 @@ function loadReceiversIntoSelect() {
             select.innerHTML = '<option value="">No receivers added</option>';
             return;
         }
-        
+
         // Populate select
         receivers.forEach(r => {
             // SAFE UNWRAP: Handle if data is wrapped in 'value' or is raw
@@ -7764,11 +7812,11 @@ function prepareAddReceiver() {
     document.getElementById('editReceiverId').value = '';
     document.getElementById('rName').value = '';
     document.getElementById('rUpi').value = '';
-    
+
     // === UI UPDATE: Set Button Text for "Add Mode" ===
     const saveBtn = document.querySelector('#receiverForm .btn-apply');
     const cancelBtn = document.querySelector('#receiverForm .btn-cancel');
-    
+
     if (saveBtn) saveBtn.textContent = 'Add Receiver';
     if (cancelBtn) cancelBtn.textContent = 'Cancel';
 
@@ -7786,7 +7834,7 @@ function prepareEditReceiver() {
     getFromDB('upiReceivers', id).then(data => {
         // Safe unwrap
         const r = (data && data.value) ? data.value : data;
-        
+
         if (r) {
             document.getElementById('receiverForm').style.display = 'block';
             document.getElementById('editReceiverId').value = id;
@@ -7796,7 +7844,7 @@ function prepareEditReceiver() {
             // === UI UPDATE: Set Button Text for "Edit Mode" ===
             const saveBtn = document.querySelector('#receiverForm .btn-apply');
             const cancelBtn = document.querySelector('#receiverForm .btn-cancel');
-            
+
             if (saveBtn) saveBtn.textContent = 'Update Details';
             if (cancelBtn) cancelBtn.textContent = 'Cancel Edit';
         }
@@ -7826,12 +7874,12 @@ function saveReceiver() {
         if (!all || all.length === 0) {
             receiverData.isSelected = true;
         } else if (editId) {
-             // If editing, find the original to preserve its 'Active' status
-             const existingWrap = all.find(x => (x.id || (x.value && x.value.id)) == id);
-             const existing = existingWrap ? (existingWrap.value || existingWrap) : null;
-             if (existing && existing.isSelected) {
-                 receiverData.isSelected = true;
-             }
+            // If editing, find the original to preserve its 'Active' status
+            const existingWrap = all.find(x => (x.id || (x.value && x.value.id)) == id);
+            const existing = existingWrap ? (existingWrap.value || existingWrap) : null;
+            if (existing && existing.isSelected) {
+                receiverData.isSelected = true;
+            }
         } else {
             // Adding new, but list is not empty. 
             // If NO receiver is currently active (edge case), make this one active.
@@ -7843,7 +7891,7 @@ function saveReceiver() {
                 receiverData.isSelected = true;
             }
         }
-        
+
         setInDB('upiReceivers', id, receiverData).then(() => {
             hideReceiverForm();
             loadReceiversIntoSelect();
@@ -7868,7 +7916,7 @@ function deleteReceiver() {
 
         // 2. Perform Deletion
         removeFromDB('upiReceivers', idToDelete).then(() => {
-            
+
             // 3. Fetch remaining receivers to handle Auto-Promotion
             getAllFromDB('upiReceivers').then(receivers => {
                 const remaining = receivers || [];
@@ -7881,13 +7929,13 @@ function deleteReceiver() {
                         const nextRaw = remaining[0];
                         // Safe unwrap in case DB wraps data in 'value'
                         const nextData = nextRaw.value ? nextRaw.value : nextRaw;
-                        
+
                         nextData.isSelected = true;
 
                         // Save the new Active status to DB
                         setInDB('upiReceivers', nextData.id, nextData).then(() => {
                             // Update Global Memory & UI immediately
-                            loadSelectedReceiver(); 
+                            loadSelectedReceiver();
                             loadReceiversIntoSelect();
                         });
                     } else {
@@ -7917,10 +7965,10 @@ function handleReceiverSelect() {
             // UNWRAP
             const data = r.value ? r.value : r;
             const id = r.id || data.id;
-            
+
             // Modify
             data.isSelected = (id === selectedId);
-            
+
             // Save back (setInDB will handle wrapping)
             return setInDB('upiReceivers', id, data);
         });
@@ -7945,7 +7993,7 @@ function loadSelectedReceiver() {
 
         // Unwrap it for global use
         currentReceiver = activeWrapper ? (activeWrapper.value || activeWrapper) : null;
-        
+
         // Refresh UI immediately
         updateRegularFooterInfo();
     });
@@ -7966,7 +8014,7 @@ function generateBillQRCode() {
     // 2. Check Receiver
     if (!currentReceiver) {
         containers.forEach(c => {
-            if(c) c.innerHTML = '<span style="font-size: 10px; color: #999;">Select Receiver</span>';
+            if (c) c.innerHTML = '<span style="font-size: 10px; color: #999;">Select Receiver</span>';
         });
         return;
     }
@@ -7975,8 +8023,8 @@ function generateBillQRCode() {
 
     // 3. Detect Mode (GST vs Regular)
     // We check the global flag 'isGSTMode' OR check if the GST container is visible as a fallback
-    const isGST = (typeof isGSTMode !== 'undefined' && isGSTMode) || 
-                  (document.getElementById('gst-bill-container') && document.getElementById('gst-bill-container').style.display !== 'none');
+    const isGST = (typeof isGSTMode !== 'undefined' && isGSTMode) ||
+        (document.getElementById('gst-bill-container') && document.getElementById('gst-bill-container').style.display !== 'none');
 
     if (isGST) {
         // === GST MODE LOGIC ===
@@ -7997,7 +8045,7 @@ function generateBillQRCode() {
             const footerRows = document.querySelectorAll('#bill-payments-tfoot tr');
             footerRows.forEach(row => {
                 const text = row.textContent.toLowerCase();
-                const valCell = row.lastElementChild; 
+                const valCell = row.lastElementChild;
                 const val = valCell ? (parseFloat(valCell.textContent) || 0) : 0;
                 if (text.includes('balance due')) balanceVal = val;
                 else if (text.includes('advance deposit')) advanceVal = val;
@@ -8027,9 +8075,9 @@ function generateBillQRCode() {
     // 4. Render to ALL Containers
     containers.forEach(container => {
         if (!container) return;
-        
+
         container.innerHTML = ''; // Clear previous QR
-        
+
         if (amount <= 0) {
             container.innerHTML = '<span style="font-size: 10px; color: #999;">Enter Amount</span>';
             return;
@@ -8044,9 +8092,9 @@ function generateBillQRCode() {
                 text: upiUrl,
                 width: 100,  // Standard size for footer
                 height: 100,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.M
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.M
             });
         } catch (e) {
             console.error("QR Error", e);
@@ -8068,7 +8116,7 @@ async function toggleSimpleQRFooter() {
         if (isSimpleQREnabled) {
             if (typeof isRegularFooterVisible !== 'undefined' && isRegularFooterVisible) {
                 isRegularFooterVisible = false; // Turn off Regular flag
-                
+
                 // Update Regular Button UI (Make it Gray)
                 const regBtn = document.getElementById('reg-footer-btn');
                 if (regBtn) {
@@ -8094,7 +8142,7 @@ async function toggleSimpleQRFooter() {
 function applyFooterModes() {
     const regularFooter = document.getElementById('regular-bill-footer');
     const simpleFooter = document.getElementById('simple-bill-footer');
-    
+
     // Update Simple Button UI
     updateSimpleQRButtonUI();
 
@@ -8103,14 +8151,14 @@ function applyFooterModes() {
         // Show Simple, Hide Regular
         if (simpleFooter) simpleFooter.style.display = 'table';
         if (regularFooter) regularFooter.style.display = 'none';
-        
+
         // Ensure data is fresh
-        updateRegularFooterInfo(); 
+        updateRegularFooterInfo();
     } else {
         // === MODE: Simple QR OFF ===
         // Hide Simple
         if (simpleFooter) simpleFooter.style.display = 'none';
-        
+
         // Check Regular Footer state (It might be OFF too)
         if (regularFooter) {
             // Respect the global variable controlled by toggleRegularFooter
@@ -8128,12 +8176,12 @@ function updateSimpleQRButtonUI() {
 
     if (isSimpleQREnabled) {
         if (label) label.textContent = 'Simple QR : ON';
-        if (icon) icon.style.color = '#2ecc71'; 
-        btn.style.backgroundColor = '#e8f5e9'; 
+        if (icon) icon.style.color = '#2ecc71';
+        btn.style.backgroundColor = '#e8f5e9';
     } else {
         if (label) label.textContent = 'Simple QR : OFF';
-        if (icon) icon.style.color = ''; 
-        btn.style.backgroundColor = ''; 
+        if (icon) icon.style.color = '';
+        btn.style.backgroundColor = '';
     }
 }
 
@@ -8167,14 +8215,14 @@ function updateRegularFooterInfo() {
     setText(fields.ifsc, companyInfo.ifscCode);
     setText(fields.branch, companyInfo.branch);
     setText(fields.bank, companyInfo.bankName);
-    
+
     // Set UPI Text (Regular Footer)
     setText(fields.upi, currentReceiver ? currentReceiver.upi : '-');
 
     // 2. === NEW: Update Simple Footer Info (Sync) ===
     const simpleName = document.getElementById('simple-footer-name');
     const simpleUpi = document.getElementById('simple-footer-upi');
-    
+
     if (simpleName) simpleName.textContent = currentReceiver ? currentReceiver.name : '-';
     if (simpleUpi) simpleUpi.textContent = currentReceiver ? currentReceiver.upi : '-';
 
@@ -8200,7 +8248,7 @@ function updateRegularFooterInfo() {
             regSignatureCell.appendChild(signImg);
         }
     }
-    
+
     // 4. Always trigger QR Generation when footer updates
     generateBillQRCode();
 }
@@ -10313,6 +10361,15 @@ function changeTheme(theme) {
     const root = document.documentElement;
 
     switch (theme) {
+        case 'business-blue':
+            root.style.setProperty('--primary-color', '#1e3a8a');
+            root.style.setProperty('--secondary-color', '#1e40af');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#dbeafe');
+            root.style.setProperty('--highlight-color', '#60a5fa');
+            root.style.setProperty('--total-bg', '#eff6ff');
+            break;
         case 'high-contrast':
             root.style.setProperty('--primary-color', '#000000');
             root.style.setProperty('--secondary-color', '#3b3b3bff');
@@ -10331,6 +10388,16 @@ function changeTheme(theme) {
             root.style.setProperty('--highlight-color', '#f1c40f');
             root.style.setProperty('--total-bg', '#ecf0f1');
             break;
+        case 'facebook-blue':
+            root.style.setProperty('--primary-color', '#1877f2');   // Facebook Blue
+            root.style.setProperty('--secondary-color', '#145dbf');
+            root.style.setProperty('--text-color', '#1c1e21');      // FB dark text
+            root.style.setProperty('--bg-color', '#f0f2f5');        // FB background
+            root.style.setProperty('--border-color', '#ccd0d5');
+            root.style.setProperty('--highlight-color', '#42b72a'); // FB green accent
+            root.style.setProperty('--total-bg', '#e4e6eb');
+            break;
+
         case 'green':
             root.style.setProperty('--primary-color', '#2ecc71');
             root.style.setProperty('--secondary-color', '#27ae60');
@@ -10349,6 +10416,56 @@ function changeTheme(theme) {
             root.style.setProperty('--highlight-color', '#f1c40f');
             root.style.setProperty('--total-bg', '#fdedec');
             break;
+        case 'crimson-orange':
+            root.style.setProperty('--primary-color', '#b11226');
+            root.style.setProperty('--secondary-color', '#e65100');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--highlight-color', '#ff9800');
+            root.style.setProperty('--total-bg', '#fff3e0');
+            break;
+
+        case 'ruby-amber':
+            root.style.setProperty('--primary-color', '#9b1c31');
+            root.style.setProperty('--secondary-color', '#ff8f00');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--highlight-color', '#ffc107');
+            root.style.setProperty('--total-bg', '#fff8e1');
+            break;
+
+        case 'fire-red':
+            root.style.setProperty('--primary-color', '#c62828');
+            root.style.setProperty('--secondary-color', '#ef6c00');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--highlight-color', '#ffb300');
+            root.style.setProperty('--total-bg', '#fff3e0');
+            break;
+
+        case 'sunset-ledger':
+            root.style.setProperty('--primary-color', '#8e0e00');
+            root.style.setProperty('--secondary-color', '#ff6f00');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--highlight-color', '#ffca28');
+            root.style.setProperty('--total-bg', '#fff8e1');
+            break;
+
+        case 'vermilion-cash':
+            root.style.setProperty('--primary-color', '#d32f2f');
+            root.style.setProperty('--secondary-color', '#f57c00');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ddd');
+            root.style.setProperty('--highlight-color', '#ffa726');
+            root.style.setProperty('--total-bg', '#fff3e0');
+            break;
+
         case 'purple':
             root.style.setProperty('--primary-color', '#9b59b6');
             root.style.setProperty('--secondary-color', '#8e44ad');
@@ -10610,6 +10727,96 @@ function changeTheme(theme) {
             root.style.setProperty('--highlight-color', '#4b0082');
             root.style.setProperty('--total-bg', '#f0f8ff');
             break;
+        case 'corporate-grey':
+            root.style.setProperty('--primary-color', '#4f5d73');
+            root.style.setProperty('--secondary-color', '#2f3e46');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#d6d6d6');
+            root.style.setProperty('--highlight-color', '#84a59d');
+            root.style.setProperty('--total-bg', '#f1f3f5');
+            break;
+
+        case 'invoice-green':
+            root.style.setProperty('--primary-color', '#166534');
+            root.style.setProperty('--secondary-color', '#14532d');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#dcfce7');
+            root.style.setProperty('--highlight-color', '#4ade80');
+            root.style.setProperty('--total-bg', '#f0fdf4');
+            break;
+
+        case 'ledger-maroon':
+            root.style.setProperty('--primary-color', '#7f1d1d');
+            root.style.setProperty('--secondary-color', '#5f1313');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#f3dcdc');
+            root.style.setProperty('--highlight-color', '#ef4444');
+            root.style.setProperty('--total-bg', '#fdf2f2');
+            break;
+
+        case 'classic-navy':
+            root.style.setProperty('--primary-color', '#0f172a');
+            root.style.setProperty('--secondary-color', '#020617');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#cbd5e1');
+            root.style.setProperty('--highlight-color', '#38bdf8');
+            root.style.setProperty('--total-bg', '#f8fafc');
+            break;
+
+        case 'steel':
+            root.style.setProperty('--primary-color', '#475569');
+            root.style.setProperty('--secondary-color', '#334155');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#e2e8f0');
+            root.style.setProperty('--highlight-color', '#94a3b8');
+            root.style.setProperty('--total-bg', '#f1f5f9');
+            break;
+
+        case 'professional-teal':
+            root.style.setProperty('--primary-color', '#0f766e');
+            root.style.setProperty('--secondary-color', '#115e59');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ccfbf1');
+            root.style.setProperty('--highlight-color', '#5eead4');
+            root.style.setProperty('--total-bg', '#f0fdfa');
+            break;
+
+        case 'audit-purple':
+            root.style.setProperty('--primary-color', '#581c87');
+            root.style.setProperty('--secondary-color', '#3b0764');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#f3e8ff');
+            root.style.setProperty('--highlight-color', '#c084fc');
+            root.style.setProperty('--total-bg', '#faf5ff');
+            break;
+
+        case 'cashflow-olive':
+            root.style.setProperty('--primary-color', '#3f6212');
+            root.style.setProperty('--secondary-color', '#365314');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#ecfccb');
+            root.style.setProperty('--highlight-color', '#a3e635');
+            root.style.setProperty('--total-bg', '#f7fee7');
+            break;
+
+        case 'platinum':
+            root.style.setProperty('--primary-color', '#6b7280');
+            root.style.setProperty('--secondary-color', '#4b5563');
+            root.style.setProperty('--text-color', '#333');
+            root.style.setProperty('--bg-color', '#ffffff');
+            root.style.setProperty('--border-color', '#e5e7eb');
+            root.style.setProperty('--highlight-color', '#9ca3af');
+            root.style.setProperty('--total-bg', '#f9fafb');
+            break;
+
     }
     setInDB('theme', 'theme', theme);
 }
@@ -11048,27 +11255,52 @@ async function downloadPDF() {
     });
 }
 
-// Print functionality (keep this as is)
+// Updated Print Functionality
 function handlePrint() {
-    // Save current view state
-    const previousView = currentView;
-
-    // Switch to bill view based on current mode
-    if (currentView !== 'bill') {
-        toggleView(); // This will switch to bill view
+    // 1. Identify the sidebar using the correct ID from your HTML
+    const sidebar = document.getElementById('app-sidebar');
+    
+    // 2. Check if it has the 'open' class
+    if (sidebar && sidebar.classList.contains('open')) {
+        // Call your existing toggle function to close it gracefully
+        if (typeof toggleSettingsSidebar === 'function') {
+            toggleSettingsSidebar();
+        }
     }
 
-    // Wait for UI to update, then trigger print
+    // 3. Handle Background (Force White)
+    const appBg = document.getElementById('app-background');
+    let prevBgDisplay = '';
+    if (appBg) {
+        prevBgDisplay = appBg.style.display;
+        appBg.style.display = 'none'; // Hide completely for print
+    }
+
+    // 4. Save View State
+    const previousView = currentView;
+
+    // 5. Ensure we are on Bill View
+    if (currentView !== 'bill') {
+        toggleView();
+    }
+
+    // 6. WAIT for Sidebar animation to finish (400ms), then Print
     setTimeout(() => {
         window.print();
 
-        // Optional: Return to previous view after print dialog closes
+        // 7. RESTORE State after Print Dialog closes
         setTimeout(() => {
+            // Restore View
             if (previousView !== 'bill') {
-                toggleView(); // Return to previous view
+                toggleView();
             }
-        }, 1000);
-    }, 500);
+            // Restore Background
+            if (appBg) {
+                appBg.style.display = prevBgDisplay;
+            }
+        }, 500); 
+
+    }, 400); // Delay matches CSS transition time
 }
 
 
