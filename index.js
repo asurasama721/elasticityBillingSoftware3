@@ -10936,7 +10936,16 @@ function toggleView() {
     const manual = document.getElementById("manual-item-container");
     const viewText = document.getElementById('view-text');
     const viewIcon = document.getElementById('view-icon');
-    const regFooterBtn = document.getElementById('reg-footer-btn'); // NEW
+    const regFooterBtn = document.getElementById('reg-footer-btn');
+
+    // === NEW LOGIC: Auto-off Profit View when switching to Bill ===
+    // If we are currently in 'input' mode and about to switch, and profit is active...
+    if (currentView === 'input' && typeof isProfitViewActive !== 'undefined' && isProfitViewActive) {
+        if (typeof restoreOriginalRates === 'function') {
+            restoreOriginalRates();
+        }
+    }
+    // ============================================================
 
     currentView = currentView === 'input' ? 'bill' : 'input';
 
@@ -10952,7 +10961,7 @@ function toggleView() {
             hideTableColumn(document.getElementById("gstCopyListManual"), 8, "none");
             hideTableColumn(document.getElementById("gstCopyListManual"), 7, "none");
 
-            if (regFooterBtn) regFooterBtn.style.display = 'none'; // Hide reg footer btn in GST
+            if (regFooterBtn) regFooterBtn.style.display = 'none';
         } else {
             bill.style.display = "block";
             gstBill.style.display = "none";
@@ -10960,7 +10969,7 @@ function toggleView() {
             hideTableColumn(document.getElementById("copyListManual"), 6, "none");
             updateTotal();
 
-            if (regFooterBtn) regFooterBtn.style.display = 'inline-block'; // Show reg footer btn
+            if (regFooterBtn) regFooterBtn.style.display = 'inline-block';
         }
     } else {
         bill.style.display = "none";
@@ -10969,7 +10978,7 @@ function toggleView() {
         viewText.textContent = "SHOW BILL";
         viewIcon.textContent = "description";
 
-        if (regFooterBtn) regFooterBtn.style.display = 'none'; // Hide in input mode
+        if (regFooterBtn) regFooterBtn.style.display = 'none';
 
         if (isGSTMode) {
             hideTableColumn(document.getElementById("gstCopyListManual"), 8, "table-cell");
@@ -10979,9 +10988,8 @@ function toggleView() {
             hideTableColumn(document.getElementById("copyListManual"), 6, "table-cell");
         }
     }
-    // FIX: Recalculate column widths and total row colspan immediately
+    
     applyColumnVisibility();
-    // updateColumnVisibility();
 }
 
 // SIMPLE DRAG & DROP - Unified for all rows
