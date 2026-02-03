@@ -4247,11 +4247,15 @@ let missingPurchaseItems = [];
 let isProfitViewActive = false;
 let originalRates = new Map();
 
-// Toggle profit view
 function toggleProfitView() {
     if (isProfitViewActive) {
         restoreOriginalRates();
     } else {
+        // === NEW LOGIC: Auto-switch to Input View ===
+        if (currentView === 'bill') {
+            toggleView(); // This will switch UI to Input Mode
+        }
+        // ============================================
         calculateProfit();
     }
 }
@@ -4634,27 +4638,27 @@ function storeOriginalRates() {
 
 // Sync restore to other tables with error handling
 function syncRestoreToOtherTables(itemId, originalRate, originalAmount) {
-    try {
-        // Update copyListManual table
-        const copyRow = document.querySelector(`#copyListManual tr[data-id="${itemId}"]`);
-        if (copyRow) {
-            const cells = copyRow.children;
-            cells[4].textContent = originalRate.toFixed(2);
-            cells[5].textContent = originalAmount.toFixed(2);
-        }
+    // try {
+    //     // Update copyListManual table
+    //     const copyRow = document.querySelector(`#copyListManual tr[data-id="${itemId}"]`);
+    //     if (copyRow) {
+    //         const cells = copyRow.children;
+    //         cells[4].textContent = originalRate.toFixed(2);
+    //         cells[5].textContent = originalAmount.toFixed(2);
+    //     }
 
-        // Update GST table if in GST mode
-        if (isGSTMode) {
-            const gstRow = document.querySelector(`#gstCopyListManual tr[data-id="${itemId}"]`);
-            if (gstRow) {
-                const cells = gstRow.children;
-                cells[5].textContent = originalRate.toFixed(2);
-                cells[6].textContent = originalAmount.toFixed(2);
-            }
-        }
-    } catch (error) {
-        console.error('Error syncing restore to other tables:', error);
-    }
+    //     // Update GST table if in GST mode
+    //     if (isGSTMode) {
+    //         const gstRow = document.querySelector(`#gstCopyListManual tr[data-id="${itemId}"]`);
+    //         if (gstRow) {
+    //             const cells = gstRow.children;
+    //             cells[5].textContent = originalRate.toFixed(2);
+    //             cells[6].textContent = originalAmount.toFixed(2);
+    //         }
+    //     }
+    // } catch (error) {
+    //     console.error('Error syncing restore to other tables:', error);
+    // }
 }
 
 // Detect and restore profit state after page refresh
@@ -4769,23 +4773,46 @@ function restoreOriginalRates() {
 function getFinalQuantity(row) {
     try {
         const dimensionType = row.getAttribute('data-dimension-type') || 'none';
-        const originalQuantity = parseFloat(row.getAttribute('data-original-quantity') || row.children[2].textContent) || 0;
-        let finalQuantity = originalQuantity;
+        
+        // 1. Get Base Quantity (The 'Qty' column, usually 1)
+        const qtyCell = row.children[2];
+        const rawQtyText = row.getAttribute('data-original-quantity') || (qtyCell ? qtyCell.textContent : '1');
+        const originalQuantity = parseFloat(rawQtyText) || 0;
 
-        if (dimensionType !== 'none' && dimensionType !== 'dozen') {
-            const dimensionValues = JSON.parse(row.getAttribute('data-dimension-values') || '[0,0,0]');
-            const calculatedArea = calculateAreaFromDimensions(dimensionType, dimensionValues);
-            finalQuantity = originalQuantity * (calculatedArea || 1);
-        } else if (dimensionType === 'dozen') {
-            finalQuantity = originalQuantity / 12;
+        // 2. Handle Simple Cases (None / Dozen)
+        if (dimensionType === 'none') {
+            return originalQuantity;
+        }
+        if (dimensionType === 'dozen') {
+            return originalQuantity / 12;
         }
 
-        return finalQuantity > 0 ? finalQuantity : 1; // Never return 0
+        // 3. Handle Dimensions: Parse result directly from displayed text
+        // Logic: Find the '=' sign in the text and take the number immediately after it.
+        const dimensionsDiv = row.querySelector('.dimensions');
+        if (dimensionsDiv) {
+            const text = dimensionsDiv.textContent || "";
+            if (text.includes('=')) {
+                const parts = text.split('=');
+                // Get the last part (the result) and parse it
+                // parseFloat will automatically ignore the unit text (e.g., "32ft²" -> 32)
+                const finalValue = parseFloat(parts[parts.length - 1]);
+                
+                if (!isNaN(finalValue) && finalValue > 0) {
+                    return finalValue;
+                }
+            }
+        }
+
+        // Fallback: If text parsing fails, return original quantity to avoid NaN
+        return originalQuantity > 0 ? originalQuantity : 1; 
+
     } catch (error) {
         console.error('Error calculating final quantity:', error);
-        return 1; // Safe fallback
+        return 1; 
     }
 }
+
 // Update individual item with profit calculation
 function updateItemWithProfitCalculation(row, profitRate, purchaseRate, originalRate) {
     const cells = row.children;
@@ -4893,17 +4920,54 @@ async function applyProfitRecalculation(items, manualPurchasePrices = {}) {
                 purchaseRate = savedItem?.purchaseRate || 0;
             }
 
-            if (purchaseRate > 0 && item.currentRate > purchaseRate) {
-                // Calculate profit rate (selling rate - purchase rate)
-                const profitRate = item.currentRate - purchaseRate;
+            if (purchaseRate > 0) {
+                // 1. Get Final Quantity (Handles dimensions & conversions)
+                const finalQuantity = getFinalQuantity(item.row);
 
-                // Update the item with profit calculation
-                updateItemWithProfitCalculation(item.row, profitRate, purchaseRate, item.currentRate);
-                totalProfit += profitRate * getFinalQuantity(item.row);
+                // 2. Calculate Gross Sales & Total Cost
+                // item.currentRate is the Base Selling Rate (before discount)
+                const grossSales = item.currentRate * finalQuantity;
+                const totalCost = purchaseRate * finalQuantity;
+
+                // 3. Calculate Discount Deduction
+                const discountType = item.row.getAttribute('data-discount-type') || 'none';
+                const discountValue = parseFloat(item.row.getAttribute('data-discount-value')) || 0;
+                
+                let totalDiscount = 0;
+                if (discountValue > 0) {
+                    switch (discountType) {
+                        case 'percent_per_unit':
+                            // Discount is % of rate * quantity
+                            totalDiscount = (item.currentRate * (discountValue / 100)) * finalQuantity;
+                            break;
+                        case 'amt_per_unit':
+                            // Discount is fixed amt per unit * quantity
+                            totalDiscount = discountValue * finalQuantity;
+                            break;
+                        case 'percent_on_amount':
+                             // Discount is % of the Gross Sales Amount
+                             totalDiscount = grossSales * (discountValue / 100);
+                             break;
+                        case 'amt_on_amount':
+                             // Discount is fixed lump-sum amount deducted from total
+                             totalDiscount = discountValue;
+                             break;
+                    }
+                }
+
+                // 4. Calculate Net Profit (Sales - Discount - Cost)
+                const netProfit = grossSales - totalDiscount - totalCost;
+
+                // 5. Calculate Effective Profit Rate (Per Unit) for Display
+                // We back-calculate the "Profit Per Unit" so the table display looks correct
+                const effectiveProfitRate = finalQuantity > 0 ? (netProfit / finalQuantity) : 0;
+
+                // 6. Update UI
+                // We update regardless of whether profit is positive or negative (loss)
+                updateItemWithProfitCalculation(item.row, effectiveProfitRate, purchaseRate, item.currentRate);
+                
+                totalProfit += netProfit;
                 updatedItems++;
-            } else if (purchaseRate > 0) {
-                // No profit or loss
-                updateItemWithProfitCalculation(item.row, 0, purchaseRate, item.currentRate);
             }
         }
 
@@ -4928,6 +4992,8 @@ async function applyProfitRecalculation(items, manualPurchasePrices = {}) {
         showNotification('Error applying profit calculation. Please try again.');
     }
 }
+
+
 async function updateSavedItemsWithPurchasePrices(purchasePrices, items) {
     // Add safety check for items
     if (!items || !Array.isArray(items)) {
@@ -5088,43 +5154,43 @@ function updateItemRateWithProfit(row, profitRate, purchaseRate) {
 
 // Sync profit update to other tables
 function syncProfitUpdateToOtherTables(itemId, profitRate, profitAmount, originalRate, purchaseRate) {
-    // Update copyListManual table
-    const copyRow = document.querySelector(`#copyListManual tr[data-id="${itemId}"]`);
-    if (copyRow) {
-        const cells = copyRow.children;
-        cells[4].innerHTML = `
-            <div class="profit-rate-display">
-                <div class="original-rate">₹${originalRate.toFixed(2)}</div>
-                <div class="profit-rate">Profit: ₹${profitRate.toFixed(2)}</div>
-            </div>
-        `;
-        cells[5].innerHTML = `
-            <div class="profit-amount-display">
-                <div class="profit-amount">₹${profitAmount.toFixed(2)}</div>
-                <div class="profit-label">Profit</div>
-            </div>
-        `;
-    }
+    // // Update copyListManual table
+    // const copyRow = document.querySelector(`#copyListManual tr[data-id="${itemId}"]`);
+    // if (copyRow) {
+    //     const cells = copyRow.children;
+    //     cells[4].innerHTML = `
+    //         <div class="profit-rate-display">
+    //             <div class="original-rate">₹${originalRate.toFixed(2)}</div>
+    //             <div class="profit-rate">Profit: ₹${profitRate.toFixed(2)}</div>
+    //         </div>
+    //     `;
+    //     cells[5].innerHTML = `
+    //         <div class="profit-amount-display">
+    //             <div class="profit-amount">₹${profitAmount.toFixed(2)}</div>
+    //             <div class="profit-label">Profit</div>
+    //         </div>
+    //     `;
+    // }
 
-    // Update GST table if in GST mode
-    if (isGSTMode) {
-        const gstRow = document.querySelector(`#gstCopyListManual tr[data-id="${itemId}"]`);
-        if (gstRow) {
-            const cells = gstRow.children;
-            cells[5].innerHTML = `
-                <div class="profit-rate-display">
-                    <div class="original-rate">₹${originalRate.toFixed(2)}</div>
-                    <div class="profit-rate">Profit: ₹${profitRate.toFixed(2)}</div>
-                </div>
-            `;
-            cells[6].innerHTML = `
-                <div class="profit-amount-display">
-                    <div class="profit-amount">₹${profitAmount.toFixed(2)}</div>
-                    <div class="profit-label">Profit</div>
-                </div>
-            `;
-        }
-    }
+    // // Update GST table if in GST mode
+    // if (isGSTMode) {
+    //     const gstRow = document.querySelector(`#gstCopyListManual tr[data-id="${itemId}"]`);
+    //     if (gstRow) {
+    //         const cells = gstRow.children;
+    //         cells[5].innerHTML = `
+    //             <div class="profit-rate-display">
+    //                 <div class="original-rate">₹${originalRate.toFixed(2)}</div>
+    //                 <div class="profit-rate">Profit: ₹${profitRate.toFixed(2)}</div>
+    //             </div>
+    //         `;
+    //         cells[6].innerHTML = `
+    //             <div class="profit-amount-display">
+    //                 <div class="profit-amount">₹${profitAmount.toFixed(2)}</div>
+    //                 <div class="profit-label">Profit</div>
+    //             </div>
+    //         `;
+    //     }
+    // }
 }
 
 // Add event listeners for purchase price dialog
