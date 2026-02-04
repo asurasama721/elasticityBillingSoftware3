@@ -2257,6 +2257,16 @@ async function handleItemSearch() {
     const searchTerm = document.getElementById('itemNameManual').value.trim().toLowerCase();
     const suggestions = document.getElementById('item-suggestions');
 
+    // === NEW CHECK: Disable suggestions if in Update Mode ===
+    // If the Update button is visible, we are editing an existing item.
+    // We stop here to prevent overwriting your current edits.
+    const updateBtn = document.getElementById('updateItemBtnManual');
+    if (updateBtn && updateBtn.style.display !== 'none') {
+        suggestions.style.display = 'none';
+        return;
+    }
+    // ========================================================
+
     if (searchTerm.length < 1) {
         suggestions.style.display = 'none';
         return;
@@ -2500,6 +2510,15 @@ function selectSavedUnitSuggestion(unit) {
 }
 
 async function handleItemNameInput() {
+    // === BUG FIX: STOP AUTO-FILL WHEN UPDATING ===
+    // If the Update button is visible, do NOT fetch data from DB.
+    // This allows you to rename items without resetting their rates/qty.
+    const updateBtn = document.getElementById('updateItemBtnManual');
+    if (updateBtn && updateBtn.style.display !== 'none') {
+        return; 
+    }
+    // =============================================
+
     const itemName = document.getElementById('itemNameManual').value.trim();
     if (!itemName) return;
 
