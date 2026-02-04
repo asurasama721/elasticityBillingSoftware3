@@ -4248,18 +4248,21 @@ let isProfitViewActive = false;
 let originalRates = new Map();
 
 function toggleProfitView() {
+    // 1. Close the sidebar immediately for better visibility
+    if (typeof toggleSettingsSidebar === 'function') {
+        toggleSettingsSidebar();
+    }
+
     if (isProfitViewActive) {
         restoreOriginalRates();
     } else {
-        // === NEW LOGIC: Auto-switch to Input View ===
+        // Auto-switch to Input View if currently on Bill View
         if (currentView === 'bill') {
-            toggleView(); // This will switch UI to Input Mode
+            toggleView(); 
         }
-        // ============================================
         calculateProfit();
     }
 }
-
 /* ==========================================================================
    PDF DOWNLOAD LOGIC (LEDGER)
    ========================================================================== */
@@ -4578,17 +4581,47 @@ async function findItemsWithMissingPurchasePrices(items) {
     for (const item of items) {
         const savedItem = await getFromDB('savedItems', item.itemName);
 
+        // === NEW: Calculate Effective Selling Rate (Post-Discount) ===
+        let effectiveRate = item.currentRate;
+        const row = item.row;
+        
+        // Get discount details directly from row attributes
+        const discountType = row.getAttribute('data-discount-type') || 'none';
+        const discountValue = parseFloat(row.getAttribute('data-discount-value')) || 0;
+
+        if (discountValue > 0) {
+            if (discountType === 'percent_per_unit' || discountType === 'percent_on_amount') {
+                // Percentage logic is mathematically the same for Unit or Total
+                // Rate reduces by the percentage
+                effectiveRate = effectiveRate - (effectiveRate * (discountValue / 100));
+                
+            } else if (discountType === 'amt_per_unit') {
+                // Direct deduction from unit rate
+                effectiveRate = effectiveRate - discountValue;
+                
+            } else if (discountType === 'amt_on_amount') {
+                // Lump sum deduction from total amount
+                // We must divide the lump sum by the Final Quantity to get the per-unit deduction
+                const finalQty = getFinalQuantity(row); 
+                if (finalQty > 0) {
+                    const discountPerUnit = discountValue / finalQty;
+                    effectiveRate = effectiveRate - discountPerUnit;
+                }
+            }
+        }
+        // ============================================================
+
         if (!savedItem || !savedItem.purchaseRate || savedItem.purchaseRate <= 0) {
             missingItems.push({
                 ...item,
-                purchaseRate: savedItem?.purchaseRate || 0
+                purchaseRate: savedItem?.purchaseRate || 0,
+                effectiveRate: effectiveRate // Store calculated rate for the dialog
             });
         }
     }
 
     return missingItems;
 }
-
 // Show purchase price dialog
 function showPurchasePriceDialog(missingItems) {
     const itemsList = document.getElementById('purchase-price-items-list');
@@ -4597,18 +4630,34 @@ function showPurchasePriceDialog(missingItems) {
     missingItems.forEach(item => {
         const itemElement = document.createElement('div');
         itemElement.className = 'purchase-price-item';
+        
+        // Force Column Layout via inline CSS
+        itemElement.style.cssText = "display: flex; flex-direction: column; align-items: stretch; gap: 8px;"; 
+
+        // Use the new effectiveRate if available, otherwise currentRate
+        const displayRate = item.effectiveRate !== undefined ? item.effectiveRate : item.currentRate;
+
         itemElement.innerHTML = `
-            <div class="purchase-price-item-name">${item.itemName}</div>
-            <div class="current-rate">Selling: ₹${item.currentRate.toFixed(2)}</div>
-            <div class="purchase-price-input-group">
-                <label>Purchase:</label>
-                <input type="number" 
-                       class="purchase-price-input" 
-                       data-item-id="${item.id}"
-                       value="${item.purchaseRate || ''}" 
-                       placeholder="0.00" 
-                       step="0.01" 
-                       min="0">
+            <div class="purchase-price-item-name" style="border-bottom: 1px dashed #ddd; padding-bottom: 5px; margin: 0;">
+                ${item.itemName}
+            </div>
+            
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="current-rate" style="font-size: 0.9em; color: #555;">
+                    Selling: <strong>₹${displayRate.toFixed(2)}</strong>
+                </div>
+                
+                <div class="purchase-price-input-group" style="display: flex; align-items: center; gap: 5px;">
+                    <label style="font-size: 0.9em;">Cost:</label>
+                    <input type="number" 
+                           class="purchase-price-input" 
+                           data-item-id="${item.id}"
+                           value="${item.purchaseRate || ''}" 
+                           placeholder="0.00" 
+                           step="0.01" 
+                           min="0"
+                           style="width: 100px; padding: 4px;">
+                </div>
             </div>
         `;
         itemsList.appendChild(itemElement);
