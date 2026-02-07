@@ -8580,15 +8580,26 @@ function createTermsFromData(termsData) {
     listHTML += `</${termsData.listType}>`;
     listContainer.innerHTML = listHTML;
 
-    // Insert below the appropriate table
+    // === INSERTION LOGIC (Matched to saveTermsList) ===
     const billTotalTable = document.getElementById('bill-total-table');
     const gstBillTotalsTable = document.getElementById('gst-bill-totals-table');
+    
+    // NEW: Target the Payment Container first (Just like saveTermsList)
+    const billPaymentsContainer = document.getElementById('bill-payments-container');
 
-    if (billTotalTable && !isGSTMode) {
-        billTotalTable.parentNode.insertBefore(listContainer, billTotalTable.nextSibling);
+    if (!isGSTMode) {
+        // Regular Mode: Try to insert after Payment Table, fallback to Total Table
+        // This ensures it sits BELOW the payments and ABOVE the footer
+        const targetElement = billPaymentsContainer || billTotalTable;
+
+        if (targetElement && targetElement.parentNode) {
+            targetElement.parentNode.insertBefore(listContainer, targetElement.nextSibling);
+        }
     } else if (gstBillTotalsTable && isGSTMode) {
+        // GST Mode
         gstBillTotalsTable.parentNode.insertBefore(listContainer, gstBillTotalsTable.nextSibling);
     } else {
+        // Fallback
         const listContainerParent = document.querySelector('.list-of-items');
         if (listContainerParent) {
             listContainerParent.appendChild(listContainer);
