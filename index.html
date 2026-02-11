@@ -442,7 +442,7 @@
 
                 <div class="form-group">
                     <label for="company-code">State Code:</label>
-                    <input type="text" id="company-code" value="27">
+                    <input type="text" id="company-code" value="">
                 </div>
 
                 <div class="section-divider"></div>
@@ -532,7 +532,7 @@
 
                     <div class="form-group">
                         <label for="consignee-code">State Code:</label>
-                        <input type="text" id="consignee-code" value="27">
+                        <input type="text" id="consignee-code" value="">
                     </div>
 
                     <div class="form-group">
@@ -570,7 +570,7 @@
 
                     <div class="form-group">
                         <label for="buyer-code">State Code:</label>
-                        <input type="text" id="buyer-code" value="27">
+                        <input type="text" id="buyer-code" value="">
                     </div>
 
                     <div class="form-group">
@@ -1233,10 +1233,10 @@
 
             <div id="sub-business" class="sub-menu-group">
                 <div class="sub-menu-header">Business</div>
-                <button onclick="openBusinessDashboard()" class="sidebar-action-btn">
+                <!-- <button onclick="openBusinessDashboard()" class="sidebar-action-btn">
                     <span class="material-icons">dashboard</span>
                     <span class="sidebar-label">Dashboard</span>
-                </button>
+                </button> -->
                 <button onclick="openCompanyInfoModal()" class="sidebar-action-btn company-info-btn">
                     <span class="material-icons">business</span>
                     <span class="sidebar-label">Company Info</span>
@@ -1757,7 +1757,7 @@
                         <p id="billToAddr">new york city</p>
                         <p>GSTIN : <span id="billToGstin">customer 15-digit GSTIN</span></p>
                         <p>Contact : <span id="billToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
-                        <p>State : <span id="billToState"></span>, Code : <span id="billToStateCode">27</span></p>
+                        <p>State : <span id="billToState"></span>, Code : <span id="billToStateCode"></span></p>
                     </div>
                 </div>
 
@@ -1769,7 +1769,7 @@
                         <p id="shipToAddr">new york city</p>
                         <p>GSTIN : <span id="shipToGstin">customer 15-digit GSTIN</span></p>
                         <p>Contact : <span id="shipToContact">+91 1234567890</span></p> <!-- ADD THIS LINE -->
-                        <p>State : <span id="shipToState"></span>, Code : <span id="shipToStateCode">27</span></p>
+                        <p>State : <span id="shipToState"></span>, Code : <span id="shipToStateCode"></span></p>
                         <p>Place Of Supply: <span id="shipToPOS">pune</span></p>
                     </div>
                 </div>
@@ -1853,7 +1853,7 @@
                                 <p><strong style="font-size: 0.8em;">Amount Chargeable (in words)</strong></p>
                             </td>
                             <td class="align-center" colspan="2">
-                                <p id="bill-company-signatory">for SHREE BALAJI PLY AND HARDWARE</p>
+                                <p id="bill-company-signatory">for COMPANY NAME</p>
                             </td>
                         </tr>
 
@@ -3509,7 +3509,7 @@
                             <div style="display: flex; gap: 5px;">
                                 <input type="text" id="reg-modal-bill-state" value="" placeholder="State"
                                     style="flex: 2;">
-                                <input type="text" id="reg-modal-bill-code" value="27" placeholder="Code"
+                                <input type="text" id="reg-modal-bill-code" value="" placeholder="Code"
                                     style="flex: 1;">
                             </div>
                         </div>
@@ -3527,7 +3527,7 @@
                             <div style="display: flex; gap: 5px;">
                                 <input type="text" id="reg-modal-ship-state" value="" placeholder="State"
                                     style="flex: 2;">
-                                <input type="text" id="reg-modal-ship-code" value="27" placeholder="Code"
+                                <input type="text" id="reg-modal-ship-code" value="" placeholder="Code"
                                     style="flex: 1;">
                             </div>
                             <input type="text" id="reg-modal-ship-pos" value="" placeholder="Place of Supply"
