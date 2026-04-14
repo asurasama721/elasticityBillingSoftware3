@@ -1196,7 +1196,7 @@ body.gst-mode .settings-btn:hover .material-icons {
 /* Updated Add Item Modal Styles */
 #add-item-modal .modal-content {
     width: 95%;
-    height: 80vh;
+    /* height: 80vh; */
     max-height: 80vh;
     /* max-width: 600px;
     max-height: 500px; */
