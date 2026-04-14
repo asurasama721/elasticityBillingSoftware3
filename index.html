@@ -407,7 +407,7 @@
         <div class="modal-content" style="max-width: 600px;">
             <div class="modal-header">
                 <h3>Company Information</h3>
-                <span class="close" onclick="closeCompanyInfoModal()">&times;</span>
+                <span class="close" onclick="closeCompanyInfoModal()">×</span>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -448,26 +448,67 @@
                 <div class="section-divider"></div>
 
                 <h3>Banking Details</h3>
+
                 <div class="form-group">
-                    <label for="account-number">A/C No:</label>
-                    <input type="text" id="account-number" placeholder="Account Number">
+                    <label for="bankSelect">Select Active Bank:</label>
+                    <select id="bankSelect" onchange="handleBankSelect()"
+                        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 10px;">
+                        <option value="">Loading...</option>
+                    </select>
+
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button onclick="prepareAddBank()" class="btn-apply" style="flex: 1; justify-content: center;">
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">add</span> New
+                        </button>
+                        <button onclick="prepareEditBank()" class="btn-cancel"
+                            style="flex: 1; justify-content: center; background: #fff; border: 1px solid var(--primary-color); color: var(--primary-color);">
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">edit</span> Edit
+                        </button>
+                        <button onclick="deleteBank()" class="btn-cancel"
+                            style="flex: 1; justify-content: center; background: #fff; border: 1px solid #dc3545; color: #dc3545;">
+                            <span class="material-icons"
+                                style="font-size: 1.5rem; margin-right: 5px;vertical-align: middle;">delete</span>
+                            Delete
+                        </button>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="ifsc-code">IFSC Code:</label>
-                    <input type="text" id="ifsc-code" placeholder="IFSC Code">
+
+                <div id="bankForm"
+                    style="display: none; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+                    <h4 style="margin-top: 0; margin-bottom: 15px; color: var(--primary-color);">Bank Details</h4>
+                    <input type="hidden" id="editBankId" value="">
+
+                    <div class="form-group">
+                        <label for="account-number">A/C No:</label>
+                        <input type="text" id="account-number" placeholder="Account Number">
+                    </div>
+                    <div class="form-group">
+                        <label for="ifsc-code">IFSC Code:</label>
+                        <input type="text" id="ifsc-code" placeholder="IFSC Code">
+                    </div>
+                    <div class="form-group">
+                        <label for="branch">Branch:</label>
+                        <input type="text" id="branch" placeholder="Branch Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="bank-name">Bank Name:</label>
+                        <input type="text" id="bank-name" placeholder="Bank Name">
+                    </div>
+                    <div class="form-group">
+                        <label for="account-holder">Account Holder Name:</label>
+                        <input type="text" id="account-holder" placeholder="Account Holder Name">
+                    </div>
+
+                    <div style="text-align: right; margin-top: 15px;">
+                        <button onclick="saveBank()" class="btn-apply" style="width: auto; padding: 8px 20px;">Save
+                            Bank</button>
+                        <button onclick="hideBankForm()" class="btn-cancel"
+                            style="width: auto; padding: 8px 20px; margin-left: 10px;">Cancel</button>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label for="branch">Branch:</label>
-                    <input type="text" id="branch" placeholder="Branch Name">
-                </div>
-                <div class="form-group">
-                    <label for="bank-name">Bank Name:</label>
-                    <input type="text" id="bank-name" placeholder="Bank Name">
-                </div>
-                <div class="form-group">
-                    <label for="account-holder">Account Holder Name:</label>
-                    <input type="text" id="account-holder" placeholder="Account Holder Name">
-                </div>
+
             </div>
             <div class="modal-footer">
                 <button onclick="closeCompanyInfoModal()" class="btn-cancel">Cancel</button>
@@ -2013,23 +2054,35 @@
                 oninput="autoSave()"></textarea>
 
             <div class="size-input">
-                <button onclick="addRowManual()" id="addItemBtnManual">Add Item</button>
+                <button onclick="addRowManual()" id="addItemBtnManual" title="Add Item">
+                    <span class="material-icons">add</span>
+                </button>
 
                 <button onclick="updateRowManual()" id="updateItemBtnManual"
-                    style="display: none; background-color: var(--primary-color); padding: 2px 4px;"
+                    style="display: none; background-color: var(--primary-color);"
                     title="Update Item">
                     <span class="material-icons">check</span>
                 </button>
                 <button onclick="cancelUpdateManual()" id="cancelUpdateBtnManual"
-                    style="display: none; background-color: #e74c3c; padding: 2px 4px;" title="Cancel Update">
+                    style="display: none; background-color: #e74c3c;" title="Cancel Update">
                     <span class="material-icons">close</span>
                 </button>
 
-                <button onclick="toggleDiscountInputs()" id="toggleDiscountBtn">Discount</button>
-                <button onclick="toggleDimensionInputs()" id="toggleDimensionBtn">Dimensions</button>
+                <button onclick="toggleDiscountInputs()" id="toggleDiscountBtn" title="Discount">
+                    <span class="material-icons">local_offer</span>
+                </button>
+                <button onclick="toggleDimensionInputs()" id="toggleDimensionBtn"
+                    style="background-color: rgb(52, 152, 219);" title="Dimensions">
+                    <span class="material-icons">straighten</span>
+                </button>
                 <button onclick="toggleConvertOptions()" id="toggleConvertBtn"
-                    style="display: none; background-color: #95a5a6;">Convert</button>
-                <button onclick="toggleGSTInclusive()" id="gstInclusiveBtn" style="display: none;">Exclusive</button>
+                    style="display: none; background-color: rgb(149, 165, 166);" title="Convert">
+                    <span class="material-icons">transform</span>
+                </button>
+                <button onclick="toggleGSTInclusive()" id="gstInclusiveBtn" style="display: none;"
+                    title="Toggle Exclusive/Inclusive">
+                    <span class="material-icons">receipt_long</span>
+                </button>
             </div>
 
             <div id="addedItemsManual">
