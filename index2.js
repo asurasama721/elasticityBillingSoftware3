@@ -1,8 +1,13 @@
 
 function openCompanyInfoModal() {
-    toggleSettingsSidebar()
+    if (typeof toggleSettingsSidebar === 'function') toggleSettingsSidebar();
     document.getElementById('company-info-modal').style.display = 'block';
     loadCompanyInfo();
+    
+    // ADD THIS: Fetch banks and remove "Loading..." text
+    if (typeof loadBanksIntoSelect === 'function') {
+        loadBanksIntoSelect();
+    }
 }
 
 function closeCompanyInfoModal() {
