@@ -1129,18 +1129,33 @@
     </div>
 
     <!-- History Modal -->
-    <div id="history-modal" class="modal">
+    <div id="history-modal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h3>Bill History</h3>
-                <span class="close" onclick="closeHistoryModal()">&times;</span>
+                <span class="close" onclick="closeHistoryModal()">×</span>
             </div>
             <div class="modal-body">
-                <div class="search-add-bar">
-                    <input type="text" id="history-search" placeholder="Search history..." oninput="searchHistory()">
-                    <button onclick="openClearHistoryConfirmation()" class="btn-delete">Clear All History</button>
+                <div class="search-add-bar" style="display: flex; gap: 10px; align-items: center;">
+                    <input type="text" id="history-search" placeholder="Search history..." oninput="searchHistory()"
+                        style="flex: 1;">
+
+                    <select id="history-search-by" onchange="searchHistory()"
+                        style="padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="all">All</option>
+                        <option value="name">Name</option>
+                        <option value="type">Invoice Type</option>
+                        <option value="date">Date & Time</option>
+                        <option value="amount">Amount</option>
+                    </select>
+
+                    <button onclick="openClearHistoryConfirmation()" class="btn-delete" title="Clear All History"
+                        style="display: flex; align-items: center; justify-content: center; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd; background: #fff; cursor: pointer; color: #dc3545;">
+                        <span class="material-icons">delete</span>
+                    </button>
                 </div>
-                <div id="history-list" class="items-list" style="max-height: 400px; overflow-y: auto;"></div>
+                <div id="history-list" class="items-list" style="max-height: 400px; overflow-y: auto;">
+                </div>
             </div>
         </div>
     </div>
@@ -1245,11 +1260,11 @@
                     <span class="material-icons">qr_code_2</span>
                     <span class="sidebar-label">Payment Receivers</span>
                 </button>
-                <button onclick="toggleSimpleQRFooter()" id="btn-simple-qr" class="sidebar-action-btn"
+                <!-- <button onclick="toggleSimpleQRFooter()" id="btn-simple-qr" class="sidebar-action-btn"
                     style="display: flex;">
                     <span class="material-icons">qr_code</span>
                     <span class="sidebar-label">Simple QR : OFF</span>
-                </button>
+                </button> -->
                 <button onclick="openBillHeadingModal()" class="sidebar-action-btn">
                     <span class="material-icons">title</span>
                     <span class="sidebar-label">Bill Headings</span>
@@ -1676,7 +1691,7 @@
                                 id="reg-stamp-cell"></td>
                             <td rowspan="2" style="width: 15%; vertical-align: middle;text-align: center;"
                                 id="reg-signature-cell"></td>
-                                
+
                         </tr>
                         <tr>
                             <td class="bank-info" style="width: 45%;">
