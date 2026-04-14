@@ -2,7 +2,7 @@
 let db = null;
 const DB_NAME = 'BillAppDB';
 
-const DB_VERSION = 10; // Changed from 5 to 6 to trigger upgrade
+const DB_VERSION = 13; // Increase this number!
 let dbInitialized = false;
 let dbInitPromise = null;
 let isGSTMode = false;
@@ -80,6 +80,9 @@ let currentReceiver = null;
 let isSimpleQREnabled = false; // Default State
 // let qrCodeObj = null; // To hold the QRCode instance
 
+// BANKING DETAILS CURD
+let currentBank = null; // Add to global variables
+
 // Add this with other global variables
 let sectionModalState = {
     align: 'left',
@@ -110,10 +113,15 @@ function initDB() {
             dbInitialized = true;
 
             // 1. === FIX: Load Receiver immediately after DB is ready ===
-            // This fixes the Race Condition where the QR code didn't load on refresh
             if (typeof loadSelectedReceiver === 'function') {
                 console.log("DB Ready: Loading Active Receiver...");
                 loadSelectedReceiver();
+            }
+
+            // === FIX: Load Bank immediately after DB is ready ===
+            if (typeof loadSelectedBank === 'function') {
+                console.log("DB Ready: Loading Active Bank...");
+                loadSelectedBank();
             }
 
             // 2. === NEW: Load Simple QR Setting ===
@@ -220,6 +228,11 @@ function initDB() {
             if (!database.objectStoreNames.contains('restoredBills')) {
                 database.createObjectStore('restoredBills', { keyPath: 'id' });
             }
+            // --- WITH THIS NEW BLOCK ---
+            if (database.objectStoreNames.contains('companyBanks')) {
+                database.deleteObjectStore('companyBanks'); // Delete the broken one
+            }
+            database.createObjectStore('companyBanks', { keyPath: 'id' }); // Create it properly
         };
 
         request.onblocked = () => {
@@ -2515,7 +2528,7 @@ async function handleItemNameInput() {
     // This allows you to rename items without resetting their rates/qty.
     const updateBtn = document.getElementById('updateItemBtnManual');
     if (updateBtn && updateBtn.style.display !== 'none') {
-        return; 
+        return;
     }
     // =============================================
 
@@ -7749,7 +7762,7 @@ function toggleRegularFooter() {
     // 4. Apply Visibility to Footer Elements
     const regFooter = document.getElementById('regular-bill-footer');
     const simpleFooter = document.getElementById('simple-bill-footer');
-    
+
     if (regFooter) {
         regFooter.style.display = isRegularFooterVisible ? 'table' : 'none';
     }
@@ -7764,7 +7777,7 @@ function toggleRegularFooter() {
         const isActive = isRegularFooterVisible || isSimpleQREnabled;
         btn.style.backgroundColor = isActive ? 'var(--primary-color)' : '';
         btn.style.color = isActive ? 'white' : '';
-        
+
         // Update label to reflect current state
         const labelSpan = btn.querySelectorAll('span');
         if (labelSpan) {
@@ -8040,6 +8053,212 @@ function loadSelectedReceiver() {
     });
 }
 
+
+
+function hideBankForm() {
+    document.getElementById('bankForm').style.display = 'none';
+    document.getElementById('account-number').value = '';
+    document.getElementById('ifsc-code').value = '';
+    document.getElementById('branch').value = '';
+    document.getElementById('bank-name').value = '';
+    document.getElementById('account-holder').value = '';
+    document.getElementById('editBankId').value = '';
+}
+
+function loadBanksIntoSelect() {
+    const select = document.getElementById('bankSelect');
+    select.innerHTML = '<option value="">Loading...</option>';
+
+    getAllFromDB('companyBanks').then(banks => {
+        select.innerHTML = '';
+        if (!banks || banks.length === 0) {
+            select.innerHTML = '<option value="">No banks added</option>';
+            return;
+        }
+
+        banks.forEach(b => {
+            const data = b.value ? b.value : b;
+            const id = b.id || data.id;
+
+            if (data && data.bankName) {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = `${data.bankName} - ${data.accountNo}` + (data.isSelected ? ' (Active)' : '');
+                if (data.isSelected) opt.selected = true;
+                select.appendChild(opt);
+            }
+        });
+    });
+}
+
+function prepareAddBank() {
+    document.getElementById('bankForm').style.display = 'block';
+    document.getElementById('editBankId').value = '';
+    document.getElementById('account-number').value = '';
+    document.getElementById('ifsc-code').value = '';
+    document.getElementById('branch').value = '';
+    document.getElementById('bank-name').value = '';
+    document.getElementById('account-holder').value = '';
+
+    const saveBtn = document.querySelector('#bankForm .btn-apply');
+    const cancelBtn = document.querySelector('#bankForm .btn-cancel');
+    if (saveBtn) saveBtn.textContent = 'Add Bank';
+    if (cancelBtn) cancelBtn.textContent = 'Cancel';
+
+    document.getElementById('account-number').focus();
+}
+
+function prepareEditBank() {
+    const select = document.getElementById('bankSelect');
+    const id = parseInt(select.value);
+    if (!id) {
+        alert("Please select a bank to edit");
+        return;
+    }
+
+    getFromDB('companyBanks', id).then(data => {
+        const b = (data && data.value) ? data.value : data;
+
+        if (b) {
+            document.getElementById('bankForm').style.display = 'block';
+            document.getElementById('editBankId').value = id;
+            document.getElementById('account-number').value = b.accountNo;
+            document.getElementById('ifsc-code').value = b.ifsc;
+            document.getElementById('branch').value = b.branch;
+            document.getElementById('bank-name').value = b.bankName;
+            document.getElementById('account-holder').value = b.holderName;
+
+            const saveBtn = document.querySelector('#bankForm .btn-apply');
+            const cancelBtn = document.querySelector('#bankForm .btn-cancel');
+            if (saveBtn) saveBtn.textContent = 'Update Details';
+            if (cancelBtn) cancelBtn.textContent = 'Cancel Edit';
+        }
+    });
+}
+
+function saveBank() {
+    const accountNo = document.getElementById('account-number').value.trim();
+    const ifsc = document.getElementById('ifsc-code').value.trim();
+    const branch = document.getElementById('branch').value.trim();
+    const bankName = document.getElementById('bank-name').value.trim();
+    const holderName = document.getElementById('account-holder').value.trim();
+    const editId = document.getElementById('editBankId').value;
+
+    if (!accountNo || !bankName) {
+        alert("Account Number and Bank Name are required");
+        return;
+    }
+
+    const id = editId ? parseInt(editId) : Date.now();
+    const bankData = {
+        id: id,
+        accountNo: accountNo,
+        ifsc: ifsc,
+        branch: branch,
+        bankName: bankName,
+        holderName: holderName
+    };
+
+    getAllFromDB('companyBanks').then(all => {
+        if (!all || all.length === 0) {
+            bankData.isSelected = true;
+        } else if (editId) {
+            const existingWrap = all.find(x => (x.id || (x.value && x.value.id)) == id);
+            const existing = existingWrap ? (existingWrap.value || existingWrap) : null;
+            if (existing && existing.isSelected) {
+                bankData.isSelected = true;
+            }
+        } else {
+            const hasActive = all.some(b => {
+                const d = b.value || b;
+                return d.isSelected === true;
+            });
+            if (!hasActive) bankData.isSelected = true;
+        }
+
+        setInDB('companyBanks', id, bankData).then(() => {
+            hideBankForm();
+            loadBanksIntoSelect();
+            if (bankData.isSelected) {
+                loadSelectedBank();
+            }
+        });
+    });
+}
+
+function deleteBank() {
+    const select = document.getElementById('bankSelect');
+    const idToDelete = parseInt(select.value);
+    if (!idToDelete) return;
+
+    if (confirm("Delete this bank profile?")) {
+        const isDeletingActive = (currentBank && currentBank.id === idToDelete);
+
+        removeFromDB('companyBanks', idToDelete).then(() => {
+            getAllFromDB('companyBanks').then(banks => {
+                const remaining = banks || [];
+
+                if (isDeletingActive) {
+                    if (remaining.length > 0) {
+                        const nextRaw = remaining;
+                        const nextData = nextRaw.value ? nextRaw.value : nextRaw;
+                        nextData.isSelected = true;
+
+                        setInDB('companyBanks', nextData.id, nextData).then(() => {
+                            loadSelectedBank();
+                            loadBanksIntoSelect();
+                        });
+                    } else {
+                        currentBank = null;
+                        if (typeof updateRegularFooterInfo === 'function') updateRegularFooterInfo();
+                        loadBanksIntoSelect();
+                    }
+                } else {
+                    loadBanksIntoSelect();
+                }
+            });
+        });
+    }
+}
+
+function handleBankSelect() {
+    const select = document.getElementById('bankSelect');
+    const selectedId = parseInt(select.value);
+    if (!selectedId) return;
+
+    getAllFromDB('companyBanks').then(banks => {
+        const promises = banks.map(b => {
+            const data = b.value ? b.value : b;
+            const id = b.id || data.id;
+            data.isSelected = (id === selectedId);
+            return setInDB('companyBanks', id, data);
+        });
+
+        Promise.all(promises).then(() => {
+            loadSelectedBank();
+            loadBanksIntoSelect();
+        });
+    });
+}
+
+function loadSelectedBank() {
+    getAllFromDB('companyBanks').then(banks => {
+        if (!banks) return;
+
+        const activeWrapper = banks.find(b => {
+            const data = b.value ? b.value : b;
+            return data.isSelected === true;
+        });
+
+        currentBank = activeWrapper ? (activeWrapper.value || activeWrapper) : null;
+
+        // Update the visual footer with the new active bank details
+        if (typeof updateRegularFooterInfo === 'function') {
+            updateRegularFooterInfo();
+        }
+    });
+}
+
 // ==========================================
 // 2. QR GENERATION LOGIC (ROBUST)
 // ==========================================
@@ -8231,7 +8450,7 @@ function applyFooterModes() {
 // ==========================================
 
 function updateRegularFooterInfo() {
-    if (!companyInfo) return;
+    if (!companyInfo) return; // Still needed for the Signatory name
 
     // Map Element IDs for Regular Footer
     const fields = {
@@ -8249,18 +8468,29 @@ function updateRegularFooterInfo() {
         if (el) el.textContent = val || '-';
     };
 
-    // 1. Set Company Details (Regular Footer)
+    // 1. Set Signatory Name (From Company Info)
     setText(fields.signatory, `for ${companyInfo.name || 'COMPANY NAME'}`);
-    setText(fields.accHolder, companyInfo.accountHolder);
-    setText(fields.accNo, companyInfo.accountNumber);
-    setText(fields.ifsc, companyInfo.ifscCode);
-    setText(fields.branch, companyInfo.branch);
-    setText(fields.bank, companyInfo.bankName);
+
+    // === FIX: Set Banking Details (From currentBank) ===
+    if (currentBank) {
+        setText(fields.accHolder, currentBank.holderName);
+        setText(fields.accNo, currentBank.accountNo);
+        setText(fields.ifsc, currentBank.ifsc);
+        setText(fields.branch, currentBank.branch);
+        setText(fields.bank, currentBank.bankName);
+    } else {
+        // Fallback if no bank is selected/added yet
+        setText(fields.accHolder, '-');
+        setText(fields.accNo, '-');
+        setText(fields.ifsc, '-');
+        setText(fields.branch, '-');
+        setText(fields.bank, '-');
+    }
 
     // Set UPI Text (Regular Footer)
     setText(fields.upi, currentReceiver ? currentReceiver.upi : '-');
 
-    // 2. === NEW: Update Simple Footer Info (Sync) ===
+    // 2. Update Simple Footer Info (Sync)
     const simpleName = document.getElementById('simple-footer-name');
     const simpleUpi = document.getElementById('simple-footer-upi');
 
@@ -8271,7 +8501,7 @@ function updateRegularFooterInfo() {
     const regStampCell = document.getElementById('reg-stamp-cell');
     const regSignatureCell = document.getElementById('reg-signature-cell');
 
-    if (regStampCell && regSignatureCell && brandingSettings) {
+    if (regStampCell && regSignatureCell && typeof brandingSettings !== 'undefined' && brandingSettings) {
         regStampCell.innerHTML = '';
         regSignatureCell.innerHTML = '';
 
@@ -8291,7 +8521,7 @@ function updateRegularFooterInfo() {
     }
 
     // 4. Always trigger QR Generation when footer updates
-    generateBillQRCode();
+    if (typeof generateBillQRCode === 'function') generateBillQRCode();
 }
 
 // Initialize Receiver on Load
@@ -8605,7 +8835,7 @@ function createTermsFromData(termsData) {
     // === INSERTION LOGIC (Matched to saveTermsList) ===
     const billTotalTable = document.getElementById('bill-total-table');
     const gstBillTotalsTable = document.getElementById('gst-bill-totals-table');
-    
+
     // NEW: Target the Payment Container first (Just like saveTermsList)
     const billPaymentsContainer = document.getElementById('bill-payments-container');
 
@@ -11040,7 +11270,7 @@ function toggleView() {
             hideTableColumn(document.getElementById("copyListManual"), 6, "table-cell");
         }
     }
-    
+
     applyColumnVisibility();
 }
 
@@ -11319,7 +11549,7 @@ async function downloadPDF() {
 function handlePrint() {
     // 1. Identify the sidebar using the correct ID from your HTML
     const sidebar = document.getElementById('app-sidebar');
-    
+
     // 2. Check if it has the 'open' class
     if (sidebar && sidebar.classList.contains('open')) {
         // Call your existing toggle function to close it gracefully
@@ -11358,7 +11588,7 @@ function handlePrint() {
             if (appBg) {
                 appBg.style.display = prevBgDisplay;
             }
-        }, 500); 
+        }, 500);
 
     }, 400); // Delay matches CSS transition time
 }
@@ -11889,7 +12119,7 @@ function searchHistory() {
 
         // Apply display changes
         if (isMatch) {
-            item.style.display = 'block'; 
+            item.style.display = 'block';
         } else {
             item.style.display = 'none';
         }
