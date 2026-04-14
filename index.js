@@ -589,7 +589,7 @@ async function checkAndApplyCustomerRates(paramIdentifier) {
                 if (suggestion) {
                     const { rate: suggestedRate, discountType, discountValue } = suggestion;
 
-                    // 1. Update Rate Visuals & Data
+                    // 1. .Update Rate Visuals & Data
                     cells[4].textContent = parseFloat(suggestedRate).toFixed(2);
                     row.setAttribute('data-rate', parseFloat(suggestedRate).toFixed(8));
 
@@ -7718,54 +7718,76 @@ function updateSerialNumbers() {
 let isRegularFooterVisible = false;
 
 function toggleRegularFooter() {
-    // 1. Toggle the Regular Footer State
-    isRegularFooterVisible = !isRegularFooterVisible;
+    // 1. Determine Next State in Cycle: None -> Regular -> Simple -> None
+    if (typeof isRegularFooterVisible === 'undefined') window.isRegularFooterVisible = false;
+    if (typeof isSimpleQREnabled === 'undefined') window.isSimpleQREnabled = false;
 
-    // 2. MUTUAL EXCLUSION: If turning Regular ON, force Simple QR OFF
-    if (isRegularFooterVisible) {
-        if (typeof isSimpleQREnabled !== 'undefined' && isSimpleQREnabled) {
-            isSimpleQREnabled = false; // Turn off Simple flag
-
-            // Persist the "Simple OFF" state to DB
-            if (typeof setInDB === 'function') {
-                setInDB('settings', 'isSimpleQREnabled', false);
-            }
-
-            // Update Simple Button UI (Make it Gray)
-            if (typeof updateSimpleQRButtonUI === 'function') {
-                updateSimpleQRButtonUI();
-            }
-        }
+    if (!isRegularFooterVisible && !isSimpleQREnabled) {
+        // State 1: Show Regular, Hide Simple
+        isRegularFooterVisible = true;
+        isSimpleQREnabled = false;
+    } else if (isRegularFooterVisible) {
+        // State 2: Show Simple, Hide Regular
+        isRegularFooterVisible = false;
+        isSimpleQREnabled = true;
+    } else if (isSimpleQREnabled) {
+        // State 3: Hide Both
+        isRegularFooterVisible = false;
+        isSimpleQREnabled = false;
     }
 
-    // 3. Apply Visibility to Elements
+    // 2. Persist Simple QR state to DB
+    if (typeof setInDB === 'function') {
+        setInDB('settings', 'isSimpleQREnabled', isSimpleQREnabled);
+    }
+
+    // 3. Update independent Simple QR Button UI (if it exists)
+    // if (typeof updateSimpleQRButtonUI === 'function') {
+    //     updateSimpleQRButtonUI();
+    // }
+
+    // 4. Apply Visibility to Footer Elements
     const regFooter = document.getElementById('regular-bill-footer');
     const simpleFooter = document.getElementById('simple-bill-footer');
-    const btn = document.getElementById('reg-footer-btn');
-
-    // Show/Hide Regular Footer
+    
     if (regFooter) {
         regFooter.style.display = isRegularFooterVisible ? 'table' : 'none';
     }
-
-    // If Regular is Visible, force Simple Footer hidden
-    if (isRegularFooterVisible && simpleFooter) {
-        simpleFooter.style.display = 'none';
+    if (simpleFooter) {
+        simpleFooter.style.display = isSimpleQREnabled ? 'table' : 'none';
     }
 
-    // 4. Update Regular Button UI
+    // 5. Update the Toggle Button UI
+    const btn = document.getElementById('reg-footer-btn');
     if (btn) {
-        btn.style.backgroundColor = isRegularFooterVisible ? 'var(--primary-color)' : '';
-        btn.style.color = isRegularFooterVisible ? 'white' : '';
+        // Keep colored if either footer is active
+        const isActive = isRegularFooterVisible || isSimpleQREnabled;
+        btn.style.backgroundColor = isActive ? 'var(--primary-color)' : '';
+        btn.style.color = isActive ? 'white' : '';
+        
+        // Update label to reflect current state
+        const labelSpan = btn.querySelectorAll('span');
+        if (labelSpan) {
+            if (isRegularFooterVisible) labelSpan.textContent = 'REG FOOTER';
+            else if (isSimpleQREnabled) labelSpan.textContent = 'QR FOOTER';
+            else labelSpan.textContent = 'FOOTER OFF';
+        }
     }
 
-    // 5. Update Data if Showing
+    // 6. Execute Associated Update Functions
     if (isRegularFooterVisible) {
-        updateRegularFooterInfo();
+        if (typeof updateRegularFooterInfo === 'function') updateRegularFooterInfo();
         if (typeof updateTotal === 'function') updateTotal();
     }
 
-    applyColumnVisibility();
+    // Call this to ensure QR codes are generated when Simple mode activates
+    if (typeof applyFooterModes === 'function') {
+        applyFooterModes();
+    }
+
+    if (typeof applyColumnVisibility === 'function') {
+        applyColumnVisibility();
+    }
 }
 
 // ==========================================
@@ -8126,44 +8148,44 @@ function generateBillQRCode() {
 // 1. TOGGLE LOGIC (Mutual Exclusion)
 // ==========================================
 
-async function toggleSimpleQRFooter() {
-    try {
-        // 1. Toggle Simple QR State
-        isSimpleQREnabled = !isSimpleQREnabled;
+// async function toggleSimpleQRFooter() {
+//     try {
+//         // 1. Toggle Simple QR State
+//         isSimpleQREnabled = !isSimpleQREnabled;
 
-        // 2. MUTUAL EXCLUSION: If turning Simple ON, force Regular OFF
-        if (isSimpleQREnabled) {
-            if (typeof isRegularFooterVisible !== 'undefined' && isRegularFooterVisible) {
-                isRegularFooterVisible = false; // Turn off Regular flag
+//         // 2. MUTUAL EXCLUSION: If turning Simple ON, force Regular OFF
+//         if (isSimpleQREnabled) {
+//             if (typeof isRegularFooterVisible !== 'undefined' && isRegularFooterVisible) {
+//                 isRegularFooterVisible = false; // Turn off Regular flag
 
-                // Update Regular Button UI (Make it Gray)
-                const regBtn = document.getElementById('reg-footer-btn');
-                if (regBtn) {
-                    regBtn.style.backgroundColor = '';
-                    regBtn.style.color = '';
-                }
-            }
-        }
+//                 // Update Regular Button UI (Make it Gray)
+//                 const regBtn = document.getElementById('reg-footer-btn');
+//                 if (regBtn) {
+//                     regBtn.style.backgroundColor = '';
+//                     regBtn.style.color = '';
+//                 }
+//             }
+//         }
 
-        // 3. Save "Simple QR" setting to DB
-        if (typeof setInDB === 'function') {
-            await setInDB('settings', 'isSimpleQREnabled', isSimpleQREnabled);
-        }
+//         // 3. Save "Simple QR" setting to DB
+//         if (typeof setInDB === 'function') {
+//             await setInDB('settings', 'isSimpleQREnabled', isSimpleQREnabled);
+//         }
 
-        // 4. Apply Logic
-        applyFooterModes();
+//         // 4. Apply Logic
+//         applyFooterModes();
 
-    } catch (error) {
-        console.error('Error toggling Simple QR:', error);
-    }
-}
+//     } catch (error) {
+//         console.error('Error toggling Simple QR:', error);
+//     }
+// }
 
 function applyFooterModes() {
     const regularFooter = document.getElementById('regular-bill-footer');
     const simpleFooter = document.getElementById('simple-bill-footer');
 
     // Update Simple Button UI
-    updateSimpleQRButtonUI();
+    // updateSimpleQRButtonUI();
 
     if (isSimpleQREnabled) {
         // === MODE: Simple QR ON ===
@@ -8186,23 +8208,23 @@ function applyFooterModes() {
     }
 }
 
-function updateSimpleQRButtonUI() {
-    const btn = document.getElementById('btn-simple-qr');
-    if (!btn) return;
+// function updateSimpleQRButtonUI() {
+//     const btn = document.getElementById('btn-simple-qr');
+//     if (!btn) return;
 
-    const label = btn.querySelector('.sidebar-label');
-    const icon = btn.querySelector('.material-icons');
+//     const label = btn.querySelector('.sidebar-label');
+//     const icon = btn.querySelector('.material-icons');
 
-    if (isSimpleQREnabled) {
-        if (label) label.textContent = 'Simple QR : ON';
-        if (icon) icon.style.color = '#2ecc71';
-        btn.style.backgroundColor = '#e8f5e9';
-    } else {
-        if (label) label.textContent = 'Simple QR : OFF';
-        if (icon) icon.style.color = '';
-        btn.style.backgroundColor = '';
-    }
-}
+//     if (isSimpleQREnabled) {
+//         if (label) label.textContent = 'Simple QR : ON';
+//         if (icon) icon.style.color = '#2ecc71';
+//         btn.style.backgroundColor = '#e8f5e9';
+//     } else {
+//         if (label) label.textContent = 'Simple QR : OFF';
+//         if (icon) icon.style.color = '';
+//         btn.style.backgroundColor = '';
+//     }
+// }
 
 // ==========================================
 // 3. UPDATED FOOTER INFO
@@ -9454,7 +9476,7 @@ async function saveToHistory() {
         };
 
         history.unshift(historyData);
-        if (history.length > 50) history = history.slice(0, 50);
+        if (history.length > 500) history = history.slice(0, 500);
 
         await setInDB(historyStorageKey, 'history', history);
 
@@ -11835,14 +11857,39 @@ async function clearAllHistory() {
 
 function searchHistory() {
     const searchTerm = document.getElementById('history-search').value.toLowerCase();
+    const searchBy = document.getElementById('history-search-by').value;
     const historyItems = document.querySelectorAll('.history-item');
 
     historyItems.forEach(item => {
-        const title = item.querySelector('.history-item-title').textContent.toLowerCase();
-        const date = item.querySelector('.history-item-date').textContent.toLowerCase();
+        // Safely get elements
+        const mainEl = item.querySelector('.history-row-main');
+        const dateEl = item.querySelector('.history-row-date');
+        const typeEl = item.querySelector('.history-row-type');
+        const totalEl = item.querySelector('.history-row-total');
 
-        if (title.includes(searchTerm) || date.includes(searchTerm)) {
-            item.style.display = 'block';
+        const title = mainEl ? mainEl.textContent.toLowerCase() : '';
+        const date = dateEl ? dateEl.textContent.toLowerCase() : '';
+        const type = typeEl ? typeEl.textContent.toLowerCase() : '';
+        const total = totalEl ? totalEl.textContent.toLowerCase() : '';
+
+        let isMatch = false;
+
+        // Route the search logic based on the dropdown selection
+        if (searchBy === 'all') {
+            isMatch = title.includes(searchTerm) || date.includes(searchTerm) || type.includes(searchTerm) || total.includes(searchTerm);
+        } else if (searchBy === 'name') {
+            isMatch = title.includes(searchTerm);
+        } else if (searchBy === 'type') {
+            isMatch = type.includes(searchTerm);
+        } else if (searchBy === 'date') {
+            isMatch = date.includes(searchTerm);
+        } else if (searchBy === 'amount') {
+            isMatch = total.includes(searchTerm);
+        }
+
+        // Apply display changes
+        if (isMatch) {
+            item.style.display = 'block'; 
         } else {
             item.style.display = 'none';
         }
