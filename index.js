@@ -1860,6 +1860,12 @@ function calculateDimensions() {
     const dim2Toggle = document.getElementById('dimension2-toggle');
     const dim3Toggle = document.getElementById('dimension3-toggle');
 
+    // --- FIX: Force sync the internal state unit with the visible dropdown value ---
+    const unitSelect = document.getElementById('measurementUnit');
+    if (unitSelect && unitSelect.value) {
+        currentDimensions.unit = unitSelect.value;
+    }
+
     // Convert input values to numbers and update currentDimensions
     // BUT DON'T FORMAT THEM HERE - keep raw input for typing
     if (dim1.value) currentDimensions.values[0] = parseFloat(dim1.value) || 0;
